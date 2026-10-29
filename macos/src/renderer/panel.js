@@ -61,11 +61,10 @@ function render(m) {
   size();
 }
 
+/** Measured right away, not in an animation frame: a hidden window gets no frames, so it would never show again. */
 function size() {
-  requestAnimationFrame(() => {
-    const r = root.getBoundingClientRect();
-    dd.send('panel:size', Math.ceil(r.width) + 2, Math.ceil(r.height) + 2, root.className !== 'hidden');
-  });
+  const r = root.getBoundingClientRect();
+  dd.send('panel:size', Math.ceil(r.width) + 2, Math.ceil(r.height) + 2, root.className !== 'hidden');
 }
 
 root.addEventListener('mouseenter', () => dd.send('panel:action', 'touch'));
