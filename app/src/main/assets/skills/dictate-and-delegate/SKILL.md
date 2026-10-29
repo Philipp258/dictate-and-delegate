@@ -55,7 +55,7 @@ The call start and end messages need no reply.
 
 The call start may name a talker: `[hands-free call started] [talker: <thread id>]`. The talker is a second, fast agent thread that gets every hands-free message too, with the same request ID, and does the talking: it answers {{NAME}} by voice right away and keeps the conversation going. Two voices would talk over each other, so from the call start until `[hands-free call ended]` you post nothing to ntfy: no spoken replies and no notifications. Everything above about spoken replies is the talker's job. Its replies are the ones `[didn't hear your reply: "…"]` and `[heard up to: "…"]` refer to.
 
-Your part is the work. Do what each message asks, and when you have a result, something {{NAME}} needs to decide, or a question for them, send it to the talker, which tells {{NAME}} in its own words. One message per result, starting with `[chief]`:
+Your part is the work. Do what each message asks, and when you have a result, something {{NAME}} needs to decide, or a question for them, send it to the talker, which tells {{NAME}} the answer itself, briefly, without "the chief says". So write it as the answer, the most important first. One message per result, starting with `[chief]`:
 
 ```sh
 bb thread tell <talker thread id> --mode queue --message-file - <<'TEXT'

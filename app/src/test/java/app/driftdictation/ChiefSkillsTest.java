@@ -95,6 +95,8 @@ public class ChiefSkillsTest {
     String r = router("Alex", "t", "");
     assertTrue(r.contains("from the call start until `[hands-free call ended]` you post nothing to ntfy: no spoken replies and no notifications"));
     assertTrue(r.contains("bb thread tell <talker thread id> --mode queue --message-file -"));
+    assertTrue(r, r.contains("which tells Alex the answer itself, briefly, without \"the chief says\""));
+    assertFalse(r.contains("in its own words"));
     assertTrue(r.contains("[chief] <what Alex needs to know or decide"));
     assertTrue(r.contains("A reply never plays while it's Alex's turn"));
     assertFalse("the old pause rule is gone", r.contains("plays at their next pause, even if they haven't sent"));

@@ -86,6 +86,8 @@ test('theChiefSkillStatesTheTalkerContractAndTheTurnRule', () => {
   const r = router('Alex', 't', '');
   assert.ok(r.includes('from the call start until `[hands-free call ended]` you post nothing to ntfy: no spoken replies and no notifications'));
   assert.ok(r.includes('bb thread tell <talker thread id> --mode queue --message-file -'));
+  assert.ok(r.includes('which tells Alex the answer itself, briefly, without "the chief says"'), r);
+  assert.ok(!r.includes('in its own words'));
   assert.ok(r.includes('[chief] <what Alex needs to know or decide'));
   assert.ok(r.includes("A reply never plays while it's Alex's turn"));
   assert.ok(!r.includes("plays at their next pause, even if they haven't sent"), 'the old pause rule is gone');
