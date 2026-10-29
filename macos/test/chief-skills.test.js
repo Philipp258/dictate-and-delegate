@@ -43,13 +43,18 @@ test('theTalkerSkillIsFilledInWithTheAppsNtfyAndNothingPersonal', () => {
   assert.ok(t.includes('Tags: talkrouter-speak,req-<id>'));
   assert.ok(t.includes('use `Tags: talkrouter-speak` without `req-`'));
   // The rules it carries.
-  assert.ok(t.includes('you never pass anything on, and you never say you will'));
+  assert.ok(t.includes('you never pass anything on and never say you will'));
   assert.ok(t.includes('use no tools except speaking'));
   assert.ok(t.includes('A briefing, background the chief sends you'));
   assert.ok(t.includes('Answer their new message first.'));
   assert.ok(t.includes('`[didn\'t hear your reply: "…"]`'));
   assert.ok(t.includes('`[heard up to: "…"]`'));
-  assert.ok(t.includes('Never invent them'));
+  assert.ok(t.includes('Never invent it.'));
+  assert.ok(t.includes('say only a very short holding phrase: "Checking." / "One moment." / "On it."'));
+  assert.ok(t.includes("don't explain what will be checked, don't guess, don't add advice or warnings of your own"));
+  assert.ok(t.includes('Everything else, including general knowledge'));
+  assert.ok(t.includes('as the answer itself (no "the chief says")'));
+  assert.ok(t.includes("Use it only if Alex asks what's going on."));
   assert.ok(t.includes('[you are the talker]'));
   // Open source: no thread IDs, no topic, no person of its own.
   const tmpl = template(ChiefSkills.TALKER);

@@ -51,13 +51,18 @@ public class ChiefSkillsTest {
     assertTrue(t.contains("Tags: talkrouter-speak,req-<id>"));
     assertTrue(t.contains("use `Tags: talkrouter-speak` without `req-`"));
     // The rules it carries.
-    assertTrue(t.contains("you never pass anything on, and you never say you will"));
+    assertTrue(t.contains("you never pass anything on and never say you will"));
     assertTrue(t.contains("use no tools except speaking"));
     assertTrue(t.contains("A briefing, background the chief sends you"));
     assertTrue(t.contains("Answer their new message first."));
     assertTrue(t.contains("`[didn't hear your reply: \"…\"]`"));
     assertTrue(t.contains("`[heard up to: \"…\"]`"));
-    assertTrue(t.contains("Never invent them"));
+    assertTrue(t.contains("Never invent it."));
+    assertTrue(t.contains("say only a very short holding phrase: \"Checking.\" / \"One moment.\" / \"On it.\""));
+    assertTrue(t.contains("don't explain what will be checked, don't guess, don't add advice or warnings of your own"));
+    assertTrue(t.contains("Everything else, including general knowledge"));
+    assertTrue(t.contains("as the answer itself (no \"the chief says\")"));
+    assertTrue(t.contains("Use it only if Alex asks what's going on."));
     assertTrue(t.contains("[you are the talker]"));
     // Open source: no thread IDs, no topic, no person of its own.
     String template = template(ChiefSkills.TALKER);
