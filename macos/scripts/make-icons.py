@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Draws the app icon (the Android launcher's wave on its green) as a macOS .icns, and the
-menu-bar template images (black wave, alpha only). Usage: make-icons.py <out dir>"""
+"""Draws the app icon (the Android launcher's wave on its green) as a macOS .icns and a PNG.
+Usage: make-icons.py <out dir>"""
 import io, struct, sys
 from PIL import Image, ImageDraw
 
@@ -41,14 +41,6 @@ def app_icon(size):
     wave(d, scale, dx, dy, 6.5*scale, (255, 255, 255, 255))
     return img.resize((size, size), Image.LANCZOS)
 
-def tray(size):
-    big = size * 8
-    img = Image.new('RGBA', (big, big), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    scale = big * 0.9 / 49
-    wave(d, scale, big/2 - 54.5*scale, big/2 - 54*scale, 7.5*scale, (0, 0, 0, 255))
-    return img.resize((size, size), Image.LANCZOS)
-
 def png(img):
     b = io.BytesIO()
     img.save(b, 'PNG')
@@ -65,5 +57,3 @@ def icns(path):
 out = sys.argv[1]
 icns(f'{out}/icon.icns')
 app_icon(512).save(f'{out}/icon.png')
-tray(16).save(f'{out}/trayTemplate.png')
-tray(32).save(f'{out}/trayTemplate@2x.png')

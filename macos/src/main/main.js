@@ -1,5 +1,5 @@
 'use strict';
-// Dictate & Delegate for macOS: a menu-bar app. A global shortcut starts and stops a dictation
+// Dictate & Delegate for macOS: a Dock app. A global shortcut starts and stops a dictation
 // (like the Android volume key), a floating panel offers Insert / Refine / Chief, a second
 // shortcut (or 📞) starts a hands-free call with the chief, and the chief's ntfy messages show
 // as notifications. The logic is the Android app's, ported to src/core; this file wires it to
@@ -10,7 +10,6 @@ const path = require('path');
 const {
   app,
   BrowserWindow,
-  Tray,
   Menu,
   globalShortcut,
   ipcMain,
@@ -18,7 +17,6 @@ const {
   shell,
   clipboard,
   dialog,
-  nativeImage,
   systemPreferences,
 } = require('electron');
 
@@ -58,7 +56,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 function start() {
-  let ctx, audio, dictation, tray, panel, mainWindow, notifier, call;
+  let ctx, audio, dictation, panel, mainWindow, notifier, call;
   let pendingUrls = [];
   const callListeners = new Set();
 
@@ -70,7 +68,7 @@ function start() {
   app.on('second-instance', () => openMain());
   app.on('activate', () => ctx && openMain());
   app.on('window-all-closed', () => {
-    /* A menu-bar app keeps running without windows. */
+    /* The app keeps running without windows: the shortcut and the panel work on their own. */
   });
   app.on('will-quit', () => globalShortcut.unregisterAll());
   let readyToQuit = false;
@@ -99,13 +97,11 @@ function start() {
   }));
 
   async function ready() {
-    if (app.dock) app.dock.hide();
     ctx = await createContext({ log: (line) => process.env.DD_TRACE && fs.appendFileSync(process.env.DD_TRACE, line + '\n') });
     ctx.log(`app: Dictate & Delegate ${app.getVersion()} started (Electron ${process.versions.electron}, macOS ${process.getSystemVersion ? process.getSystemVersion() : ''})`);
     audio = new AudioBridge({ log: ctx.log });
     dictation = createDictation();
     panel = createPanel();
-    tray = createTray();
     notifier = new Notifier(ctx, {
       openUrl: (url) => openExternal(url),
       insert: (text) => insertFromNotification(text),
@@ -117,7 +113,6 @@ function start() {
       let wasActive = false;
       call.onChange((snap) => {
         for (const fn of callListeners) fn(snap);
-        updateTray();
         if (!!snap.active !== wasActive) {
           wasActive = !!snap.active;
           registerHotkeys(); // The headset's play/pause key sends only during a call.
@@ -136,7 +131,6 @@ function start() {
     ctx.on('settings', (key) => {
       if (key === HOTKEY || key === CALL_HOTKEY) registerHotkeys();
       if (['ntfyServer', 'bbMode', 'bbHandle', 'bbUrl', 'chiefId', 'macNotifications'].includes(key)) notifier.refresh();
-      updateTray();
     });
     ctx.on('skills', () => notifier.refresh());
     notifier.refresh();
@@ -229,7 +223,6 @@ function start() {
     });
     d.on('change', (snap) => {
       showPanel(panelModel(snap));
-      updateTray();
     });
     d.on('notice', (text) => ctx.log(`dictation: ${text}`));
     d.on('notes', (id) => ctx.emit('notes', id));
@@ -438,67 +431,6 @@ function start() {
     return { ok: true };
   }
 
-  // ---------------------------------------------------------------- the menu bar
-
-  function trayIcon() {
-    for (const dir of [RENDERER, path.join(__dirname, '..', '..', 'build')]) {
-      const f = path.join(dir, 'trayTemplate.png');
-      if (fs.existsSync(f)) {
-        const img = nativeImage.createFromPath(f);
-        img.setTemplateImage(true);
-        return img;
-      }
-    }
-    return nativeImage.createEmpty();
-  }
-
-  function createTray() {
-    const t = new Tray(trayIcon());
-    t.setToolTip('Dictate & Delegate');
-    t.on('click', () => t.popUpContextMenu(trayMenu()));
-    t.on('right-click', () => t.popUpContextMenu(trayMenu()));
-    return t;
-  }
-
-  function accelLabel(a) {
-    return a ? a.replace(/Alt\+?/g, '⌥').replace(/Shift\+?/g, '⇧').replace(/(Command|Cmd|CommandOrControl)\+?/g, '⌘').replace(/(Control|Ctrl)\+?/g, '⌃') : '';
-  }
-
-  function trayMenu() {
-    const recording = dictation.busy();
-    const inCall = call && call.active();
-    return Menu.buildFromTemplate([
-      {
-        label: recording ? 'Stop dictating' : 'Start dictating',
-        accelerator: undefined,
-        sublabel: accelLabel(ctx.prefs.get(HOTKEY, DEFAULT_HOTKEY)),
-        click: () => toggleDictation(),
-        enabled: !inCall,
-      },
-      inCall
-        ? { label: 'End hands-free call', click: () => call.end() }
-        : { label: 'Hands-free with your chief', sublabel: accelLabel(ctx.prefs.get(CALL_HOTKEY, DEFAULT_CALL_HOTKEY)), click: () => startCall(), enabled: !!call },
-      ...(inCall ? [{ label: 'Send now', click: () => call.sendNow() }] : []),
-      { type: 'separator' },
-      { label: 'Open Dictate & Delegate', click: () => openMain('home') },
-      { label: 'Notes', click: () => openMain('notes') },
-      { label: 'Settings…', click: () => openMain('settings') },
-      { type: 'separator' },
-      { label: 'Quit Dictate & Delegate', click: () => app.quit() },
-    ]);
-  }
-
-  function updateTray() {
-    if (!tray || tray.isDestroyed()) return;
-    const snap = dictation.snapshot();
-    let title = '';
-    if (snap.state === 'recording') title = '● ' + require('../core/dictation').elapsed(snap.elapsedMs || 0);
-    else if (snap.busy) title = '…';
-    else if (call && call.active()) title = '📞 ' + (call.shortState ? call.shortState() : '');
-    tray.setTitle(title, { fontType: 'monospacedDigit' });
-  }
-  setInterval(() => updateTray(), 1000);
-
   // ---------------------------------------------------------------- the main window
 
   function openMain(page = 'home') {
@@ -524,8 +456,6 @@ function start() {
       mainWindow.show();
       app.focus({ steal: true });
     });
-    // While its window is open the app is in the Dock and in ⌘Tab like any other app.
-    if (app.dock) app.dock.show();
     // Links open in the browser, never inside the app.
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
       openExternal(url);
@@ -540,7 +470,6 @@ function start() {
     });
     mainWindow.on('closed', () => {
       mainWindow = null;
-      if (app.dock) app.dock.hide();
       registerHotkeys(); // In case the shortcut recorder was still listening.
     });
     mainWindow.webContents.on('did-start-navigation', (e) => e.isMainFrame && !e.isSameDocument && registerHotkeys());

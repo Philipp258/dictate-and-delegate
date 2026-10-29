@@ -1,6 +1,6 @@
 # Dictate & Delegate for macOS
 
-The Android app's features on the Mac: a menu-bar app with a global shortcut to dictate into any
+The Android app's features on the Mac: a Dock app with a global shortcut to dictate into any
 app, Refine, hand-off to your chief of staff in bb, hands-free calls with the chief, and the
 chief's notifications and text to paste. It uses the same providers, settings, bb skills and ntfy
 topic as the phone, with your own keys and no server of its own.
@@ -40,7 +40,7 @@ certificate, so macOS keeps the microphone and Accessibility permissions and the
 - **⌃⌥⇧Space** starts or ends a **hands-free call** (or 📞 on the panel while dictating; pressed
   while dictating, the call takes the dictation over). The call bar shows the state, Send now and
   the red hang-up; during a call ⌃⇧Space and the headset's play/pause button send.
-- The menu-bar icon has everything else: notes, settings, and the call.
+- The Dock icon opens the window with everything else: notes, settings, and the call.
 
 ## Differences from Android
 
@@ -85,6 +85,6 @@ certificate, so macOS treats each build as the same app), and writes zips (and d
 Docker container with libdmg-hfsplus) to `dist/`. The certificate is never committed.
 
 How it's put together: `src/core/` is the Android app's logic ported to Node, file by file
-(`CONVENTIONS.md`); `src/main/` is the Electron main process (menu bar, shortcuts, windows,
+(`CONVENTIONS.md`); `src/main/` is the Electron main process (shortcuts, windows,
 Keychain, insert through koffi FFI); `src/renderer/` the windows, including a hidden audio window
 for the microphone and replies.

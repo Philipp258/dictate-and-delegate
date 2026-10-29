@@ -7,7 +7,7 @@ protocols stay the same unless the Mac needs otherwise (say so in a comment).
 ## Layout
 - `src/core/` — pure Node (CommonJS, `'use strict'`), **no Electron imports**, so `node --test` runs
   it on Linux. One file per Java class, kebab-case (`HandsFreeSession.java` → `handsfree-session.js`).
-- `src/main/` — Electron main process (tray, hotkey, windows, insert, Keychain, wiring).
+- `src/main/` — Electron main process (hotkey, windows, insert, Keychain, wiring).
 - `src/renderer/` — windows (panel, call bar, settings, the hidden audio window).
 - `test/` — `node:test` + `node:assert/strict`, one `*.test.js` per Java test class, ported test by
   test with the same names (camelCase test names kept as the `test()` title). Run `npm test` in `macos/`.

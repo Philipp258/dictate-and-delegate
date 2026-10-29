@@ -47,8 +47,7 @@ function stage() {
   fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify(rest, null, 2));
   copy(path.join(ROOT, 'src'), path.join(dir, 'src'));
   copy(path.join(ROOT, '..', 'app', 'src', 'main', 'assets'), path.join(dir, 'assets'));
-  for (const f of ['trayTemplate.png', 'trayTemplate@2x.png', 'icon.png'])
-    fs.copyFileSync(path.join(ROOT, 'build', f), path.join(dir, 'src', 'renderer', f));
+  fs.copyFileSync(path.join(ROOT, 'build', 'icon.png'), path.join(dir, 'src', 'renderer', 'icon.png'));
   // ws is plain JS; koffi only needs its loader and the two macOS builds.
   copy(path.join(ROOT, 'node_modules', 'ws'), path.join(dir, 'node_modules', 'ws'));
   const koffi = path.join(ROOT, 'node_modules', 'koffi');
@@ -85,7 +84,6 @@ async function wrap(dir, arch) {
     darwinDarkModeSupport: true,
     protocols: [{ name: 'Dictate & Delegate sign-in', schemes: ['talkrouter'] }],
     extendInfo: {
-      LSUIElement: true,
       LSMinimumSystemVersion: '12.0',
       NSMicrophoneUsageDescription:
         'Dictate & Delegate records your voice while you dictate or are in a hands-free call, and sends it to the speech model you chose.',
