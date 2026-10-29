@@ -38,6 +38,7 @@ function copy(from, to, filter = () => true) {
 
 /** The app as it goes into Resources/app.asar: code, assets, production modules only. */
 function stage() {
+  fs.mkdirSync(path.join(ROOT, 'build'), { recursive: true });
   run('python3', [path.join(__dirname, 'make-icons.py'), path.join(ROOT, 'build')]);
   const dir = path.join(ROOT, 'build', 'stage');
   fs.rmSync(dir, { recursive: true, force: true });
