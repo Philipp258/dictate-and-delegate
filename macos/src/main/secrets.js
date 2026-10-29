@@ -1,9 +1,11 @@
 'use strict';
 // The vault on the Mac: API keys, bb tokens and the ntfy topic, encrypted with Electron's
-// safeStorage, whose key lives in the macOS Keychain ("Dictate & Delegate Safe Storage"). Because
-// every build is signed with the same certificate, macOS lets each new version read that
-// Keychain item without asking again. The encrypted values sit in vault.json in the app's data
-// folder; nothing is stored in plain text on the Mac.
+// safeStorage, whose key lives in the macOS Keychain ("Dictate & Delegate Safe Storage"). The app
+// has no Apple Team ID, so macOS ties that Keychain item to the exact build: after an update it
+// asks once whether the new version may read it (Always Allow). That's why the vault uses
+// safeStorage's synchronous calls: the asynchronous ones fail instead of letting macOS ask. The
+// encrypted values sit in vault.json in the app's data folder; nothing is stored in plain text on
+// the Mac.
 //
 // The core reads secrets synchronously (as Android's Vault does), so load() decrypts everything
 // once at start; set() updates memory at once and writes the encrypted file right after.
@@ -29,7 +31,7 @@ class KeychainVault {
   /** Decrypts what's saved. Off the Mac (development on Linux) without a keyring, values stay in memory. */
   async load() {
     try {
-      this.available = await safeStorage.isAsyncEncryptionAvailable();
+      this.available = safeStorage.isEncryptionAvailable();
     } catch {
       this.available = false;
     }
@@ -39,9 +41,7 @@ class KeychainVault {
     }
     for (const [name, sealed] of Object.entries(this.sealed)) {
       try {
-        const { result, shouldReEncrypt } = await safeStorage.decryptStringAsync(Buffer.from(sealed, 'base64'));
-        this.values.set(name, result);
-        if (shouldReEncrypt) this.persist(name, result);
+        this.values.set(name, safeStorage.decryptString(Buffer.from(sealed, 'base64')));
       } catch (e) {
         this.log(`vault: ${name} could not be decrypted (${e.message})`);
       }
@@ -61,9 +61,9 @@ class KeychainVault {
 
   persist(name, value) {
     this.writes = this.writes
-      .then(async () => {
+      .then(() => {
         if (this.values.get(name) !== value) return; // Changed or removed meanwhile.
-        this.sealed[name] = (await safeStorage.encryptStringAsync(value)).toString('base64');
+        this.sealed[name] = safeStorage.encryptString(value).toString('base64');
         this.save();
       })
       .catch((e) => {
