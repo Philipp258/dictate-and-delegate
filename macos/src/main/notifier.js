@@ -12,7 +12,8 @@ const PREF = 'macNotifications';
 
 class Notifier {
   /**
-   * ctx: the app context; handlers: { openUrl(url), insert(text), copy(text), pasteArrived(request, text) }.
+   * ctx: the app context; handlers: { openUrl(url), insert(text), copy(text), pasteArrived(request, text),
+   * clicked() }. clicked runs first on every click on a notification (macOS activates the app then).
    * pasteArrived lets an open dictation panel offer Insert from chief itself; it returns true when it did.
    */
   constructor(ctx, handlers) {
@@ -73,7 +74,8 @@ class Notifier {
           { type: 'button', text: 'Copy' },
         ],
         onAction: (i) => (i === 0 ? this.handlers.insert(text) : this.handlers.copy(text)),
-        onClick: () => this.handlers.copy(text),
+        // A click on the notification inserts too: banners show their buttons only on hover.
+        onClick: () => this.handlers.insert(text),
       });
       return;
     }
@@ -89,12 +91,15 @@ class Notifier {
     const n = new Notification({ title, body: body.length > 600 ? body.slice(0, 600) + '…' : body, actions, silent: false });
     this.shown.add(n);
     const forget = () => this.shown.delete(n);
+    const clicked = () => this.handlers.clicked && this.handlers.clicked();
     n.on('click', () => {
       forget();
+      clicked();
       onClick && onClick();
     });
     n.on('action', (_e, index) => {
       forget();
+      clicked();
       onAction && onAction(index);
     });
     n.on('close', forget);

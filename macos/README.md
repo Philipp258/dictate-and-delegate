@@ -61,7 +61,9 @@ saved keys stay.
   checks that it landed and pastes when it didn't. "Insert refined" replaces the transcript in
   place when Accessibility can find it unchanged before the cursor, else inserts at the cursor.
 - **Notifications**: the Mac has no ntfy app, so Dictate & Delegate shows the chief's ntfy messages
-  itself (Settings → bb → Notifications); text to paste comes with Insert and Copy.
+  itself (Settings → bb → Notifications). A click on text to paste (or its Insert) puts it into
+  the field you're typing in, like a dictation; Copy copies it. Clicking a notification or the
+  floating panel never opens the window.
 - **The ntfy topic** is shared with the phone: "Take the topic and name from bb" (and a new Mac's
   first connection) reads them from the skills the phone installed, so both apps fill the skills
   the same way and don't reinstall them over each other.

@@ -28,6 +28,9 @@ const { Dictation, FilePendingAudio } = require('../core/dictation');
 const { panelModel } = require('../core/panel-model');
 const chiefText = require('../core/chief-text');
 const openrouter = require('../core/openrouter');
+const { ActivationGate, giveFocusBack } = require('../core/activation');
+const { sleep } = require('../core/util');
+const nativeMac = require('./macos-native');
 
 const RENDERER = path.join(__dirname, '..', 'renderer');
 const PRELOAD = path.join(RENDERER, 'preload.js');
@@ -66,7 +69,16 @@ function start() {
     else pendingUrls.push(url);
   });
   app.on('second-instance', () => openMain());
-  app.on('activate', () => ctx && openMain());
+  // A Dock click opens the window. A click on the panel or a notification activates the app too;
+  // then it stays closed (decided a moment later, when the click's own handler has run).
+  const activation = new ActivationGate();
+  app.on('activate', () => {
+    if (!ctx) return;
+    setTimeout(() => {
+      if (activation.opensWindow()) openMain();
+      else ctx.log('app: activated by a click on the panel or a notification; the window stays closed');
+    }, 250);
+  });
   app.on('window-all-closed', () => {
     /* The app keeps running without windows: the shortcut and the panel work on their own. */
   });
@@ -107,6 +119,7 @@ function start() {
       insert: (text) => insertFromNotification(text),
       copy: (text) => clipboard.writeText(text),
       pasteArrived: () => false,
+      clicked: () => activation.quiet(),
     });
     try {
       call = require('./call').createCall({ ctx, audio, shell: callShell() });
@@ -138,7 +151,7 @@ function start() {
     if (ctx.bb.connected()) ctx.skills.sync(false);
     for (const url of pendingUrls.splice(0)) handleUrl(url);
     if (process.env.DD_E2E) {
-      global.__dd = { ctx, audio, dictation: () => dictation, panel: () => panel, call: () => call, openMain, panelAction, startCall, toggleDictation, notifier: () => notifier };
+      global.__dd = { ctx, audio, dictation: () => dictation, panel: () => panel, call: () => call, openMain, panelAction, startCall, toggleDictation, notifier: () => notifier, mainWindow: () => mainWindow, activation };
       const done = (code, message) => {
         const line = message + '\n';
         if (process.env.DD_TRACE) fs.appendFileSync(process.env.DD_TRACE, line);
@@ -196,11 +209,13 @@ function start() {
       },
       openLink: (url) => openExternal(url),
       insert: async (text) => {
+        await focusBack();
         const r = await insertion.insert(text, { method: ctx.prefs.get(INSERT_METHOD, 'paste'), log: ctx.log });
         if (r.how === 'copied') return { how: 'copied', reason: r.why === 'no-field' ? undefined : 'permission' };
         return { how: r.how, clipboard: false };
       },
       replaceInPlace: async (oldText, newText) => {
+        await focusBack();
         const r = await insertion.replace(oldText, newText, { method: ctx.prefs.get(INSERT_METHOD, 'paste'), log: ctx.log });
         return r ? { how: r.how, clipboard: false } : null;
       },
@@ -303,7 +318,11 @@ function start() {
     });
     const mine = (e) => e.sender === win.webContents;
     ipcMain.on('panel:ready', (e) => mine(e) && showPanel(panelModel(dictation.snapshot())));
-    ipcMain.on('panel:action', (e, id) => mine(e) && panelAction(id));
+    ipcMain.on('panel:action', (e, id) => {
+      if (!mine(e)) return;
+      activation.quiet(); // A click on the panel activates the app: no window for that.
+      panelAction(id);
+    });
     ipcMain.on('panel:size', (e, w, h, visible) => {
       if (!mine(e)) return;
       if (!visible) return win.isVisible() && win.hide();
@@ -482,10 +501,20 @@ function start() {
 
   /** Insert from a notification: give the focus back to the app before, then paste. */
   async function insertFromNotification(text) {
-    app.hide();
-    await new Promise((r) => setTimeout(r, 350));
+    activation.quiet();
+    await sleep(150); // macOS activates the app for the click: let that happen first.
+    await focusBack();
     const r = await insertion.insert(text, { method: ctx.prefs.get(INSERT_METHOD, 'paste'), log: ctx.log });
-    if (r.how === 'copied') ctx.log('notification: text copied instead of inserted');
+    if (r.how === 'copied') ctx.log(`notification: text copied instead of inserted (${r.why})`);
+  }
+
+  /**
+   * A click on the panel or a notification made this app the active one: the focus goes back to
+   * the app you were typing in before Insert presses ⌘V, so the text lands in your field.
+   */
+  async function focusBack() {
+    const how = await giveFocusBack({ mac: nativeMac.load(), hide: () => app.hide(), sleep });
+    if (how === 'deactivated' || how === 'hidden') ctx.log(`insert: gave the focus back to your app first (${how})`);
   }
 
   // ---------------------------------------------------------------- bb sign-in

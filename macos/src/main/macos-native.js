@@ -71,6 +71,7 @@ function bind(koffi) {
     idPtrULong: OBJC.func('void *objc_msgSend(void *self, void *sel, void *bytes, unsigned long n)'),
     idStr: OBJC.func('void *objc_msgSend(void *self, void *sel, const char *s)'),
     long: OBJC.func('long objc_msgSend(void *self, void *sel)'),
+    bool: OBJC.func('bool objc_msgSend(void *self, void *sel)'),
     str: OBJC.func('const char *objc_msgSend(void *self, void *sel)'),
     boolId: OBJC.func('bool objc_msgSend(void *self, void *sel, void *a)'),
     boolIdId: OBJC.func('bool objc_msgSend(void *self, void *sel, void *a, void *b)'),
@@ -197,6 +198,26 @@ function bind(koffi) {
     modifiersHeld() {
       // Shift, Control, Option, Command (not Caps Lock).
       return Number(BigInt(cg.flagsState(1 /* HIDSystemState */)) & 0x001e0000n);
+    },
+
+    /** Is this app the active one? A click on the floating panel or on a notification makes it so. */
+    appActive() {
+      const pool = objc.poolPush();
+      try {
+        return objc.bool(objc.id(objc.getClass('NSApplication'), S('sharedApplication')), S('isActive'));
+      } finally {
+        objc.poolPop(pool);
+      }
+    },
+
+    /** Gives the focus back to the app that was in front before, without hiding the panel. */
+    deactivate() {
+      const pool = objc.poolPush();
+      try {
+        objc.void(objc.id(objc.getClass('NSApplication'), S('sharedApplication')), S('deactivate'));
+      } finally {
+        objc.poolPop(pool);
+      }
     },
 
     /** ⌘V to the frontmost app, from a private source so held keys don't mix in. */
