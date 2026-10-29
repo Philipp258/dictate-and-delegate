@@ -524,6 +524,8 @@ function start() {
       mainWindow.show();
       app.focus({ steal: true });
     });
+    // While its window is open the app is in the Dock and in ⌘Tab like any other app.
+    if (app.dock) app.dock.show();
     // Links open in the browser, never inside the app.
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
       openExternal(url);
@@ -538,6 +540,7 @@ function start() {
     });
     mainWindow.on('closed', () => {
       mainWindow = null;
+      if (app.dock) app.dock.hide();
       registerHotkeys(); // In case the shortcut recorder was still listening.
     });
     mainWindow.webContents.on('did-start-navigation', (e) => e.isMainFrame && !e.isSameDocument && registerHotkeys());
