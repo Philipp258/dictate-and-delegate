@@ -4,6 +4,7 @@
 // that, and nothing when it's missing.
 
 const { tr, sleep } = require('./util');
+const netLog = require('./net-log');
 const decimal = require('./decimal');
 
 /** The vault entry that holds the key. */
@@ -77,20 +78,27 @@ function wrap(message, cause) {
  * One request. Java has a connect and a read timeout; fetch has one for the whole call, so the
  * longer (read) one is used.
  */
-async function send(fetchImpl, method, url, body, key, timeoutMs) {
+async function send(fetchImpl, method, url, body, key, timeoutMs, retry = 0) {
   const headers = { 'X-Title': 'Dictate & Delegate' }; // OpenRouter's app attribution
   if (key) headers.Authorization = 'Bearer ' + key;
   if (body) headers['Content-Type'] = 'application/json';
   let res, text;
   try {
-    res = await fetchImpl(url, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-      redirect: 'manual',
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    text = await res.text();
+    res = await netLog.request(what(url, body), method, url, async (net) => {
+      const payload = body ? JSON.stringify(body) : undefined;
+      if (payload) net.sent(Buffer.byteLength(payload, 'utf8'));
+      const r = await fetchImpl(url, {
+        method,
+        headers,
+        body: payload,
+        redirect: 'manual',
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      net.status(r.status);
+      text = await r.text();
+      net.received(Buffer.byteLength(text, 'utf8'));
+      return r;
+    }, { retry });
   } catch (ex) {
     if (ex && (ex.name === 'TimeoutError' || ex.name === 'AbortError'))
       throw wrap(tr('The model took too long. The recording is kept; try again.'), ex);
@@ -112,6 +120,18 @@ async function send(fetchImpl, method, url, body, key, timeoutMs) {
   const e = new Error(error(status, message));
   e.status = status;
   throw e;
+}
+
+/** What a request is for, in the network log: "OpenRouter transcribe <model>", "Jev <model>"… */
+function what(url, body) {
+  const model = body && typeof body.model === 'string' ? ' ' + body.model : '';
+  const path = String(url);
+  if (path.endsWith('/audio/transcriptions')) return 'OpenRouter transcribe' + model;
+  if (path.endsWith('/chat/completions')) return 'OpenRouter chat' + model;
+  if (path.includes('/decisions')) return 'Jev' + model;
+  if (path.endsWith('/key')) return 'OpenRouter key check';
+  if (path.endsWith('/models')) return 'OpenRouter models';
+  return 'OpenRouter';
 }
 
 // ------------------------------------------------------------------ request bodies
@@ -238,7 +258,7 @@ class OpenRouter {
     const key = this.key();
     for (let attempt = 0; ; attempt++) {
       try {
-        return await send(this.fetch, 'POST', this.base() + path, body, key, 120000);
+        return await send(this.fetch, 'POST', this.base() + path, body, key, 120000, attempt);
       } catch (ex) {
         if (ex instanceof Unauthorized) throw wrap(badKey(), ex);
         if (!(ex instanceof Busy)) throw ex;

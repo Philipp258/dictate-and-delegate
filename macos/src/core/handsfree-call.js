@@ -66,6 +66,7 @@
 const crypto = require('crypto');
 const HandsFree = require('./handsfree');
 const HandsFreeLog = require('./handsfree-log');
+const netLog = require('./net-log');
 const { HandsFreeSession, Live, Phase } = require('./handsfree-session');
 const { HistoryEntry } = require('./history-entry');
 const decimal = require('./decimal');
@@ -330,6 +331,7 @@ class HandsFreeCall {
     if (voice != null && choice && choice.model && typeof voice.warm === 'function') voice.warm();
     this.callCost = decimal.of(0);
     if (opts.logFile) HandsFreeLog.append(opts.logFile, HandsFreeLog.callStarted(hhmm(new Date())));
+    netLog.callStarted();
     this.event(
       format(
         'started · send %s · end %s · voice %s · live transcription %s · pause %d ms · take %d ms in %d ms · gate ×%.1f',

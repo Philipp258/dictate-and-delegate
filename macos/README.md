@@ -44,6 +44,12 @@ saved keys stay.
   while dictating, the call takes the dictation over). The call bar shows the state, Send now and
   the red hang-up; during a call ⌃⇧Space and the headset's play/pause button send.
 - The Dock icon opens the window with everything else: notes, settings, and the call.
+- **Copy network log** (Settings → bb, Settings → Data, Hands-free → Recent events) copies a line
+  for every network request of the last 7 days (at most 1,000), to find out why something didn't
+  arrive: the time with milliseconds and UTC offset, what it was for, the request ID, host and path,
+  the HTTP status or kind of failure, how long it took, the retry and the network (Wi-Fi, Ethernet,
+  iPhone USB…, IPv4/IPv6). Never keys, tokens, message text or audio. Copy last call adds the
+  entries since that call started.
 
 ## Differences from Android
 

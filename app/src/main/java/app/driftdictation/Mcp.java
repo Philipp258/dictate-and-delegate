@@ -47,6 +47,11 @@ final class Mcp {
     private String session;
     private int nextId = 1;
 
+    /** What this session is for, in the network log ("bb tell chief"), and which try it is. */
+    String what = "MCP";
+
+    int retry;
+
     Connection(Server server) {
       this.server = server;
     }
@@ -146,7 +151,7 @@ final class Mcp {
     private JSONObject post(JSONObject message) throws Exception {
       try {
         try {
-          return send(message);
+          return send(message, retry);
         } catch (McpException ex) {
           throw ex;
         } catch (IOException ex) {
@@ -154,7 +159,7 @@ final class Mcp {
               || ex instanceof java.net.ConnectException
               || ex instanceof java.net.SocketTimeoutException
               || ex instanceof java.net.UnknownHostException) throw ex;
-          return send(message);
+          return send(message, retry + 1);
         }
       } catch (McpException ex) {
         throw ex;
@@ -171,7 +176,15 @@ final class Mcp {
       }
     }
 
-    private JSONObject send(JSONObject message) throws Exception {
+    /** One POST, in the network log as what this session is for, with the JSON-RPC method (and tool). */
+    private JSONObject send(JSONObject message, int retry) throws Exception {
+      String method = message.optString("method");
+      JSONObject params = message.optJSONObject("params");
+      String tool = method.equals("tools/call") && params != null ? " " + params.optString("name") : "";
+      return NetLog.request(what, "POST", server.url(), retry, net -> send(message, net.note(method + tool)));
+    }
+
+    private JSONObject send(JSONObject message, NetLog.Call net) throws Exception {
       HttpURLConnection c = (HttpURLConnection) new URL(server.url()).openConnection();
       try {
         c.setConnectTimeout(10_000);
@@ -184,13 +197,16 @@ final class Mcp {
         if (session != null) c.setRequestProperty("Mcp-Session-Id", session);
         if (!server.token().isBlank())
           c.setRequestProperty("Authorization", "Bearer " + server.token().trim());
-        byte[] payload = message.toString().getBytes(StandardCharsets.UTF_8);
+        String text = message.toString();
+        byte[] payload = text.getBytes(StandardCharsets.UTF_8);
+        net.request(NetLog.requestIn(text)).sent(payload.length);
         c.setDoOutput(true);
         c.setFixedLengthStreamingMode(payload.length);
         try (OutputStream out = c.getOutputStream()) {
           out.write(payload);
         }
         int status = c.getResponseCode();
+        net.status(status);
         String id = c.getHeaderField("Mcp-Session-Id");
         if (id != null && !id.isBlank()) session = id;
         if (status == 202 || status == 204) return null;
@@ -202,6 +218,7 @@ final class Mcp {
           throw new McpException(tr("%1$s answered with HTTP %2$d.", server.name(), status), status);
         String type = String.valueOf(c.getContentType());
         String body = read(c.getInputStream());
+        net.received(body.getBytes(StandardCharsets.UTF_8).length);
         if (type.contains("text/event-stream")) return fromStream(body, message.opt("id"));
         return body.isBlank() ? null : new JSONObject(body);
       } finally {

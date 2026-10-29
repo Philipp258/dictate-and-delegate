@@ -14,6 +14,7 @@
 const { tr, format } = require('./util');
 const mcp = require('./mcp');
 const oauthLib = require('./bb-oauth');
+const netLog = require('./net-log');
 
 const CONNECT = 'connect';
 const CUSTOM = 'custom';
@@ -426,7 +427,7 @@ class BbBridge {
 
   /** Checks that bb answers and offers the run tool. */
   async test() {
-    await this.call(async (c) => {
+    await this.call('bb check', async (c) => {
       for (const t of await c.tools()) if (t.name === 'run') return null;
       throw new Error(tr("bb answers, but it doesn't offer the run tool. Update bb and check that the MCP plugin is on."));
     });
@@ -473,13 +474,19 @@ class BbBridge {
     const url = server + '/' + this.ntfyTopic();
     let res;
     try {
-      res = await this.fetch(url, {
-        method: 'POST',
-        headers: { Title: 'Dictate & Delegate' },
-        body: tr("Test from Dictate & Delegate. Your chief of staff's notifications arrive like this."),
-        signal: AbortSignal.timeout(20_000),
-      });
-      await res.arrayBuffer().catch(() => {});
+      res = await netLog.request('ntfy test', 'POST', url, async (net) => {
+        const body = tr("Test from Dictate & Delegate. Your chief of staff's notifications arrive like this.");
+        net.sent(Buffer.byteLength(body, 'utf8'));
+        const r = await this.fetch(url, {
+          method: 'POST',
+          headers: { Title: 'Dictate & Delegate' },
+          body,
+          signal: AbortSignal.timeout(20_000),
+        });
+        net.status(r.status);
+        await r.arrayBuffer().catch(() => {});
+        return r;
+      }, { secrets: [this.ntfyTopic()] });
     } catch (ex) {
       throw wrap(
         mcp.networkKind(ex) === 'timeout'
@@ -625,14 +632,21 @@ class BbBridge {
       if (token) headers.Authorization = 'Bearer ' + token;
       let res, text;
       try {
-        res = await this.fetch(this.apiBase() + '/api/v1/projects/' + PROJECT + '/attachments', {
-          method: 'POST',
-          headers,
-          body: payload,
-          redirect: 'manual',
-          signal: AbortSignal.timeout(60_000),
-        });
-        text = await res.text();
+        const address = this.apiBase() + '/api/v1/projects/' + PROJECT + '/attachments';
+        res = await netLog.request('bb upload', 'POST', address, async (net) => {
+          net.sent(payload.length);
+          const r = await this.fetch(address, {
+            method: 'POST',
+            headers,
+            body: payload,
+            redirect: 'manual',
+            signal: AbortSignal.timeout(60_000),
+          });
+          net.status(r.status);
+          text = await r.text();
+          net.received(Buffer.byteLength(text, 'utf8'));
+          return r;
+        }, { retry: attempt });
       } catch (ex) {
         throw wrap(
           mcp.networkKind(ex) === 'broken'
@@ -698,7 +712,7 @@ class BbBridge {
     if (code.length > CODE_LIMIT) {
       throw new Error(tr('This is too long for bb (%1$d characters, at most %2$d).', code.length, CODE_LIMIT));
     }
-    return this.call(async (c) => {
+    return this.call('bb ' + what(code, tool, this.chiefId(), this.talkerId()), async (c) => {
       const result = await c.callResult(tool, { code });
       let text = mcp.Connection.text(result).trim();
       if (result.isError) {
@@ -720,7 +734,7 @@ class BbBridge {
    * One MCP session. With bb Connect, an expired or refused token is refreshed once and the call
    * tried again. Every failure comes back as an Error with a readable message.
    */
-  async call(work) {
+  async call(label, work) {
     const url = this.url();
     if (!this.connected() || !url) throw new Error(tr("bb isn't connected. Connect it in Settings → bb."));
     const connect = this.mode() === CONNECT;
@@ -728,6 +742,8 @@ class BbBridge {
       for (let attempt = 0; ; attempt++) {
         const token = connect ? await this.oauth.accessToken(attempt > 0) : this.customToken();
         const c = new mcp.Connection({ name: 'bb', url, token }, { fetch: this.fetch });
+        c.what = label;
+        c.retry = attempt;
         try {
           await c.open();
           return await work(c);
@@ -743,6 +759,24 @@ class BbBridge {
       throw wrap(tr('The connection to bb broke off. Try again.'), ex);
     }
   }
+}
+
+/**
+ * What a snippet does, for the network log: "tell chief", "tell talker", "tell thr_…", "check
+ * skills", "spawn thread", "archive thread", "show thread", "upload part"; else the tool.
+ */
+function what(code, tool, chief, talker) {
+  const tell = /\["thread","tell","([^"]*)"/.exec(code);
+  if (tell) {
+    const id = tell[1];
+    return 'tell ' + (id && id === chief ? 'chief' : id && id === talker ? 'talker' : id);
+  }
+  if (code.includes('["skill","list"]')) return 'check skills';
+  if (code.includes('["thread","spawn"')) return 'spawn thread';
+  if (code.includes('["thread","archive"')) return 'archive thread';
+  if (code.includes('["thread","show"')) return 'show thread';
+  if (code.includes('["project","attachment","upload"')) return 'upload part';
+  return tool;
 }
 
 /** "talkrouter-" and 24 random URL-safe characters (144 bits). */
@@ -792,4 +826,5 @@ module.exports = {
   bothTo,
   newTopic,
   explain,
+  what,
 };

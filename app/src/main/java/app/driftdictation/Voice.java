@@ -156,7 +156,9 @@ final class Voice {
           new java.util.concurrent.FutureTask<>(
               () -> {
                 try {
-                  return fetch(choice, text, generation, first, open, asked, stream);
+                  return NetLog.request(
+                      "TTS " + choice.model(), "POST", OpenRouter.base() + "/audio/speech",
+                      net -> fetch(choice, text, generation, first, open, asked, stream, net));
                 } catch (Exception ex) {
                   stream.fail(ex instanceof Failed ? ex.getMessage() : String.valueOf(ex.getMessage()), android.os.SystemClock.elapsedRealtime() - asked);
                   throw ex;
@@ -483,14 +485,21 @@ final class Voice {
     new Thread(
             () -> {
               try {
-                HttpURLConnection c = (HttpURLConnection) new URL(OpenRouter.base() + "/key").openConnection();
-                c.setConnectTimeout(10_000);
-                c.setReadTimeout(10_000);
-                c.setRequestProperty("Authorization", "Bearer " + new Vault(context).get(OpenRouter.KEY));
-                c.getResponseCode();
-                try (InputStream in = c.getResponseCode() >= 300 ? c.getErrorStream() : c.getInputStream()) {
-                  if (in != null) in.readAllBytes(); // Read to the end: the connection stays open for reuse.
-                }
+                NetLog.request(
+                    "TTS warm-up",
+                    "GET",
+                    OpenRouter.base() + "/key",
+                    net -> {
+                      HttpURLConnection c = (HttpURLConnection) new URL(OpenRouter.base() + "/key").openConnection();
+                      c.setConnectTimeout(10_000);
+                      c.setReadTimeout(10_000);
+                      c.setRequestProperty("Authorization", "Bearer " + new Vault(context).get(OpenRouter.KEY));
+                      net.status(c.getResponseCode());
+                      try (InputStream in = c.getResponseCode() >= 300 ? c.getErrorStream() : c.getInputStream()) {
+                        if (in != null) net.received(in.readAllBytes().length); // Read to the end: the connection stays open for reuse.
+                      }
+                      return null;
+                    });
               } catch (Exception ignored) {
                 /* Only a head start. */
               }
@@ -1050,21 +1059,34 @@ final class Voice {
       try {
         Thread.sleep(1500L * (attempt + 1)); // It shows up a moment after the call.
         String key = new Vault(context).get(OpenRouter.KEY);
-        HttpURLConnection c =
-            (HttpURLConnection) new URL(OpenRouter.base() + "/generation?id=" + java.net.URLEncoder.encode(generation, "UTF-8")).openConnection();
-        try {
-          c.setConnectTimeout(10_000);
-          c.setReadTimeout(15_000);
-          c.setRequestProperty("Authorization", "Bearer " + key);
-          if (c.getResponseCode() >= 300) continue;
-          try (InputStream in = c.getInputStream()) {
-            JSONObject d = new JSONObject(new String(in.readAllBytes(), StandardCharsets.UTF_8)).optJSONObject("data");
-            if (d != null && d.has("total_cost"))
-              return new Generation(new java.math.BigDecimal(d.get("total_cost").toString()), d.optString("provider_name"), d.optLong("latency", -1));
-          }
-        } finally {
-          c.disconnect();
-        }
+        String url = OpenRouter.base() + "/generation?id=" + java.net.URLEncoder.encode(generation, "UTF-8");
+        Generation g =
+            NetLog.request(
+                "OpenRouter cost lookup",
+                "GET",
+                url,
+                attempt,
+                net -> {
+                  HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+                  try {
+                    c.setConnectTimeout(10_000);
+                    c.setReadTimeout(15_000);
+                    c.setRequestProperty("Authorization", "Bearer " + key);
+                    net.status(c.getResponseCode());
+                    if (c.getResponseCode() >= 300) return null;
+                    try (InputStream in = c.getInputStream()) {
+                      byte[] got = in.readAllBytes();
+                      net.received(got.length);
+                      JSONObject d = new JSONObject(new String(got, StandardCharsets.UTF_8)).optJSONObject("data");
+                      if (d != null && d.has("total_cost"))
+                        return new Generation(new java.math.BigDecimal(d.get("total_cost").toString()), d.optString("provider_name"), d.optLong("latency", -1));
+                      return null;
+                    }
+                  } finally {
+                    c.disconnect();
+                  }
+                });
+        if (g != null) return g;
       } catch (Exception ignored) {
         /* Try again. */
       }
@@ -1078,7 +1100,7 @@ final class Voice {
    * file, returned. The connection isn't closed after a whole answer, so the next reply reuses it
    * (keep-alive).
    */
-  private File fetch(Choice choice, String text, String[] generation, long[] first, HttpURLConnection[] open, long asked, VoiceStream stream) throws Exception {
+  private File fetch(Choice choice, String text, String[] generation, long[] first, HttpURLConnection[] open, long asked, VoiceStream stream, NetLog.Call net) throws Exception {
     String key = new Vault(context).get(OpenRouter.KEY);
     HttpURLConnection c = (HttpURLConnection) new URL(OpenRouter.base() + "/audio/speech").openConnection();
     open[0] = c;
@@ -1093,6 +1115,7 @@ final class Voice {
       c.setRequestProperty("Content-Type", "application/json");
       c.setRequestProperty("X-Title", "Dictate & Delegate");
       c.setFixedLengthStreamingMode(payload.length);
+      net.sent(payload.length);
       try (OutputStream out = c.getOutputStream()) {
         out.write(payload);
       }
@@ -1100,8 +1123,10 @@ final class Voice {
       try {
         status = c.getResponseCode();
       } catch (java.net.SocketTimeoutException ex) {
+        net.fail(ex);
         throw new Failed("no answer in " + (android.os.SystemClock.elapsedRealtime() - asked) / 1000 + " s");
       }
+      net.status(status);
       if (status >= 300) {
         String said = "";
         try (InputStream err = c.getErrorStream()) {
@@ -1112,13 +1137,14 @@ final class Voice {
         throw new Failed(httpError(status, said));
       }
       first[0] = android.os.SystemClock.elapsedRealtime() - asked;
+      net.note("first byte " + first[0] + " ms");
       String id = c.getHeaderField("X-Generation-Id");
       generation[0] = id == null ? "" : id;
       // Raw samples (some models send nothing else), at the rate they came at, or MP3: played as
       // they come.
       int[] pcm = pcmFormat(c.getContentType());
       if (pcm != null || isMp3(c.getContentType())) {
-        receive(c, pcm, stream, asked);
+        receive(c, pcm, stream, asked, net);
         whole = true;
         return null;
       }
@@ -1131,12 +1157,17 @@ final class Voice {
         out.setLength(0);
         if (pcm != null) out.write(wavHeader(pcm[0], pcm[1], 0));
         byte[] buffer = new byte[16 * 1024];
-        for (int n; (n = in.read(buffer)) > 0; ) out.write(buffer, 0, n);
+        long got = 0;
+        for (int n; (n = in.read(buffer)) > 0; ) {
+          out.write(buffer, 0, n);
+          net.received(got += n);
+        }
         if (pcm != null) { // The sizes, now that they're known.
           out.seek(0);
           out.write(wavHeader(pcm[0], pcm[1], out.length() - 44));
         }
       } catch (java.net.SocketTimeoutException ex) {
+        net.fail(ex);
         throw new Failed("its audio stopped coming after " + (android.os.SystemClock.elapsedRealtime() - asked) / 1000 + " s");
       }
       if (f.length() <= (pcm == null ? 0 : 44)) throw new Failed("it sent no audio");
@@ -1154,18 +1185,26 @@ final class Voice {
   }
 
   /** Reads the audio into the stream as it comes: PCM as it is (pcm: its rate and channels), MP3 decoded. */
-  private static void receive(HttpURLConnection c, int[] pcm, VoiceStream stream, long asked) throws Exception {
+  private static void receive(HttpURLConnection c, int[] pcm, VoiceStream stream, long asked, NetLog.Call net) throws Exception {
+    long got = 0;
     try (InputStream in = c.getInputStream()) {
       byte[] buffer = new byte[16 * 1024];
       if (pcm != null) {
         stream.format(pcm[0], pcm[1]);
-        for (int n; (n = in.read(buffer)) >= 0; ) stream.add(buffer, 0, n);
+        for (int n; (n = in.read(buffer)) >= 0; ) {
+          stream.add(buffer, 0, n);
+          net.received(got += n);
+        }
       } else
         try (Mp3Decoder d = new Mp3Decoder(stream)) {
-          for (int n; (n = in.read(buffer)) >= 0; ) d.add(buffer, 0, n);
+          for (int n; (n = in.read(buffer)) >= 0; ) {
+            d.add(buffer, 0, n);
+            net.received(got += n);
+          }
           d.finish();
         }
     } catch (java.net.SocketTimeoutException ex) {
+      net.fail(ex);
       throw new Failed("its audio stopped coming after " + (android.os.SystemClock.elapsedRealtime() - asked) / 1000 + " s");
     }
     if (stream.bytes() == 0) throw new Failed("it sent no audio");

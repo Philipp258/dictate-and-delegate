@@ -26,6 +26,7 @@ const voiceLib = require('../core/voice');
 const streaming = require('../core/streaming-speech');
 const HandsFree = require('../core/handsfree');
 const HandsFreeLog = require('../core/handsfree-log');
+const netLog = require('../core/net-log');
 const bridgeLib = require('../core/bb-bridge');
 const oauthLib = require('../core/bb-oauth');
 const skillsLib = require('../core/chief-skills');
@@ -1389,7 +1390,16 @@ function createMethods(ctx, shell = {}, push = () => {}) {
     },
     async copyHandsFreeLog(calls = 1) {
       const n = calls === 3 ? 3 : 1;
-      await call('copy', HandsFreeLog.lastCalls(HandsFreeLog.read(ctx.files.handsFreeLog), n).trim());
+      // With the network log's entries since those calls started, to see what didn't arrive.
+      const events = HandsFreeLog.lastCalls(HandsFreeLog.read(ctx.files.handsFreeLog), n).trim();
+      const network = netLog.lastCalls(netLog.read(), n).trim();
+      await call('copy', events + (network ? '\n\nNetwork:\n' + network : ''));
+      return tr('Copied. Paste it where you report the problem.');
+    },
+    /** Copy network log: every request of the last days, with a header that says how to read the times. */
+    async copyNetworkLog() {
+      const os = require('os');
+      await call('copy', netLog.report('Dictate & Delegate ' + ctx.version + ' for macOS (Darwin ' + os.release() + ')', netLog.read()).trim());
       return tr('Copied. Paste it where you report the problem.');
     },
     async copyAppLog() {
@@ -1514,6 +1524,7 @@ function createMethods(ctx, shell = {}, push = () => {}) {
         tryTo(() => vault.remove(k));
       tryTo(() => attachments.deleteAll());
       tryTo(() => fs.rmSync(ctx.files.handsFreeLog, { force: true }));
+      tryTo(() => fs.rmSync(ctx.files.netLog, { force: true }));
       tryTo(() => bb.forgetAll());
       tryTo(() => {
         for (const k of Object.keys(prefs.all())) prefs.remove(k);

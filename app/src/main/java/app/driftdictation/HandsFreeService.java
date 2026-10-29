@@ -288,6 +288,7 @@ public final class HandsFreeService extends Service {
     callCost = BigDecimal.ZERO;
     callId = UUID.randomUUID().toString();
     HandsFreeLog.append(logFile(this), HandsFreeLog.callStarted(new java.text.SimpleDateFormat("HH:mm", java.util.Locale.ROOT).format(new java.util.Date())));
+    NetLog.callStarted();
     event(
         String.format(
             java.util.Locale.ROOT,

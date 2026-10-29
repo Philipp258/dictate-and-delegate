@@ -27,6 +27,7 @@
     <string name="t_08db7524" formatted="false">From $%1$s / min</string>
     <string name="t_08e77a0c" formatted="false">Allow display over other apps</string>
     <string name="t_092d8ce0" formatted="false">cheapest</string>
+    <string name="t_098821db" formatted="false">Copy network log</string>
     <string name="t_09b31ec9" formatted="false">Send ignored: just sent (%1$.1f s ago)</string>
     <string name="t_0a3cb13f" formatted="false">fastest, cheapest, less accurate</string>
     <string name="t_0a7ebfef" formatted="false">Added</string>

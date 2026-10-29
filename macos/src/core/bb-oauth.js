@@ -7,6 +7,7 @@
 // vault and refreshed when they expire or bb answers 401.
 
 const crypto = require('crypto');
+const netLog = require('./net-log');
 const { tr, SerialQueue } = require('./util');
 const { networkKind } = require('./mcp');
 
@@ -382,15 +383,17 @@ class BbOAuth {
   // ------------------------------------------------------------------ HTTP
 
   async getJson(url) {
-    return json(await this.request('GET', url, null, null));
+    return json(await this.request('GET', url, null, null, 'bb sign-in setup'));
   }
 
   async postForm(url, values) {
-    return json(await this.request('POST', url, form(values), 'application/x-www-form-urlencoded'));
+    const what =
+      values.grant_type === 'refresh_token' ? 'bb token refresh' : values.token_type_hint ? 'bb sign-out' : 'bb sign-in';
+    return json(await this.request('POST', url, form(values), 'application/x-www-form-urlencoded', what));
   }
 
   /** A small HTTPS call; errors carry the server's OAuth error text when it sent one. */
-  async request(method, url, body, type) {
+  async request(method, url, body, type, what = 'bb sign-in') {
     const host = (() => {
       try {
         return new URL(url).host;
@@ -402,14 +405,20 @@ class BbOAuth {
     try {
       const headers = { Accept: 'application/json' };
       if (body != null) headers['Content-Type'] = type;
-      res = await this.fetch(url, {
-        method,
-        headers,
-        body: body == null ? undefined : body,
-        redirect: 'manual',
-        signal: AbortSignal.timeout(30_000),
+      res = await netLog.request(what, method, url, async (net) => {
+        if (body != null) net.sent(Buffer.byteLength(body, 'utf8'));
+        const r = await this.fetch(url, {
+          method,
+          headers,
+          body: body == null ? undefined : body,
+          redirect: 'manual',
+          signal: AbortSignal.timeout(30_000),
+        });
+        net.status(r.status);
+        text = (await r.text()).slice(0, 1_000_000);
+        net.received(Buffer.byteLength(text, 'utf8'));
+        return r;
       });
-      text = (await res.text()).slice(0, 1_000_000);
     } catch (ex) {
       const kind = networkKind(ex);
       const e = new Error(

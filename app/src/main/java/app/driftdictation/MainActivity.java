@@ -1247,8 +1247,33 @@ public final class MainActivity extends Activity {
         });
     skillsLine = ui.add(content, ui.text("", 14, Ui.MUTED), 12);
     ui.add(content, ui.button(tr("Check the skills in bb"), Ui.Kind.QUIET, v -> ChiefSkills.sync(this, true)), 4);
+    ui.add(content, copyNetworkLog(), 4);
     ChiefSkills.sync(this, false);
     renderSkills();
+  }
+
+  /**
+   * Copy network log: every request of the last days with its time, result and network, to paste
+   * for the chief when something didn't arrive. Never keys, tokens or message text.
+   */
+  private View copyNetworkLog() {
+    return ui.button(
+        tr("Copy network log"),
+        Ui.Kind.QUIET,
+        v -> {
+          DictationService.copy(this, NetLog.report(appName(), NetLog.read()).trim());
+          toast(tr("Copied. Paste it where you report the problem."));
+        });
+  }
+
+  private static String appName() {
+    return "Dictate & Delegate " + BuildConfig.VERSION_NAME + " (" + BuildConfig.VERSION_CODE + ") · Android " + android.os.Build.VERSION.RELEASE;
+  }
+
+  /** A hands-free log of the last calls, with the network log's entries since they started. */
+  private String lastCalls(int calls) {
+    String net = NetLog.lastCalls(NetLog.read(), calls);
+    return HandsFreeLog.lastCalls(HandsFreeService.log(this), calls).trim() + "\n\n" + NetLog.report(appName(), net).trim();
   }
 
   private void renderSkills() {
@@ -3420,6 +3445,7 @@ public final class MainActivity extends Activity {
   private void recentEvents() {
     String log = HandsFreeService.log(this).trim();
     ui.add(content, ui.strong(tr("Recent events"), 15), 24);
+    ui.add(content, copyNetworkLog(), 6);
     if (log.isEmpty()) {
       ui.add(content, ui.text(tr("No events yet. They appear here once you've made a hands-free call."), 13, Ui.MUTED), 4);
       return;
@@ -3431,7 +3457,7 @@ public final class MainActivity extends Activity {
             tr("Copy last call"),
             Ui.Kind.OUTLINE,
             v -> {
-              DictationService.copy(this, HandsFreeLog.lastCalls(HandsFreeService.log(this), 1).trim());
+              DictationService.copy(this, lastCalls(1));
               toast(tr("Copied. Paste it where you report the problem."));
             }),
         6);
@@ -3441,7 +3467,7 @@ public final class MainActivity extends Activity {
             tr("Copy last 3 calls"),
             Ui.Kind.OUTLINE,
             v -> {
-              DictationService.copy(this, HandsFreeLog.lastCalls(HandsFreeService.log(this), 3).trim());
+              DictationService.copy(this, lastCalls(3));
               toast(tr("Copied. Paste it where you report the problem."));
             }),
         6);
@@ -3567,6 +3593,7 @@ public final class MainActivity extends Activity {
                 vault.remove("templates");
                 new Attachments(this).deleteAll();
                 HandsFreeService.logFile(this).delete();
+                NetLog.clear();
                 vault.remove("transcript");
                 vault.remove("progress");
                 BbBridge.forgetAll(this);

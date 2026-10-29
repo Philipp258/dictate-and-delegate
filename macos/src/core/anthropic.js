@@ -5,6 +5,7 @@
 // request through OpenRouter.
 
 const { tr, sleep } = require('./util');
+const netLog = require('./net-log');
 const decimal = require('./decimal');
 
 /** The vault entry that holds the key. */
@@ -155,19 +156,27 @@ function cost(response, modelId) {
 
 // ------------------------------------------------------------------ transport
 
-async function send(fetchImpl, method, url, payload, key, timeoutMs) {
+async function send(fetchImpl, method, url, payload, key, timeoutMs, retry = 0) {
   const headers = { 'x-api-key': key, 'anthropic-version': VERSION };
   if (payload) headers['content-type'] = 'application/json';
   let res, text;
+  const what = payload && typeof payload.model === 'string' ? 'Anthropic ' + payload.model : 'Anthropic key check';
   try {
-    res = await fetchImpl(url, {
-      method,
-      headers,
-      body: payload ? JSON.stringify(payload) : undefined,
-      redirect: 'manual',
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    text = await res.text();
+    res = await netLog.request(what, method, url, async (net) => {
+      const body = payload ? JSON.stringify(payload) : undefined;
+      if (body) net.sent(Buffer.byteLength(body, 'utf8'));
+      const r = await fetchImpl(url, {
+        method,
+        headers,
+        body,
+        redirect: 'manual',
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      net.status(r.status);
+      text = await r.text();
+      net.received(Buffer.byteLength(text, 'utf8'));
+      return r;
+    }, { retry });
   } catch (ex) {
     if (ex && (ex.name === 'TimeoutError' || ex.name === 'AbortError'))
       throw new Failure(Problem.OTHER, tr('Anthropic took too long.'), ex);
@@ -217,7 +226,7 @@ class Anthropic {
     if (!key || key.trim() === '') throw new Failure(Problem.KEY, tr('No Anthropic key is set.'));
     for (let attempt = 0; ; attempt++) {
       try {
-        return parse(await send(this.fetch, 'POST', base(this.baseUrl) + '/v1/messages', request, key, 120000), request.model);
+        return parse(await send(this.fetch, 'POST', base(this.baseUrl) + '/v1/messages', request, key, 120000, attempt), request.model);
       } catch (f) {
         if (!(f instanceof Failure) || f.problem !== Problem.BUSY || attempt >= 2) throw f;
         await this.sleep(this.retryMs * (attempt + 1));

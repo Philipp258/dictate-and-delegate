@@ -27,6 +27,7 @@
     <string name="t_08db7524" formatted="false">Ab $%1$s / min</string>
     <string name="t_08e77a0c" formatted="false">Über anderen Apps anzeigen erlauben</string>
     <string name="t_092d8ce0" formatted="false">am günstigsten</string>
+    <string name="t_098821db" formatted="false">Netzwerkprotokoll kopieren</string>
     <string name="t_09b31ec9" formatted="false">Senden ignoriert: gerade gesendet (vor %1$.1f s)</string>
     <string name="t_0a3cb13f" formatted="false">am schnellsten, günstigsten, weniger genau</string>
     <string name="t_0a7ebfef" formatted="false">Hinzugefügt</string>

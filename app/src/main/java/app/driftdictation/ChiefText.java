@@ -56,7 +56,7 @@ final class ChiefText {
     String url = attachment == null ? "" : attachment.optString("url");
     if (!url.isEmpty() && url.startsWith(server + "/")) {
       String type = attachment.optString("type", "text/plain");
-      if (type.startsWith("text/")) return get(url, 200_000).trim();
+      if (type.startsWith("text/")) return get("ntfy attachment", url, 200_000, "").trim();
     }
     return message.optString("message").trim();
   }
@@ -66,18 +66,74 @@ final class ChiefText {
     return server + "/" + topic + "/json?since=" + sinceSeconds + (poll ? "&poll=1" : "");
   }
 
-  private static String get(String url, int max) throws IOException {
-    HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+  private static String get(String what, String url, int max, String topic) throws IOException {
+    return NetLog.request(
+        NetLog.begin(what, "GET", url, topic),
+        net -> {
+          HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+          try {
+            c.setConnectTimeout(15_000);
+            c.setReadTimeout(20_000);
+            net.status(c.getResponseCode());
+            if (c.getResponseCode() >= 300) throw new IOException("HTTP " + c.getResponseCode());
+            try (InputStream in = c.getInputStream()) {
+              byte[] got = in.readNBytes(max);
+              net.received(got.length);
+              return new String(got, StandardCharsets.UTF_8);
+            }
+          } finally {
+            c.disconnect();
+          }
+        });
+  }
+
+  // ------------------------------------------------------------------ the stream in the network log
+
+  /**
+   * Connects to the topic's stream (what's open is c), in the network log: the status and how long
+   * connecting took, with the reconnect number. Throws what connecting threw.
+   */
+  static void connect(HttpURLConnection c, String what, String url, String topic, String request, int reconnect) throws IOException {
+    NetLog.Call net = NetLog.begin(what + " connect", "GET", url, topic).request(request).retry(reconnect);
     try {
-      c.setConnectTimeout(15_000);
-      c.setReadTimeout(20_000);
+      net.status(c.getResponseCode());
       if (c.getResponseCode() >= 300) throw new IOException("HTTP " + c.getResponseCode());
-      try (InputStream in = c.getInputStream()) {
-        return new String(in.readNBytes(max), StandardCharsets.UTF_8);
-      }
-    } finally {
+    } catch (IOException | RuntimeException ex) {
+      net.fail(ex);
       c.disconnect();
+      throw ex;
+    } finally {
+      net.end();
     }
+  }
+
+  /** A message from the stream, in the network log: ntfy's ID, the request it's for and how late it came. Not its text. */
+  static void received(String what, JSONObject m) {
+    if (!"message".equals(m.optString("event", "message"))) return;
+    JSONArray tags = m.optJSONArray("tags");
+    String request = "", kind = "";
+    for (int i = 0; tags != null && i < tags.length(); i++) {
+      String t = tags.optString(i).trim();
+      if (t.toLowerCase(java.util.Locale.ROOT).startsWith("req-")) request = t.substring(4);
+      else if (t.equalsIgnoreCase(SPEAK_TAG)) kind = "spoken";
+      else if (t.equalsIgnoreCase(BbBridge.PASTE_TAG)) kind = "paste";
+    }
+    long time = m.optLong("time") * 1000;
+    String late = time <= 0 ? "" : "published " + NetLog.stamp(time) + ", here " + Math.max(0, NetLog.clock.getAsLong() - time) / 1000 + " s later";
+    int size = m.optString("message").getBytes(StandardCharsets.UTF_8).length;
+    NetLog.event(
+        what + " message", "", "id " + m.optString("id") + (kind.isEmpty() ? "" : " (" + kind + ")"), request,
+        late + (late.isEmpty() ? "" : ", ") + NetLog.size(size));
+  }
+
+  /** The stream ended: why (null: the server ended it), after how long, with how many messages. */
+  static void closed(String what, String url, String topic, String request, Exception why, boolean stopped, long openedNanos, int messages) {
+    String result = stopped ? "closed by the app" : why == null ? "ended by the server" : NetLog.classify(why);
+    long s = (System.nanoTime() - openedNanos) / 1_000_000_000;
+    NetLog.event(
+        what + " closed", url, result, request,
+        String.format(java.util.Locale.ROOT, "open %d:%02d min, %d %s", s / 60, s % 60, messages, messages == 1 ? "message" : "messages"),
+        topic);
   }
 
   /**
@@ -110,13 +166,18 @@ final class ChiefText {
 
     @Override
     public void run() {
-      while (!stopped) {
+      for (int reconnect = 0; !stopped; reconnect++) {
+        String url = streamUrl(server, topic, since, false);
+        long opened = 0;
+        int messages = 0;
         try {
-          HttpURLConnection c =
-              (HttpURLConnection) new URL(streamUrl(server, topic, since, false)).openConnection();
+          HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
           open = c;
           c.setConnectTimeout(15_000);
           c.setReadTimeout(90_000); // ntfy sends a keepalive every 45 s.
+          connect(c, "ntfy paste text", url, topic, request, reconnect);
+          opened = System.nanoTime();
+          Exception why = null;
           try (BufferedReader in =
               new BufferedReader(new InputStreamReader(c.getInputStream(), StandardCharsets.UTF_8))) {
             for (String line; !stopped && (line = in.readLine()) != null; ) {
@@ -127,19 +188,28 @@ final class ChiefText {
               } catch (Exception ex) {
                 continue;
               }
+              if (!"keepalive".equals(m.optString("event")) && !"open".equals(m.optString("event"))) {
+                messages++;
+                received("ntfy paste text", m);
+              }
               if (matches(m, request)) {
                 String t = text(m, server);
                 if (!t.isEmpty()) {
+                  stopped = true; // Found: the stream is closed on purpose.
                   found.accept(t);
                   return;
                 }
               }
             }
+          } catch (Exception ex) {
+            why = ex;
+            throw ex;
           } finally {
+            closed("ntfy paste text", url, topic, request, why, stopped, opened, messages);
             c.disconnect();
           }
         } catch (Exception ex) {
-          /* Dropped or unreachable: try again in a moment. */
+          /* Dropped or unreachable (in the network log): try again in a moment. */
         }
         try {
           Thread.sleep(3000);
@@ -226,13 +296,18 @@ final class ChiefText {
 
     @Override
     public void run() {
-      while (!stopped) {
+      for (int reconnect = 0; !stopped; reconnect++) {
+        String url = server + "/" + topic + "/json?since=" + since;
+        long opened = 0;
+        int messages = 0;
         try {
-          HttpURLConnection c =
-              (HttpURLConnection) new URL(server + "/" + topic + "/json?since=" + since).openConnection();
+          HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
           open = c;
           c.setConnectTimeout(15_000);
           c.setReadTimeout(90_000);
+          connect(c, "ntfy replies", url, topic, "", reconnect);
+          opened = System.nanoTime();
+          Exception why = null;
           try (BufferedReader in =
               new BufferedReader(new InputStreamReader(c.getInputStream(), StandardCharsets.UTF_8))) {
             for (String line; !stopped && (line = in.readLine()) != null; ) {
@@ -243,6 +318,10 @@ final class ChiefText {
               } catch (Exception ex) {
                 continue;
               }
+              if (!"keepalive".equals(m.optString("event")) && !"open".equals(m.optString("event"))) {
+                messages++;
+                received("ntfy replies", m);
+              }
               String id = m.optString("id");
               if (!id.isEmpty()) since = id; // Reconnect from here, not from the start.
               String request = spokenRequest(m);
@@ -252,11 +331,15 @@ final class ChiefText {
               String t = text(m, server);
               if (!t.isEmpty()) callback.reply(request, t, m.optLong("time") * 1000, noTag);
             }
+          } catch (Exception ex) {
+            why = ex;
+            throw ex;
           } finally {
+            closed("ntfy replies", url, topic, "", why, stopped, opened, messages);
             c.disconnect();
           }
         } catch (Exception ex) {
-          /* Dropped or unreachable: try again in a moment. */
+          /* Dropped or unreachable (in the network log): try again in a moment. */
         }
         try {
           Thread.sleep(3000);
@@ -272,7 +355,7 @@ final class ChiefText {
     BbBridge bb = new BbBridge(context);
     String server = bb.ntfyServer();
     long since = System.currentTimeMillis() / 1000 - 12 * 3600;
-    String all = get(streamUrl(server, bb.ntfyTopic(), since, true), 2_000_000);
+    String all = get("ntfy poll", streamUrl(server, bb.ntfyTopic(), since, true), 2_000_000, bb.ntfyTopic());
     String text = "";
     for (String line : all.split("\n")) {
       try {

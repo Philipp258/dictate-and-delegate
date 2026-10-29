@@ -282,6 +282,7 @@ abstract class StreamingSpeech implements HandsFreeSession.LiveText {
     try {
       WebSocket ws =
           WebSocket.open(
+              "live transcription " + choice.model(),
               url(),
               headers(),
               new WebSocket.Listener() {

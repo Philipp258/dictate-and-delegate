@@ -36,6 +36,11 @@ final class WebSocket implements AutoCloseable {
   private final SecureRandom random = new SecureRandom();
   private volatile boolean ended;
 
+  /** For the network log: what it's for, its address and when it opened. */
+  private String what = "WebSocket", url = "";
+
+  private final long opened = System.nanoTime();
+
   private WebSocket(Socket socket, InputStream in, Listener listener) throws IOException {
     this.socket = socket;
     this.in = in;
@@ -45,6 +50,15 @@ final class WebSocket implements AutoCloseable {
 
   /** Connects and upgrades (headers: the provider's key, as it wants it); messages then come to the listener. */
   static WebSocket open(String url, Map<String, String> headers, Listener listener, int timeoutMs) throws IOException {
+    return open("WebSocket", url, headers, listener, timeoutMs);
+  }
+
+  /** The same, in the network log as what (the handshake, then how the connection ended). */
+  static WebSocket open(String what, String url, Map<String, String> headers, Listener listener, int timeoutMs) throws IOException {
+    return NetLog.request(what + " connect", "GET", url, net -> connect(what, url, headers, listener, timeoutMs, net));
+  }
+
+  private static WebSocket connect(String what, String url, Map<String, String> headers, Listener listener, int timeoutMs, NetLog.Call net) throws IOException {
     URI u = URI.create(url);
     boolean tls = u.getScheme().equalsIgnoreCase("wss");
     String host = u.getHost();
@@ -81,6 +95,8 @@ final class WebSocket implements AutoCloseable {
       o.flush();
       InputStream i = new java.io.BufferedInputStream(s.getInputStream());
       String status = line(i);
+      java.util.regex.Matcher code = java.util.regex.Pattern.compile("^HTTP/1\\.1 (\\d{3})").matcher(status);
+      if (code.find()) net.status(Integer.parseInt(code.group(1)));
       StringBuilder said = new StringBuilder();
       String accept = null;
       for (String h; !(h = line(i)).isEmpty(); ) {
@@ -102,6 +118,8 @@ final class WebSocket implements AutoCloseable {
       if (!expectedAccept(key).equals(accept)) throw new IOException("not a WebSocket answer");
       s.setSoTimeout(0);
       WebSocket ws = new WebSocket(s, i, listener);
+      ws.what = what;
+      ws.url = url;
       new Thread(ws::read, "websocket-read").start();
       return ws;
     } catch (IOException | RuntimeException ex) {
@@ -191,6 +209,7 @@ final class WebSocket implements AutoCloseable {
     ByteArrayOutputStream message = new ByteArrayOutputStream();
     int code = 1006;
     String why = "the connection was lost";
+    IOException lost = null;
     try {
       while (true) {
         int b0 = in.read(), b1 = in.read();
@@ -236,12 +255,21 @@ final class WebSocket implements AutoCloseable {
       }
     } catch (IOException ex) {
       if (!ended) why = String.valueOf(ex.getMessage()).toLowerCase(Locale.ROOT);
+      lost = ex;
     } finally {
       boolean first;
       synchronized (this) {
         first = !ended;
         ended = true;
       }
+      long s = (System.nanoTime() - opened) / 1_000_000_000;
+      String reason = why.length() > 60 ? why.substring(0, 60) + "…" : why;
+      NetLog.event(
+          what + " closed",
+          url,
+          !first ? "closed by the app" : code != 1006 ? "closed by the server (" + code + (reason.isEmpty() ? "" : ", " + reason) + ")" : lost != null ? NetLog.classify(lost) : "connection lost",
+          "",
+          String.format(Locale.ROOT, "open %d:%02d min", s / 60, s % 60));
       try {
         socket.close();
       } catch (IOException ignored) {

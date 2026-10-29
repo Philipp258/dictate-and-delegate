@@ -302,6 +302,7 @@ final class BbBridge {
   /** Checks that bb answers and offers the run tool. */
   void test() throws Exception {
     call(
+        "bb check",
         c -> {
           for (Mcp.Tool t : c.tools()) if (t.name().equals("run")) return null;
           throw new IOException(tr("bb answers, but it doesn't offer the run tool. Update bb and check that the MCP plugin is on."));
@@ -324,6 +325,7 @@ final class BbBridge {
   /** Posts a test notification to the topic, as the chief would. */
   void ntfyTest() throws Exception {
     String url = ntfyServer() + "/" + ntfyTopic();
+    NetLog.Call net = NetLog.begin("ntfy test", "POST", url, ntfyTopic());
     java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
     try {
       c.setConnectTimeout(15_000);
@@ -339,12 +341,19 @@ final class BbBridge {
         out.write(body);
       }
       int status = c.getResponseCode();
+      net.status(status);
       if (status >= 300) throw new IOException(tr("The ntfy server answered with HTTP %1$d.", status));
     } catch (java.net.UnknownHostException | java.net.ConnectException ex) {
+      net.fail(ex);
       throw new IOException(tr("Could not reach %1$s. Check the address and your connection.", ntfyServer()), ex);
     } catch (java.net.SocketTimeoutException ex) {
+      net.fail(ex);
       throw new IOException(tr("%1$s didn't answer in time. Try again.", ntfyServer()), ex);
+    } catch (Exception ex) {
+      net.fail(ex);
+      throw ex;
     } finally {
+      net.end();
       c.disconnect();
     }
   }
@@ -526,8 +535,9 @@ final class BbBridge {
     boolean connect = mode().equals(CONNECT);
     for (int attempt = 0; ; attempt++) {
       String token = connect ? BbOAuth.accessToken(context, attempt > 0) : customToken();
-      java.net.HttpURLConnection c =
-          (java.net.HttpURLConnection) new java.net.URL(apiBase() + "/api/v1/projects/" + PROJECT + "/attachments").openConnection();
+      String address = apiBase() + "/api/v1/projects/" + PROJECT + "/attachments";
+      NetLog.Call net = NetLog.begin("bb upload", "POST", address).retry(attempt);
+      java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(address).openConnection();
       try {
         String boundary = "talkrouter" + BbOAuth.random(12);
         java.io.ByteArrayOutputStream body = new java.io.ByteArrayOutputStream();
@@ -546,10 +556,12 @@ final class BbBridge {
         c.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
         if (!token.isEmpty()) c.setRequestProperty("Authorization", "Bearer " + token);
         c.setFixedLengthStreamingMode(payload.length);
+        net.sent(payload.length);
         try (java.io.OutputStream out = c.getOutputStream()) {
           out.write(payload);
         }
         int status = c.getResponseCode();
+        net.status(status);
         if (status == 401 && connect && attempt == 0) continue;
         if (status == 401 || status == 403 || status == 404 || status == 405) throw new UploadRefused(status);
         if (status >= 300) throw new IOException(tr("bb couldn't take the attachment (HTTP %1$d).", status));
@@ -559,8 +571,13 @@ final class BbBridge {
           return path;
         }
       } catch (java.net.UnknownHostException | java.net.ConnectException | java.net.SocketTimeoutException ex) {
+        net.fail(ex);
         throw new IOException(tr("bb isn't reachable right now. Is your computer on and bb running?"), ex);
+      } catch (Exception ex) {
+        net.fail(ex);
+        throw ex;
       } finally {
+        net.end();
         c.disconnect();
       }
     }
@@ -627,6 +644,7 @@ final class BbBridge {
     if (code.length() > CODE_LIMIT)
       throw new IOException(tr("This is too long for bb (%1$d characters, at most %2$d).", code.length(), CODE_LIMIT));
     return call(
+        "bb " + what(code, tool, chiefId(), talkerId()),
         c -> {
           JSONObject result = c.callResult(tool, new JSONObject().put("code", code));
           String text = Mcp.Connection.text(result).trim();
@@ -643,10 +661,28 @@ final class BbBridge {
   }
 
   /**
+   * What a snippet does, for the network log: "tell chief", "tell talker", "tell thr_…", "check
+   * skills", "spawn thread", "archive thread", "show thread", "upload part"; else the tool.
+   */
+  static String what(String code, String tool, String chief, String talker) {
+    java.util.regex.Matcher tell = java.util.regex.Pattern.compile("\\[\"thread\",\"tell\",\"([^\"]*)\"").matcher(code);
+    if (tell.find()) {
+      String id = tell.group(1);
+      return "tell " + (!id.isEmpty() && id.equals(chief) ? "chief" : !id.isEmpty() && id.equals(talker) ? "talker" : id);
+    }
+    if (code.contains("[\"skill\",\"list\"]")) return "check skills";
+    if (code.contains("[\"thread\",\"spawn\"")) return "spawn thread";
+    if (code.contains("[\"thread\",\"archive\"")) return "archive thread";
+    if (code.contains("[\"thread\",\"show\"")) return "show thread";
+    if (code.contains("[\"project\",\"attachment\",\"upload\"")) return "upload part";
+    return tool;
+  }
+
+  /**
    * One MCP session. With bb Connect, an expired or refused token is refreshed once and the call
    * tried again. Every failure comes back as a plain IOException with a readable message.
    */
-  private <T> T call(Call<T> work) throws Exception {
+  private <T> T call(String what, Call<T> work) throws Exception {
     String url = url();
     if (!connected() || url.isEmpty()) throw new IOException(tr("bb isn't connected. Connect it in Settings → bb."));
     boolean connect = mode().equals(CONNECT);
@@ -654,6 +690,8 @@ final class BbBridge {
       for (int attempt = 0; ; attempt++) {
         String token = connect ? BbOAuth.accessToken(context, attempt > 0) : customToken();
         Mcp.Connection c = new Mcp.Connection(new Mcp.Server("bb", url, token));
+        c.what = what;
+        c.retry = attempt;
         try {
           c.open();
           return work.with(c);

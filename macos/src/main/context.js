@@ -21,6 +21,8 @@ const { BbOAuth } = require('../core/bb-oauth');
 const { BbBridge } = require('../core/bb-bridge');
 const { ChiefSkills } = require('../core/chief-skills');
 const handsFreeLog = require('../core/handsfree-log');
+const netLog = require('../core/net-log');
+const { NetState } = require('../core/net-state');
 
 /**
  * Images as JPEG (what Android stores), at most IMAGE_MAX_WIDTH × IMAGE_MAX_HEIGHT. Electron reads
@@ -72,7 +74,13 @@ async function createContext({ log: baseLog } = {}) {
     recording: path.join(data, 'recording.pcm'),
     log: path.join(data, 'app.log'),
     handsFreeLog: path.join(data, 'handsfree.log'),
+    netLog: path.join(data, 'network.log'),
   };
+
+  // The network log (Copy network log): every request, with the network at that moment. Only
+  // macOS has route and networksetup; elsewhere (the Linux e2e runs) the network isn't described.
+  const netState = process.platform === 'darwin' ? new NetState().start() : null;
+  netLog.init(files.netLog, () => (netState ? netState.describe() : ''), { stale: () => netState && netState.stale() });
 
   /** The app log (Help → Copy log): one line each, trimmed to the last thousand lines. */
   const log = (line) => {

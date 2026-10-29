@@ -9,6 +9,7 @@
 const crypto = require('crypto');
 const { sleep } = require('./util');
 const bridgeLib = require('./bb-bridge');
+const netLog = require('./net-log');
 
 /** The ntfy tag on spoken replies in hands-free mode (the dictate-and-delegate skill). */
 const SPEAK_TAG = 'talkrouter-speak';
@@ -52,7 +53,7 @@ async function text(m, server, { fetch: fetchImpl = globalThis.fetch } = {}) {
   const url = a && a.url ? String(a.url) : '';
   if (url && url.startsWith(server + '/')) {
     const type = a.type || 'text/plain';
-    if (String(type).startsWith('text/')) return (await get(fetchImpl, url, 200_000)).trim();
+    if (String(type).startsWith('text/')) return (await get(fetchImpl, url, 200_000, 'ntfy attachment')).trim();
   }
   return String(m.message || '').trim();
 }
@@ -62,22 +63,38 @@ function streamUrl(server, topic, since, poll = false) {
   return server + '/' + topic + '/json?since=' + since + (poll ? '&poll=1' : '');
 }
 
-async function get(fetchImpl, url, max) {
-  const res = await fetchImpl(url, { signal: AbortSignal.timeout(20_000) });
-  if (res.status >= 300) {
-    await res.arrayBuffer().catch(() => {});
-    throw new Error('HTTP ' + res.status);
-  }
-  const chunks = [];
-  let size = 0;
-  if (res.body) {
-    for await (const chunk of res.body) {
-      chunks.push(Buffer.from(chunk));
-      size += chunk.length;
-      if (size >= max) break;
+async function get(fetchImpl, url, max, what = 'ntfy get', secret = '') {
+  return netLog.request(what, 'GET', url, async (net) => {
+    const res = await fetchImpl(url, { signal: AbortSignal.timeout(20_000) });
+    net.status(res.status);
+    if (res.status >= 300) {
+      await res.arrayBuffer().catch(() => {});
+      throw new Error('HTTP ' + res.status);
     }
-  }
-  return Buffer.concat(chunks).subarray(0, max).toString('utf8');
+    const chunks = [];
+    let size = 0;
+    if (res.body) {
+      for await (const chunk of res.body) {
+        chunks.push(Buffer.from(chunk));
+        size += chunk.length;
+        if (size >= max) break;
+      }
+    }
+    net.received(size);
+    return Buffer.concat(chunks).subarray(0, max).toString('utf8');
+  }, { secrets: [secret] });
+}
+
+/** A received ntfy message for the network log: its id, kind (from its tags), and how long after ntfy got it. */
+function logMessage(what, m, clock = Date.now) {
+  if (!m || typeof m !== 'object' || m.event === 'keepalive' || m.event === 'open') return;
+  const tags = tagsOf(m).map((t) => t.toLowerCase());
+  let request = '';
+  for (const t of tagsOf(m)) if (t.toLowerCase().startsWith('req-')) request = t.substring(4);
+  const kind = tags.includes(PASTE_TAG) ? 'paste' : tags.includes(SPEAK_TAG) ? 'speak' : isMessage(m) ? 'notification' : String(m.event);
+  const time = Number(m.time) || 0;
+  const delay = time ? ', ' + Math.max(0, clock() - time * 1000) + ' ms after ntfy got it' : '';
+  netLog.event(what + ' message', '', 'id ' + String(m.id || '?'), request, kind + delay);
 }
 
 /**
@@ -85,24 +102,50 @@ async function get(fetchImpl, url, max) {
  * true to stop). Gives up when nothing arrives for idleMs (ntfy sends a keepalive every 45 s) or
  * when signal aborts. Resolves when the stream ends.
  */
-async function readStream(fetchImpl, url, { signal, onLine, connectMs = 15_000, idleMs = 90_000 }) {
+async function readStream(fetchImpl, url, { signal, onLine, connectMs = 15_000, idleMs = 90_000, what = 'ntfy stream', secret = '', reconnect = 0 }) {
   const controller = new AbortController();
-  const abort = () => controller.abort();
+  // Why it ended, for the network log: the app stopped it, or nothing came in time.
+  let why = '';
+  const abort = () => {
+    why = why || 'closed by the app';
+    controller.abort();
+  };
   if (signal) {
     if (signal.aborted) return;
     signal.addEventListener('abort', abort, { once: true });
   }
-  let timer = setTimeout(abort, connectMs);
+  let opened = 0;
+  let messages = 0;
+  let timer = setTimeout(() => {
+    why = 'connect timeout';
+    controller.abort();
+  }, connectMs);
   const idle = () => {
     clearTimeout(timer);
-    timer = setTimeout(abort, idleMs);
+    timer = setTimeout(() => {
+      why = 'nothing for ' + Math.round(idleMs / 1000) + ' s (read timeout)';
+      controller.abort();
+    }, idleMs);
   };
+  let failure = null;
   try {
-    const res = await fetchImpl(url, { signal: controller.signal, headers: { Accept: 'application/x-ndjson' } });
+    const connecting = netLog.begin(what + ' connect', 'GET', url, secret).retry(reconnect);
+    let res;
+    try {
+      res = await fetchImpl(url, { signal: controller.signal, headers: { Accept: 'application/x-ndjson' } });
+      connecting.status(res.status);
+    } catch (ex) {
+      connecting.fail(why === 'connect timeout' ? Object.assign(new Error('connect timeout'), { code: 'UND_ERR_CONNECT_TIMEOUT' }) : ex);
+      why = '';
+      throw ex;
+    } finally {
+      connecting.end();
+    }
     if (res.status >= 300) {
       await res.arrayBuffer().catch(() => {});
       throw new Error('HTTP ' + res.status);
     }
+    opened = Date.now();
     idle();
     let buffer = '';
     const decoder = new TextDecoder();
@@ -120,15 +163,29 @@ async function readStream(fetchImpl, url, { signal, onLine, connectMs = 15_000, 
         } catch {
           continue;
         }
+        if (m && typeof m === 'object') {
+          if (m.event !== 'keepalive' && m.event !== 'open') messages++;
+          logMessage(what, m);
+        }
         if (m && typeof m === 'object' && (await onLine(m))) {
+          why = 'done';
           controller.abort();
           return;
         }
       }
     }
+    why = why || 'ended by the server';
+  } catch (ex) {
+    failure = ex;
+    throw ex;
   } finally {
     clearTimeout(timer);
     if (signal) signal.removeEventListener('abort', abort);
+    if (opened) {
+      const res = why || (failure ? netLog.classify(failure) : 'ended');
+      const open = Date.now() - opened;
+      netLog.event(what + ' closed', url, res, '', 'open ' + (open < 60_000 ? Math.round(open / 1000) + ' s' : Math.floor(open / 60_000) + ' min ' + Math.round((open % 60_000) / 1000) + ' s') + ', ' + messages + (messages === 1 ? ' message' : ' messages'), secret);
+    }
   }
 }
 
@@ -161,11 +218,14 @@ class Listener {
   }
 
   async run() {
-    while (!this.stopped) {
+    for (let reconnect = 0; !this.stopped; reconnect++) {
       let got = null;
       try {
         await readStream(this.fetch, streamUrl(this.server, this.topic, this.since, false), {
           signal: this.controller.signal,
+          what: 'ntfy paste text',
+          secret: this.topic,
+          reconnect,
           onLine: async (m) => {
             if (this.stopped || !matches(m, this.request)) return this.stopped;
             const t = await text(m, this.server, { fetch: this.fetch });
@@ -241,10 +301,13 @@ class Replies {
   }
 
   async run() {
-    while (!this.stopped) {
+    for (let reconnect = 0; !this.stopped; reconnect++) {
       try {
         await readStream(this.fetch, this.server + '/' + this.topic + '/json?since=' + this.since, {
           signal: this.controller.signal,
+          what: 'ntfy replies',
+          secret: this.topic,
+          reconnect,
           onLine: async (m) => {
             if (this.stopped) return true;
             const id = m.id ? String(m.id) : '';
@@ -276,7 +339,7 @@ class Replies {
 async function fetchText(bridge, request, { fetch: fetchImpl = globalThis.fetch, clock = () => Date.now() } = {}) {
   const server = bridge.ntfyServer();
   const since = Math.floor(clock() / 1000) - 12 * 3600;
-  const all = await get(fetchImpl, streamUrl(server, bridge.ntfyTopic(), since, true), 2_000_000);
+  const all = await get(fetchImpl, streamUrl(server, bridge.ntfyTopic(), since, true), 2_000_000, 'ntfy poll', bridge.ntfyTopic());
   let found = '';
   for (const line of all.split('\n')) {
     let m;
@@ -353,12 +416,15 @@ function subscribe({
     });
   const done = (async () => {
     let backoff = minBackoffMs;
-    while (!stopped) {
+    for (let reconnect = 0; !stopped; reconnect++) {
       let error = null;
       try {
         await readStream(fetchImpl, streamUrl(server, topic, since, false), {
           signal: controller.signal,
           idleMs,
+          what: 'ntfy subscription',
+          secret: topic,
+          reconnect,
           onLine: async (m) => {
             if (stopped) return true;
             backoff = minBackoffMs; // It works: the next drop retries soon.

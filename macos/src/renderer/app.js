@@ -895,7 +895,7 @@ function skillsCard(root) {
     strong('Your name', 'gap-16'),
     h('div', { class: 'gap-8' }, autosave(name, (v) => api('setUserName', v))),
     line,
-    h('div', { class: 'btns gap-8' }, btn('Check the skills in bb', 'quiet', () => act(() => api('checkSkills', true), null)), adopt),
+    h('div', { class: 'btns gap-8' }, btn('Check the skills in bb', 'quiet', () => act(() => api('checkSkills', true), null)), adopt, btn('Copy network log', 'quiet', () => act(() => api('copyNetworkLog'), toast))),
     result,
     p('Set bb up on your phone first? “Take the topic and name from bb” uses the ntfy topic, server and name the phone filled the skills with, so both get the same notifications.', 'muted small gap-4'),
   ]);
@@ -1311,6 +1311,7 @@ function pageSettings(root) {
       row({ title: 'Export settings', sub: 'Settings and keys as a file, to move to another Mac', onclick: exportSettings }),
       row({ title: 'Import settings', sub: 'From a file exported on another Mac', onclick: importSettings }),
       row({ title: 'App log', sub: 'Copy it for a bug report', onclick: () => act(() => api('copyAppLog'), toast) }),
+      row({ title: 'Network log', sub: "Every connection to bb, ntfy and the models: copy it when something didn't arrive", onclick: () => act(() => api('copyNetworkLog'), toast) }),
       row({ title: 'Delete local data', sub: 'Notes, audio, templates, keys, bb sign-in and settings', onclick: deleteLocalData, warn: true })),
     label('About'),
     card('list',
@@ -1697,9 +1698,10 @@ function callArea(snap) {
 async function recentEvents(root) {
   const log = await api('handsFreeLog').catch(() => ({ empty: true }));
   add(root, strong('Recent events', 'gap-24'));
-  if (log.empty) return add(root, p("No events yet. They appear here once you've made a hands-free call.", 'muted small gap-4'));
+  const network = btn('Copy network log', 'outline', () => act(() => api('copyNetworkLog'), toast));
+  if (log.empty) return add(root, [p("No events yet. They appear here once you've made a hands-free call.", 'muted small gap-4'), h('div', { class: 'btns gap-8' }, network)]);
   add(root, [
-    h('div', { class: 'btns gap-8' }, btn('Copy last call', 'outline', () => act(() => api('copyHandsFreeLog', 1), toast)), btn('Copy last 3 calls', 'outline', () => act(() => api('copyHandsFreeLog', 3), toast))),
+    h('div', { class: 'btns gap-8' }, btn('Copy last call', 'outline', () => act(() => api('copyHandsFreeLog', 1), toast)), btn('Copy last 3 calls', 'outline', () => act(() => api('copyHandsFreeLog', 3), toast)), network),
     h('div', { class: 'events gap-8', id: 'hf-events' }, log.lines),
   ]);
 }

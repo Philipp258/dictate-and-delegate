@@ -21,6 +21,7 @@
 //   player.open() / player.close() (optional): keep the output open (silent) for the whole call.
 
 const { sleep, format } = require('./util');
+const netLog = require('./net-log');
 const decimal = require('./decimal');
 const openrouter = require('./openrouter');
 const handsfree = require('./handsfree');
@@ -393,7 +394,12 @@ class Voice {
    * Fetches a reply's audio into the attempt's stream: MP3 and raw PCM as they come, anything else
    * whole (a 'file'); attempt.first gets when its first byte came (ms after asked).
    */
-  async fetchAudio(c, text, attempt, asked) {
+  fetchAudio(c, text, attempt, asked) {
+    const url = this.base() + '/audio/speech';
+    return netLog.request('TTS ' + (c.model || ''), 'POST', url, (net) => this.fetchAudioLogged(c, text, attempt, asked, net));
+  }
+
+  async fetchAudioLogged(c, text, attempt, asked, net) {
     const stream = attempt.stream;
     const signal = attempt.abort.signal;
     const secs = () => Math.floor((this.clock() - asked) / 1000);
@@ -404,18 +410,24 @@ class Voice {
     }, ANSWER_MS);
     let res;
     try {
+      const payload = JSON.stringify(body(c, text));
+      net.sent(Buffer.byteLength(payload, 'utf8'));
       res = await this.fetch(this.base() + '/audio/speech', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + this.key(), 'Content-Type': 'application/json', 'X-Title': 'Dictate & Delegate' },
-        body: JSON.stringify(body(c, text)),
+        body: payload,
         signal,
       });
     } catch (ex) {
-      if (timedOut) throw new Failed(`no answer in ${secs()} s`);
+      if (timedOut) {
+        net.fail(Object.assign(new Error('no answer'), { code: 'UND_ERR_HEADERS_TIMEOUT' }));
+        throw new Failed(`no answer in ${secs()} s`);
+      }
       throw ex;
     } finally {
       clearTimeout(answerTimer);
     }
+    net.status(res.status);
     if (res.status >= 300) {
       let said = '';
       try {
@@ -426,6 +438,7 @@ class Voice {
       throw new Failed(httpError(res.status, said));
     }
     attempt.first = this.clock() - asked;
+    net.note('first byte ' + attempt.first + ' ms');
     attempt.generation = res.headers.get('X-Generation-Id') || '';
     // Raw samples (some models send nothing else), at the rate they came at, or MP3: played as
     // they come; anything else once it's all in.
@@ -447,7 +460,10 @@ class Voice {
         for (;;) {
           let timer;
           const stalled = new Promise((_, reject) => {
-            timer = setTimeout(() => reject(new Failed(`its audio stopped coming after ${secs()} s`)), READ_MS);
+            timer = setTimeout(() => {
+              net.fail(Object.assign(new Error('stalled'), { code: 'UND_ERR_BODY_TIMEOUT' }));
+              reject(new Failed(`its audio stopped coming after ${secs()} s`));
+            }, READ_MS);
           });
           let r;
           try {
@@ -457,9 +473,11 @@ class Voice {
           }
           if (r.done) break;
           got += r.value.length;
+          net.received(got);
           stream.add(Buffer.from(r.value.buffer, r.value.byteOffset, r.value.byteLength));
         }
       } catch (ex) {
+        if (ex && ex.message === 'dropped') net.fail(Object.assign(new Error('dropped'), { name: 'AbortError' }));
         reader.cancel().catch(() => {});
         throw ex;
       }
@@ -476,8 +494,11 @@ class Voice {
   warm() {
     (async () => {
       try {
-        const res = await this.fetch(this.base() + '/key', { headers: { Authorization: 'Bearer ' + this.key() }, signal: AbortSignal.timeout(10_000) });
-        await res.arrayBuffer(); // Read to the end: the connection stays open for reuse.
+        await netLog.request('TTS warm-up', 'GET', this.base() + '/key', async (net) => {
+          const res = await this.fetch(this.base() + '/key', { headers: { Authorization: 'Bearer ' + this.key() }, signal: AbortSignal.timeout(10_000) });
+          net.status(res.status);
+          net.received((await res.arrayBuffer()).byteLength); // Read to the end: the connection stays open for reuse.
+        });
       } catch {
         /* Only a head start. */
       }
@@ -705,12 +726,17 @@ class Voice {
     for (let attempt = 0; attempt < 4; attempt++) {
       try {
         await this.sleep(1500 * (attempt + 1)); // It shows up a moment after the call.
-        const res = await this.fetch(this.base() + '/generation?id=' + encodeURIComponent(generation), {
-          headers: { Authorization: 'Bearer ' + this.key() },
-          signal: AbortSignal.timeout(25_000),
-        });
-        if (res.status >= 300) continue;
-        const json = await res.json();
+        const url = this.base() + '/generation?id=' + encodeURIComponent(generation);
+        const got = await netLog.request('OpenRouter cost lookup', 'GET', url, async (net) => {
+          const res = await this.fetch(url, {
+            headers: { Authorization: 'Bearer ' + this.key() },
+            signal: AbortSignal.timeout(25_000),
+          });
+          net.status(res.status);
+          return res.status >= 300 ? null : res.json();
+        }, { retry: attempt });
+        if (got == null) continue;
+        const json = got;
         const d = json && typeof json.data === 'object' ? json.data : null;
         if (!d || d.total_cost == null) continue;
         const cost = decimal.parse(String(d.total_cost));

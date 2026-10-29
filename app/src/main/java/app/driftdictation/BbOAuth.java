@@ -393,6 +393,19 @@ final class BbOAuth {
 
   /** A small HTTPS call; errors carry the server's OAuth error text when it sent one. */
   static String request(String method, String url, String body, String type) throws Exception {
+    return NetLog.request(what(body), method, url, net -> exchange(method, url, body, type, net));
+  }
+
+  /** What a sign-in call is for, in the network log (from its form; never the form's values). */
+  static String what(String form) {
+    if (form == null) return "bb sign-in setup";
+    if (form.contains("grant_type=refresh_token")) return "bb token refresh";
+    if (form.contains("grant_type=authorization_code")) return "bb sign-in";
+    if (form.contains("token_type_hint=")) return "bb sign-out";
+    return "bb sign-in";
+  }
+
+  private static String exchange(String method, String url, String body, String type, NetLog.Call net) throws Exception {
     HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
     try {
       c.setConnectTimeout(15_000);
@@ -405,14 +418,17 @@ final class BbOAuth {
         c.setDoOutput(true);
         c.setRequestProperty("Content-Type", type);
         c.setFixedLengthStreamingMode(payload.length);
+        net.sent(payload.length);
         try (OutputStream out = c.getOutputStream()) {
           out.write(payload);
         }
       }
       int status = c.getResponseCode();
+      net.status(status);
       InputStream stream = status < 400 ? c.getInputStream() : c.getErrorStream();
-      String text =
-          stream == null ? "" : new String(stream.readNBytes(1_000_000), StandardCharsets.UTF_8);
+      byte[] got = stream == null ? new byte[0] : stream.readNBytes(1_000_000);
+      net.received(got.length);
+      String text = new String(got, StandardCharsets.UTF_8);
       if (status >= 200 && status < 300) return text;
       String detail = text.trim();
       try {

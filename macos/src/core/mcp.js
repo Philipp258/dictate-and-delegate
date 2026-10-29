@@ -3,6 +3,7 @@
 // optional token is sent as a bearer header. BbBridge uses it to talk to bb's MCP server.
 
 const { tr } = require('./util');
+const netLog = require('./net-log');
 
 const PROTOCOL = '2025-06-18';
 
@@ -51,6 +52,9 @@ class Connection {
     this.timeoutMs = timeoutMs;
     this.session = null;
     this.nextId = 1;
+    /** What this session is for, in the network log ("bb tell chief"), and which try it is. */
+    this.what = 'MCP';
+    this.retry = 0;
   }
 
   async open() {
@@ -133,11 +137,11 @@ class Connection {
   async post(message) {
     try {
       try {
-        return await this.send(message);
+        return await this.send(message, this.retry);
       } catch (ex) {
         if (ex instanceof McpError) throw ex;
         if (message.method === 'tools/call' || networkKind(ex) !== 'broken') throw ex;
-        return await this.send(message);
+        return await this.send(message, this.retry + 1);
       }
     } catch (ex) {
       if (ex instanceof McpError) throw ex;
@@ -156,7 +160,13 @@ class Connection {
     }
   }
 
-  async send(message) {
+  /** One POST, in the network log as what this session is for, with the JSON-RPC method (and tool). */
+  send(message, retry = 0) {
+    const tool = message.method === 'tools/call' && message.params ? ' ' + (message.params.name || '') : '';
+    return netLog.request(this.what, 'POST', this.server.url, (net) => this.sendLogged(message, net.note(message.method + tool)), { retry });
+  }
+
+  async sendLogged(message, net) {
     const headers = {
       'Content-Type': 'application/json',
       Accept: 'application/json, text/event-stream',
@@ -164,14 +174,17 @@ class Connection {
     };
     if (this.session != null) headers['Mcp-Session-Id'] = this.session;
     if (this.server.token.trim()) headers.Authorization = 'Bearer ' + this.server.token.trim();
+    const body = JSON.stringify(message);
+    net.request(netLog.requestIn(body)).sent(Buffer.byteLength(body, 'utf8'));
     const res = await this.fetch(this.server.url, {
       method: 'POST',
       headers,
-      body: JSON.stringify(message),
+      body,
       redirect: 'manual',
       signal: AbortSignal.timeout(this.timeoutMs),
     });
     const status = res.status;
+    net.status(status);
     const id = res.headers.get('Mcp-Session-Id');
     if (id && id.trim()) this.session = id;
     if (status === 202 || status === 204) {
@@ -187,11 +200,12 @@ class Connection {
       throw new McpError(tr('%1$s answered with HTTP %2$d.', this.server.name, status), status);
     }
     const type = String(res.headers.get('Content-Type'));
-    const body = await readLimited(res, 4_000_000);
-    if (type.includes('text/event-stream')) return Connection.fromStream(body, message.id);
-    if (!body.trim()) return null;
+    const answer = await readLimited(res, 4_000_000);
+    net.received(Buffer.byteLength(answer, 'utf8'));
+    if (type.includes('text/event-stream')) return Connection.fromStream(answer, message.id);
+    if (!answer.trim()) return null;
     try {
-      return JSON.parse(body);
+      return JSON.parse(answer);
     } catch {
       throw new McpError(tr('%1$s sent something unexpected.', this.server.name));
     }

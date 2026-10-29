@@ -15,6 +15,7 @@
 const crypto = require('crypto');
 const WebSocket = require('ws');
 const { SerialQueue, withTimeout, TimeoutError, format } = require('./util');
+const netLog = require('./net-log');
 
 /** 16 kHz 16-bit mono (AudioFiles.BYTES_PER_SECOND). */
 const BYTES_PER_SECOND = 16000 * 2;
@@ -72,7 +73,10 @@ function expectedAccept(key) {
  * when we closed it). Resolves once it's open; rejects with "HTTP 401 Unauthorized: <what it
  * said>" when the upgrade is refused, or after timeoutMs (also a TLS handshake that stalls).
  */
-function openSocket(url, headers, listener, timeoutMs) {
+function openSocket(url, headers, listener, timeoutMs, what = 'live transcription') {
+  // In the network log: the upgrade (101 or why not), then how it closed and how long it was open.
+  const net = netLog.begin(what + ' connect', 'GET', url);
+  let openedAt = 0;
   return new Promise((resolve, reject) => {
     let settled = false,
       ended = false,
@@ -80,6 +84,8 @@ function openSocket(url, headers, listener, timeoutMs) {
     const ws = new WebSocket(url, { headers, handshakeTimeout: timeoutMs, perMessageDeflate: false, followRedirects: false });
     const fail = (ex) => {
       if (settled) return;
+      net.fail(ex instanceof Error ? ex : new Error(String(ex)));
+      net.end();
       settled = true;
       ended = true;
       try {
@@ -92,6 +98,7 @@ function openSocket(url, headers, listener, timeoutMs) {
     ws.on('unexpected-response', (req, res) => {
       // What the provider said, for the log (its body may say why: a bad key, no credit).
       let said = '';
+      net.status(res.statusCode);
       const status = `HTTP ${res.statusCode}${res.statusMessage ? ' ' + res.statusMessage : ''}`;
       const done = () => {
         clearTimeout(timer);
@@ -125,10 +132,22 @@ function openSocket(url, headers, listener, timeoutMs) {
       ended = true;
       let why = reason ? reason.toString('utf8') : '';
       if (code === 1006) why = error ? String(error.message).toLowerCase() : 'the connection was lost';
+      const open = Date.now() - openedAt;
+      // The provider's close reason is a status line ("session expired"), cut short; never what was said.
+      const reasonShort = reason ? reason.toString('utf8').replace(/\s+/g, ' ').slice(0, 60) : '';
+      netLog.event(
+        what + ' closed',
+        url,
+        !first ? 'closed by the app' : code === 1006 ? (error ? netLog.classify(error) : 'connection lost') : 'code ' + code + (reasonShort ? ' ' + reasonShort : ''),
+        '',
+        'open ' + Math.round(open / 1000) + ' s',
+      );
       if (listener) listener.ended(code, first ? why : 'closed');
     });
     ws.on('open', () => {
       if (settled) return;
+      net.status(101).end();
+      openedAt = Date.now();
       settled = true;
       resolve({
         send(data) {

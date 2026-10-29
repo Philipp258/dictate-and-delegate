@@ -208,7 +208,7 @@ final class OpenRouter {
     if (key.isBlank()) throw new IOException(tr("Add your OpenRouter key in Dictate & Delegate's Settings first."));
     for (int attempt = 0; ; attempt++) {
       try {
-        return send("POST", base() + path, body, key, 20000, 120000);
+        return send("POST", base() + path, body, key, 20000, 120000, attempt);
       } catch (Unauthorized ex) {
         throw new IOException(tr("Your OpenRouter key isn't valid anymore. Change it in Dictate & Delegate's Settings."), ex);
       } catch (Busy ex) {
@@ -231,6 +231,30 @@ final class OpenRouter {
   private static JSONObject send(
       String method, String url, JSONObject body, String key, int connectMs, int readMs)
       throws Exception {
+    return send(method, url, body, key, connectMs, readMs, 0);
+  }
+
+  private static JSONObject send(
+      String method, String url, JSONObject body, String key, int connectMs, int readMs, int retry)
+      throws Exception {
+    return NetLog.request(what(url, body), method, url, retry, net -> exchange(method, url, body, key, connectMs, readMs, net));
+  }
+
+  /** What a call is for, in the network log: "OpenRouter transcribe <model>", "Jev <model>"… */
+  static String what(String url, JSONObject body) {
+    String model = body == null ? "" : body.optString("model");
+    String m = model.isEmpty() ? "" : " " + model;
+    if (url.contains("/decisions")) return "Jev" + m;
+    if (url.contains("/audio/transcriptions")) return "OpenRouter transcribe" + m;
+    if (url.contains("/chat/completions")) return "OpenRouter chat" + m;
+    if (url.endsWith("/key")) return "OpenRouter key check";
+    if (url.endsWith("/models")) return "OpenRouter models";
+    return "OpenRouter";
+  }
+
+  private static JSONObject exchange(
+      String method, String url, JSONObject body, String key, int connectMs, int readMs, NetLog.Call net)
+      throws Exception {
     HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
     try {
       c.setConnectTimeout(connectMs);
@@ -244,14 +268,17 @@ final class OpenRouter {
         c.setDoOutput(true);
         c.setRequestProperty("Content-Type", "application/json");
         c.setFixedLengthStreamingMode(payload.length);
+        net.sent(payload.length);
         try (OutputStream out = c.getOutputStream()) {
           out.write(payload);
         }
       }
       int status = c.getResponseCode();
+      net.status(status);
       InputStream stream = status < 400 ? c.getInputStream() : c.getErrorStream();
-      String text =
-          stream == null ? "" : new String(stream.readNBytes(4_000_000), StandardCharsets.UTF_8);
+      byte[] got = stream == null ? new byte[0] : stream.readNBytes(4_000_000);
+      net.received(got.length);
+      String text = new String(got, StandardCharsets.UTF_8);
       if (status == 401) throw new Unauthorized();
       if (status == 429) throw new Busy();
       JSONObject json;

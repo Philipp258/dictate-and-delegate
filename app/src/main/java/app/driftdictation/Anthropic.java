@@ -185,7 +185,7 @@ final class Anthropic {
     if (key.isBlank()) throw new Failure(Problem.KEY, tr("No Anthropic key is set."), null);
     for (int attempt = 0; ; attempt++) {
       try {
-        return parse(send("POST", base() + "/v1/messages", body, key, 20000, 120000), body.getString("model"));
+        return parse(send("POST", base() + "/v1/messages", body, key, 20000, 120000, attempt), body.getString("model"));
       } catch (Failure f) {
         if (f.problem != Problem.BUSY || attempt >= 2) throw f;
         Thread.sleep(1500L * (attempt + 1));
@@ -196,6 +196,17 @@ final class Anthropic {
   // ------------------------------------------------------------------ transport
 
   private static JSONObject send(String method, String url, JSONObject body, String key, int connectMs, int readMs)
+      throws IOException {
+    return send(method, url, body, key, connectMs, readMs, 0);
+  }
+
+  private static JSONObject send(String method, String url, JSONObject body, String key, int connectMs, int readMs, int retry)
+      throws IOException {
+    String what = body == null ? "Anthropic key check" : "Anthropic " + body.optString("model");
+    return NetLog.request(what, method, url, retry, net -> exchange(method, url, body, key, connectMs, readMs, net));
+  }
+
+  private static JSONObject exchange(String method, String url, JSONObject body, String key, int connectMs, int readMs, NetLog.Call net)
       throws IOException {
     HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
     try {
@@ -210,13 +221,17 @@ final class Anthropic {
         c.setDoOutput(true);
         c.setRequestProperty("content-type", "application/json");
         c.setFixedLengthStreamingMode(payload.length);
+        net.sent(payload.length);
         try (OutputStream out = c.getOutputStream()) {
           out.write(payload);
         }
       }
       int status = c.getResponseCode();
+      net.status(status);
       InputStream stream = status < 400 ? c.getInputStream() : c.getErrorStream();
-      String text = stream == null ? "" : new String(stream.readNBytes(4_000_000), StandardCharsets.UTF_8);
+      byte[] got = stream == null ? new byte[0] : stream.readNBytes(4_000_000);
+      net.received(got.length);
+      String text = new String(got, StandardCharsets.UTF_8);
       JSONObject json;
       try {
         json = new JSONObject(text);
