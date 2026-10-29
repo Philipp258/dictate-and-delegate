@@ -72,6 +72,9 @@ function bind(koffi) {
     idStr: OBJC.func('void *objc_msgSend(void *self, void *sel, const char *s)'),
     long: OBJC.func('long objc_msgSend(void *self, void *sel)'),
     bool: OBJC.func('bool objc_msgSend(void *self, void *sel)'),
+    voidBool: OBJC.func('void objc_msgSend(void *self, void *sel, bool a)'),
+    voidULong: OBJC.func('void objc_msgSend(void *self, void *sel, unsigned long a)'),
+    ulong: OBJC.func('unsigned long objc_msgSend(void *self, void *sel)'),
     str: OBJC.func('const char *objc_msgSend(void *self, void *sel)'),
     boolId: OBJC.func('bool objc_msgSend(void *self, void *sel, void *a)'),
     boolIdId: OBJC.func('bool objc_msgSend(void *self, void *sel, void *a, void *b)'),
@@ -198,6 +201,34 @@ function bind(koffi) {
     modifiersHeld() {
       // Shift, Control, Option, Command (not Caps Lock).
       return Number(BigInt(cg.flagsState(1 /* HIDSystemState */)) & 0x001e0000n);
+    },
+
+    /**
+     * Makes a window never activate the app when clicked (the floating panel). Electron's 'panel'
+     * type only adds the non-activating style mask to its NSWindow, and AppKit honours that mask
+     * for real NSPanels only: a click still made the app active, and macOS then brought its open
+     * main window to the front. AppKit's own switch for that (what NSPanel sets for the mask) is
+     * -[NSWindow _setPreventsActivation:]. handle: BrowserWindow.getNativeWindowHandle() (an
+     * NSView*). Returns what it found and did, for the window log.
+     */
+    preventActivation(handle) {
+      const pool = objc.poolPush();
+      try {
+        const view = koffi.decode(handle, 'void *');
+        const win = view && objc.id(view, S('window'));
+        if (!win) return 'no window';
+        const cls = objc.str(objc.id(win, S('className')), S('UTF8String'));
+        const NONACTIVATING = 1 << 7;
+        const mask = Number(objc.ulong(win, S('styleMask')));
+        if (!(mask & NONACTIVATING)) objc.voidULong(win, S('setStyleMask:'), mask | NONACTIVATING);
+        objc.voidBool(win, S('setHidesOnDeactivate:'), false);
+        const prevent = S('_setPreventsActivation:');
+        const can = objc.boolId(win, S('respondsToSelector:'), prevent);
+        if (can) objc.voidBool(win, prevent, true);
+        return `${cls}, style mask 0x${mask.toString(16)}${mask & NONACTIVATING ? '' : ' (non-activating added)'}, ${can ? 'prevents activation' : '_setPreventsActivation: not available'}`;
+      } finally {
+        objc.poolPop(pool);
+      }
     },
 
     /** Is this app the active one? A click on the floating panel or on a notification makes it so. */

@@ -1312,6 +1312,8 @@ function pageSettings(root) {
       row({ title: 'Import settings', sub: 'From a file exported on another Mac', onclick: importSettings }),
       row({ title: 'App log', sub: 'Copy it for a bug report', onclick: () => act(() => api('copyAppLog'), toast) }),
       row({ title: 'Network log', sub: "Every connection to bb, ntfy and the models: copy it when something didn't arrive", onclick: () => act(() => api('copyNetworkLog'), toast) }),
+      prefRow('Window log', 'Logs what opens windows and takes the focus, for a bug report', 'windowLog', S.windowLog),
+      row({ title: 'Copy window log', sub: 'Paste it where you report the problem', onclick: () => act(() => api('copyWindowLog'), toast) }),
       row({ title: 'Delete local data', sub: 'Notes, audio, templates, keys, bb sign-in and settings', onclick: deleteLocalData, warn: true })),
     label('About'),
     card('list',

@@ -29,6 +29,7 @@ const { panelModel } = require('../core/panel-model');
 const chiefText = require('../core/chief-text');
 const openrouter = require('../core/openrouter');
 const { ActivationGate, giveFocusBack } = require('../core/activation');
+const { caller } = require('../core/window-log');
 const { sleep } = require('../core/util');
 const nativeMac = require('./macos-native');
 
@@ -71,14 +72,42 @@ function start() {
   app.on('second-instance', () => openMain());
   // A Dock click opens the window. A click on the panel or a notification activates the app too;
   // then it stays closed (decided a moment later, when the click's own handler has run).
-  const activation = new ActivationGate();
-  app.on('activate', () => {
+  const activation = new ActivationGate({ quietMs: 1500 });
+  app.on('activate', (_e, hasVisibleWindows) => {
     if (!ctx) return;
+    wlog('macOS: activate (Dock click or reopen)', `visible windows: ${hasVisibleWindows}`);
     setTimeout(() => {
       if (activation.opensWindow()) openMain();
-      else ctx.log('app: activated by a click on the panel or a notification; the window stays closed');
+      else wlog('activate: window stays closed', 'the panel or a notification was just used');
     }, 250);
   });
+  // The window log (opt-in, Settings → Data): what opened windows and took the focus.
+  const wlog = (what, detail) => ctx && ctx.windowLog.log(what, detail);
+  const winName = (w) => (!w ? 'none' : w === mainWindow ? 'main window' : w === panel ? 'panel' : `window ${w.id} "${w.getTitle()}"`);
+  const activeNow = () => {
+    try {
+      const mac = nativeMac.load();
+      return mac ? (mac.appActive() ? 'app active' : 'app not active') : '';
+    } catch {
+      return '';
+    }
+  };
+  app.on('did-become-active', () => {
+    if (!ctx) return;
+    wlog('macOS: app became active');
+    // Should a click on the panel still activate the app, hand the focus straight back, so macOS
+    // doesn't keep the main window in front of the app you're typing in. Decided a moment later,
+    // when the panel's mouse-down has arrived.
+    setTimeout(() => {
+      const mac = nativeMac.load();
+      if (activation.opensWindow() || !mac || !mac.appActive()) return;
+      mac.deactivate();
+      wlog('app: activated by the panel or a notification; gave the focus back', activeNow());
+    }, 150);
+  });
+  app.on('did-resign-active', () => wlog('macOS: app no longer active'));
+  app.on('browser-window-focus', (_e, w) => wlog('window focused', winName(w)));
+  app.on('browser-window-blur', (_e, w) => wlog('window lost the focus', winName(w)));
   app.on('window-all-closed', () => {
     /* The app keeps running without windows: the shortcut and the panel work on their own. */
   });
@@ -119,7 +148,10 @@ function start() {
       insert: (text) => insertFromNotification(text),
       copy: (text) => clipboard.writeText(text),
       pasteArrived: () => false,
-      clicked: () => activation.quiet(),
+      clicked: () => {
+        activation.quiet();
+        wlog('notification clicked', activeNow());
+      },
     });
     try {
       call = require('./call').createCall({ ctx, audio, shell: callShell() });
@@ -310,6 +342,18 @@ function start() {
     });
     win.setAlwaysOnTop(true, 'floating');
     win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
+    // A click on the panel must never make the app active: that brought its main window in front
+    // of the app you're typing in, and Insert's ⌘V went to it.
+    const nonActivating = (when) => {
+      try {
+        const mac = nativeMac.load();
+        if (mac) wlog(`panel: non-activating (${when})`, mac.preventActivation(win.getNativeWindowHandle()));
+      } catch (e) {
+        wlog(`panel: couldn't make it non-activating (${when})`, e.message);
+      }
+    };
+    nonActivating('created');
+    win.on('show', () => nonActivating('shown'));
     win.loadFile(path.join(RENDERER, 'panel.html'));
     win.on('moved', () => {
       const [x, y] = win.getPosition();
@@ -320,7 +364,8 @@ function start() {
     ipcMain.on('panel:ready', (e) => mine(e) && showPanel(panelModel(dictation.snapshot())));
     ipcMain.on('panel:action', (e, id) => {
       if (!mine(e)) return;
-      activation.quiet(); // A click on the panel activates the app: no window for that.
+      activation.quiet(); // Should a click on the panel still activate the app: no window for that.
+      wlog(`panel: ${id === 'touch' ? 'cursor on it' : 'click on ' + id}`, activeNow());
       panelAction(id);
     });
     ipcMain.on('panel:size', (e, w, h, visible) => {
@@ -453,6 +498,7 @@ function start() {
   // ---------------------------------------------------------------- the main window
 
   function openMain(page = 'home') {
+    wlog(`main window: open (${page})`, caller(new Error().stack));
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('navigate', page);
       mainWindow.show();
@@ -487,6 +533,7 @@ function start() {
       e.preventDefault();
       if (!url.startsWith('file:')) openExternal(url);
     });
+    for (const ev of ['show', 'focus', 'restore']) mainWindow.on(ev, () => wlog(`main window: ${ev}`, activeNow()));
     mainWindow.on('closed', () => {
       mainWindow = null;
       registerHotkeys(); // In case the shortcut recorder was still listening.
@@ -515,6 +562,7 @@ function start() {
   async function focusBack() {
     const how = await giveFocusBack({ mac: nativeMac.load(), hide: () => app.hide(), sleep });
     if (how === 'deactivated' || how === 'hidden') ctx.log(`insert: gave the focus back to your app first (${how})`);
+    wlog('insert: focus', how === 'not-active' ? 'your app had it' : how);
   }
 
   // ---------------------------------------------------------------- bb sign-in

@@ -68,5 +68,7 @@ function size() {
 }
 
 root.addEventListener('mouseenter', () => dd.send('panel:action', 'touch'));
+// Before the click itself: macOS would activate the app on the mouse-down.
+root.addEventListener('pointerdown', () => dd.send('panel:action', 'touch'));
 dd.on('panel', render);
 dd.send('panel:ready');

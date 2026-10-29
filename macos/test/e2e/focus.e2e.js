@@ -12,6 +12,7 @@ const { waitFor, sleep } = require('../../src/core/util');
 module.exports = async function (dd) {
   const noWindow = (why) => assert.ok(!dd.mainWindow(), why);
   noWindow('no window at the start');
+  dd.ctx.prefs.set('windowLog', true); // The opt-in window log records what follows.
 
   // The cursor on the panel (and a click on it), then the activation that click causes on macOS.
   const panel = dd.panel();
@@ -36,4 +37,10 @@ module.exports = async function (dd) {
   dd.activation.until = 0;
   app.emit('activate', {}, false);
   await waitFor(() => !!dd.mainWindow(), 5000, 'a Dock click opens the window');
+
+  // The window log says what happened and which code opened the window.
+  const log = dd.ctx.windowLog.read();
+  for (const line of ['panel: cursor on it', 'macOS: activate (Dock click or reopen)', 'activate: window stays closed', 'notification clicked', 'main window: open (home) | openMain src/main/main.js:'])
+    assert.ok(log.includes(line), line + ' in:\n' + log);
+  assert.equal(log.split('activate: window stays closed').length - 1, 2, log);
 };

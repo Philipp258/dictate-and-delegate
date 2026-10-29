@@ -50,6 +50,9 @@ saved keys stay.
   the HTTP status or kind of failure, how long it took, the retry and the network (Wi-Fi, Ethernet,
   iPhone USB…, IPv4/IPv6). Never keys, tokens, message text or audio. Copy last call adds the
   entries since that call started.
+- **Window log** (Settings → Data, off by default): turn it on, reproduce a window or focus problem,
+  then **Copy window log**. It lists when macOS activated the app, which windows were shown or
+  focused, clicks on the floating panel, and which code opened the main window.
 
 ## Differences from Android
 

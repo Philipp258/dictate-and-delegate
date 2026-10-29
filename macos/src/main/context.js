@@ -23,6 +23,7 @@ const { ChiefSkills } = require('../core/chief-skills');
 const handsFreeLog = require('../core/handsfree-log');
 const netLog = require('../core/net-log');
 const { NetState } = require('../core/net-state');
+const { WindowLog, PREF: WINDOW_LOG } = require('../core/window-log');
 
 /**
  * Images as JPEG (what Android stores), at most IMAGE_MAX_WIDTH × IMAGE_MAX_HEIGHT. Electron reads
@@ -75,6 +76,7 @@ async function createContext({ log: baseLog } = {}) {
     log: path.join(data, 'app.log'),
     handsFreeLog: path.join(data, 'handsfree.log'),
     netLog: path.join(data, 'network.log'),
+    windowLog: path.join(data, 'window.log'),
   };
 
   // The network log (Copy network log): every request, with the network at that moment. Only
@@ -125,6 +127,8 @@ async function createContext({ log: baseLog } = {}) {
     bb,
     skills,
     version: app.getVersion(),
+    /** The opt-in window log (Settings → Data): what opened windows and took the focus. */
+    windowLog: new WindowLog({ file: files.windowLog, enabled: () => prefs.get(WINDOW_LOG, false) === true }),
 
     /** Refine: the text model with the user's prompt, the named template and the note's attachments. */
     refine(text, { template = '', recordingId = '' } = {}) {

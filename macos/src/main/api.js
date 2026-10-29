@@ -214,6 +214,7 @@ function validators() {
     [profileLib.AUTO_REFINE]: bool,
     [profileLib.AUTO_CHIEF]: bool,
     retainAudio: bool,
+    windowLog: bool,
     model: oneOf([...profileLib.OFFERED]),
     [textModel.PREF_CLAUDE]: oneOf(anthropic.MODELS.map((c) => c.id)),
     [HandsFree.VOICE]: oneOf(voiceLib.CHOICES.map((c) => c.id)),
@@ -702,6 +703,7 @@ function createMethods(ctx, shell = {}, push = () => {}) {
           macVoice: prefs.get(MAC_VOICE, ''),
         },
         retainAudio: prefs.get('retainAudio', true) !== false,
+        windowLog: prefs.get('windowLog', false) === true,
         dictation: (await call('dictationState')) || null,
         handsFreeAvailable: typeof shell.callAvailable === 'function' ? !!(await shell.callAvailable()) : typeof shell.startCall === 'function',
         attachmentsPending: (() => {
@@ -1402,6 +1404,17 @@ function createMethods(ctx, shell = {}, push = () => {}) {
       await call('copy', netLog.report('Dictate & Delegate ' + ctx.version + ' for macOS (Darwin ' + os.release() + ')', netLog.read()).trim());
       return tr('Copied. Paste it where you report the problem.');
     },
+    /** Copy window log: what opened windows and took the focus (opt-in), to see why a window appeared. */
+    async copyWindowLog() {
+      const os = require('os');
+      const log = ctx.windowLog.read().trim();
+      await call(
+        'copy',
+        'Window log · Dictate & Delegate ' + ctx.version + ' for macOS (Darwin ' + os.release() + ')\n' +
+          (log || (prefs.get('windowLog', false) === true ? '(nothing logged yet)' : '(off: turn on Window log in Settings → Data first)')),
+      );
+      return tr('Copied. Paste it where you report the problem.');
+    },
     async copyAppLog() {
       let log = '';
       try {
@@ -1525,6 +1538,7 @@ function createMethods(ctx, shell = {}, push = () => {}) {
       tryTo(() => attachments.deleteAll());
       tryTo(() => fs.rmSync(ctx.files.handsFreeLog, { force: true }));
       tryTo(() => fs.rmSync(ctx.files.netLog, { force: true }));
+      tryTo(() => fs.rmSync(ctx.files.windowLog, { force: true }));
       tryTo(() => bb.forgetAll());
       tryTo(() => {
         for (const k of Object.keys(prefs.all())) prefs.remove(k);
