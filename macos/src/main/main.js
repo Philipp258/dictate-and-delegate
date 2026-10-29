@@ -1,5 +1,5 @@
 'use strict';
-// Dictate & Delegate for macOS: a Dock app. A global shortcut starts and stops a dictation
+// Dictate & Delegate for macOS. A global shortcut starts and stops a dictation
 // (like the Android volume key), a floating panel offers Insert / Refine / Chief, a second
 // shortcut (or 📞) starts a hands-free call with the chief, and the chief's ntfy messages show
 // as notifications. The logic is the Android app's, ported to src/core; this file wires it to

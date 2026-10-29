@@ -61,7 +61,7 @@ function render(m) {
   size();
 }
 
-/** Measured right away, not in an animation frame: a hidden window gets no frames, so it would never show again. */
+/** Measures right away rather than in an animation frame: a hidden window gets no animation frames, so the panel would never ask to be shown again. */
 function size() {
   const r = root.getBoundingClientRect();
   dd.send('panel:size', Math.ceil(r.width) + 2, Math.ceil(r.height) + 2, root.className !== 'hidden');

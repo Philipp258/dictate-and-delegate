@@ -1,6 +1,6 @@
 # Dictate & Delegate for macOS
 
-The Android app's features on the Mac: a Dock app with a global shortcut to dictate into any
+The Android app's features on the Mac: an app with a global shortcut to dictate into any
 app, Refine, hand-off to your chief of staff in bb, hands-free calls with the chief, and the
 chief's notifications and text to paste. It uses the same providers, settings, bb skills and ntfy
 topic as the phone, with your own keys and no server of its own.
@@ -30,8 +30,9 @@ The app is signed with its own certificate, not Apple's, so macOS asks once befo
 
 Updates: replace the app in Applications with the new one. Every build is signed with the same
 certificate, so macOS keeps the microphone and Accessibility permissions. On the first start after an
-update, macOS asks whether Dictate & Delegate may use its Keychain item: enter your password and click
-**Always Allow**, and your saved keys stay.
+update, macOS asks whether Dictate & Delegate may use its Keychain item (the app has no Apple Team ID,
+so the Keychain treats each build as new): enter your password and click **Always Allow**, and your
+saved keys stay.
 
 ## Use
 
