@@ -97,6 +97,14 @@ public class ChiefSkillsTest {
     assertTrue(r.contains("bb thread tell <talker thread id> --mode queue --message-file -"));
     assertTrue(r, r.contains("which tells Alex the answer itself, in full, without \"the chief says\""));
     assertFalse(r.contains("in its own words"));
+    // It stays free for the next message: longer work goes to child threads.
+    assertTrue(r.contains("**Stay responsive.** Do only quick things yourself (a lookup, one command)."));
+    assertTrue(r.contains("goes to a child thread (`bb thread spawn --parent-self`) with a clear brief, and you keep answering"));
+    assertTrue(r.contains("If something you started yourself fails, hand it off instead of retrying in place."));
+    assertTrue(r.contains("by child threads for anything more than a quick step, so you're free for the next message"));
+    assertFalse(r.contains("do whatever research or work"));
+    String cos = ChiefSkills.fill(ChiefSkills.CHIEF, template(ChiefSkills.CHIEF), "Alex", "t", "", "");
+    assertTrue(cos.contains("do the quick ones yourself (a lookup, one command; one that runs longer or fails goes to a child thread"));
     assertTrue(r.contains("[chief] <what Alex needs to know or decide"));
     assertTrue(r.contains("A reply never plays while it's Alex's turn"));
     assertFalse("the old pause rule is gone", r.contains("plays at their next pause, even if they haven't sent"));

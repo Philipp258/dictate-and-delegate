@@ -88,6 +88,14 @@ test('theChiefSkillStatesTheTalkerContractAndTheTurnRule', () => {
   assert.ok(r.includes('bb thread tell <talker thread id> --mode queue --message-file -'));
   assert.ok(r.includes('which tells Alex the answer itself, in full, without "the chief says"'), r);
   assert.ok(!r.includes('in its own words'));
+  // It stays free for the next message: longer work goes to child threads.
+  assert.ok(r.includes('**Stay responsive.** Do only quick things yourself (a lookup, one command).'));
+  assert.ok(r.includes('goes to a child thread (`bb thread spawn --parent-self`) with a clear brief, and you keep answering'));
+  assert.ok(r.includes('If something you started yourself fails, hand it off instead of retrying in place.'));
+  assert.ok(r.includes('by child threads for anything more than a quick step, so you\'re free for the next message'));
+  assert.ok(!r.includes('do whatever research or work'));
+  const cos = ChiefSkills.fill(ChiefSkills.CHIEF, template(ChiefSkills.CHIEF), 'Alex', 't', '', '');
+  assert.ok(cos.includes('do the quick ones yourself (a lookup, one command; one that runs longer or fails goes to a child thread'));
   assert.ok(r.includes('[chief] <what Alex needs to know or decide'));
   assert.ok(r.includes("A reply never plays while it's Alex's turn"));
   assert.ok(!r.includes("plays at their next pause, even if they haven't sent"), 'the old pause rule is gone');
