@@ -41,7 +41,7 @@ public final class MainActivity extends Activity {
   private final Set<String> openCalls = new HashSet<>();
   // Live views of the current page.
   private Button record;
-  private TextView status, noteStatus;
+  private TextView status, noteStatus, updateLine;
   private LinearLayout recovery, recentBox, monthBox, wordsBox, modelList;
   private ListView notesList;
   private EditText editor, practice;
@@ -1704,6 +1704,7 @@ public final class MainActivity extends Activity {
     top.addView(ui.title("Dictate & Delegate", 26), new LinearLayout.LayoutParams(0, -2, 1));
     top.addView(ui.button(tr("Settings"), Ui.Kind.QUIET, v -> open("settings")));
     content.addView(top);
+    updateBanner();
     if (!OpenRouter.hasKey(this)) {
       LinearLayout warn = ui.add(content, ui.card(0xfffde3d8, 0), 12);
       warn.addView(ui.strong(tr("Add your OpenRouter key to start dictating"), 15));
@@ -3008,6 +3009,8 @@ public final class MainActivity extends Activity {
     about.addView(ui.divider());
     about.addView(
         ui.row(tr("Report a problem"), tr("On GitHub"), null, v -> openUrl(SOURCE_URL + "/issues")));
+    about.addView(ui.divider());
+    about.addView(ui.row(tr("Check for updates"), updateState(), null, v -> checkUpdates()));
     TextView version = ui.text("Dictate & Delegate " + BuildConfig.VERSION_NAME, 12, Ui.MUTED);
     version.setGravity(Gravity.CENTER);
     ui.add(content, version, 18);
@@ -4030,6 +4033,92 @@ public final class MainActivity extends Activity {
 
   // ---------------------------------------------------------------- live state
 
+  // ------------------------------------------------------------------ updates
+
+  /** Home: a newer version, what's new in it, and Update (Android then asks to confirm the install). */
+  private void updateBanner() {
+    Updates.Release r = Updates.available(this);
+    updateLine = null;
+    if (r == null) return;
+    LinearLayout card = ui.add(content, ui.card(Ui.TEAL_TINT, Ui.TEAL_SOFT), 12);
+    card.addView(ui.strong(tr("Update to %1$s", r.version()), 15));
+    String notes = Updates.notes(r.notes());
+    if (!notes.isEmpty()) ui.add(card, ui.text(notes, 13, Ui.MUTED), 6);
+    updateLine = ui.add(card, ui.text(UpdateReceiver.failure, 13, Ui.BODY), 6);
+    updateLine.setVisibility(UpdateReceiver.failure.isEmpty() ? View.GONE : View.VISIBLE);
+    ui.add(card, ui.button(tr("Update"), Ui.Kind.PRIMARY, v -> startUpdate(r)), 10);
+  }
+
+  private void updateLine(String s) {
+    if (updateLine == null) return;
+    updateLine.setText(s);
+    updateLine.setVisibility(s.isEmpty() ? View.GONE : View.VISIBLE);
+  }
+
+  /** Update: download, check (checksum, this app's key), then Android's installer. */
+  private void startUpdate(Updates.Release r) {
+    if (!Updates.mayInstall(this)) {
+      toast(tr("Allow Dictate & Delegate to install updates, then tap Update again."));
+      startActivity(Updates.allowInstalls(this));
+      return;
+    }
+    UpdateReceiver.failure = "";
+    updateLine(tr("Downloading the update…"));
+    new Thread(
+            () -> {
+              try {
+                java.io.File apk =
+                    Updates.download(this, r, pct -> main.post(() -> updateLine(tr("Downloading the update…") + (pct < 0 ? "" : " " + pct + " %"))));
+                main.post(() -> updateLine(tr("Android asks you to confirm the update.")));
+                Updates.install(this, apk);
+              } catch (Exception ex) {
+                main.post(() -> updateLine(tr("The update couldn't be installed: %1$s", why(ex))));
+              }
+            },
+            "update")
+        .start();
+  }
+
+  /** Settings → About: what the last check found. */
+  private String updateState() {
+    Updates.Release r = Updates.available(this);
+    return r != null ? tr("Update to %1$s", r.version()) : tr("Up to date (%1$s)", BuildConfig.VERSION_NAME);
+  }
+
+  /** Check for updates: asks GitHub now; a newer version shows on Home. */
+  private void checkUpdates() {
+    toast(tr("Checking…"));
+    new Thread(
+            () -> {
+              String said;
+              boolean found = false;
+              try {
+                Updates.Release r = Updates.check(this);
+                found = r != null;
+                said = found ? tr("Update to %1$s", r.version()) : tr("Up to date (%1$s)", BuildConfig.VERSION_NAME);
+              } catch (Exception ex) {
+                said = tr("Couldn't check for updates: %1$s", why(ex));
+              }
+              String shown = said;
+              boolean open = found;
+              main.post(
+                  () -> {
+                    toast(shown);
+                    if (open) open("home");
+                    else if (page.equals("settings")) show("settings");
+                  });
+            },
+            "update-check")
+        .start();
+  }
+
+  private static String why(Exception ex) {
+    for (Throwable t = ex; t != null; t = t.getCause())
+      if (t instanceof java.net.UnknownHostException || t instanceof java.net.ConnectException || t instanceof java.net.SocketTimeoutException)
+        return tr("no connection");
+    return ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage();
+  }
+
   private void renderStatus() {
     renderSkills();
     renderHandsFree();
@@ -4097,6 +4186,10 @@ public final class MainActivity extends Activity {
     main.post(refresh);
     // After an app update, or a change elsewhere, bb gets the current skills.
     ChiefSkills.sync(this, false);
+    // About once a day: is there a newer version? It shows on Home.
+    Updates.checkIfDue(this, () -> main.post(() -> {
+      if (page.equals("home") && Updates.available(this) != null && updateLine == null) show("home");
+    }));
   }
 
   @Override

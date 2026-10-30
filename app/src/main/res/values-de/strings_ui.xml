@@ -13,6 +13,7 @@
     <string name="t_02986d74" formatted="false">Zum Beispiel: Wohnungsbewerbung</string>
     <string name="t_02eb1806" formatted="false">Dictate &amp; Delegate zu Schnelleinstellungen hinzufügen</string>
     <string name="t_0369ff1c" formatted="false">Antwort gestoppt: du hast dazwischengesprochen; der Chief erfährt, wie weit du sie gehört hast</string>
+    <string name="t_039fff92" formatted="false">es ist nicht mit dem Schlüssel dieser App signiert</string>
     <string name="t_04577256" formatted="false">Keine Wörter erkannt: dein Zug endet</string>
     <string name="t_04bb15b6" formatted="false">Gespeichertes Audio gelöscht</string>
     <string name="t_04fc2b5b" formatted="false">Bild</string>
@@ -60,6 +61,7 @@
     <string name="t_13f11ba3" formatted="false">Aus</string>
     <string name="t_14f38eda" formatted="false">Skills werden installiert und Thread in bb wird erstellt…</string>
     <string name="t_1515cfb6" formatted="false">Keine Treffer.</string>
+    <string name="t_15f8ef12" formatted="false">Aktuell (%1$s)</string>
     <string name="t_16545ddd" formatted="false">Modell</string>
     <string name="t_16666fb3" formatted="false">keine Antwort in der Zeit</string>
     <string name="t_174fc48a" formatted="false">nicht gesendet</string>
@@ -81,6 +83,7 @@
     <string name="t_1c9d89f5" formatted="false">Wird gesendet…</string>
     <string name="t_1ca48dd6" formatted="false">Anweisungsprüfung fehlgeschlagen, im Wortlaut behalten</string>
     <string name="t_1cbdcf91" formatted="false">✨ Erneut verfeinern</string>
+    <string name="t_1dba215a" formatted="false">Update wird geladen…</string>
     <string name="t_1e4ae9cd" formatted="false">Oder bestehenden Thread nutzen</string>
     <string name="t_1e528165" formatted="false">%1$s.getbb.app hat mit HTTP %2$d geantwortet. Versuche es gleich noch einmal.</string>
     <string name="t_1e8f2a1c" formatted="false">Diese Adresse vergessen</string>
@@ -136,6 +139,7 @@
     <string name="t_2e5c65fd" formatted="false">über OpenRouter: %1$s</string>
     <string name="t_2ef3166c" formatted="false">ntfy-Server</string>
     <string name="t_2f79a315" formatted="false">Sehr geehrter Herr Weber,\n\nich möchte Ihnen mitteilen, dass der Wasserhahn im Badezimmer seit Montag tropft.</string>
+    <string name="t_2fa2161a" formatted="false">Erlaube Dictate &amp; Delegate, Updates zu installieren, und tippe dann noch einmal auf Aktualisieren.</string>
     <string name="t_2fc562b8" formatted="false">Notiz nicht gefunden</string>
     <string name="t_3017cfb9" formatted="false">nicht weitergeleitet: %1$s</string>
     <string name="t_30a4185d" formatted="false">Ausgegeben</string>
@@ -210,6 +214,7 @@
     <string name="t_47fbfb16" formatted="false">Ändern</string>
     <string name="t_481510cc" formatted="false">Was OpenRouter für jeden Aufruf berechnet hat.</string>
     <string name="t_487286f2" formatted="false">Gesendet: du hast deine Frage gestellt (%1$d%%)</string>
+    <string name="t_48b31da3" formatted="false">Das Update konnte nicht installiert werden: %1$s</string>
     <string name="t_49db38fb" formatted="false">Live aus · kein %1$s-Schlüssel</string>
     <string name="t_4a473e6c" formatted="false">Gespeicherte Daten konnten nicht geladen werden. Deine Daten wurden nicht gelöscht.</string>
     <string name="t_4a881de5" formatted="false">Beende erst Aufnahme oder Upload</string>
@@ -291,10 +296,12 @@
     <string name="t_5f1cb221" formatted="false">Was du meistens diktierst</string>
     <string name="t_60a70b6d" formatted="false">Automatisch verfeinern</string>
     <string name="t_61710ff3" formatted="false">Nach Modell</string>
+    <string name="t_6183a1b8" formatted="false">sie ist nicht neuer als diese Version</string>
     <string name="t_61e2b45c" formatted="false">Du: %1$s</string>
     <string name="t_62171086" formatted="false">Du kannst schon beim Sprechen auf Verfeinern oder Chief tippen. Sagst du es direkt dazu („mach daraus eine E-Mail“, „nutze meine Wohnungsbewerbung“), startet das Verfeinern von selbst. Aufgaben gehen nur an deinen Chief, wenn du ihn direkt ansprichst: „Chief of Staff, …“.</string>
     <string name="t_62bfeb04" formatted="false">Die Anmeldeantwort von bb enthielt keinen Token.</string>
     <string name="t_62e4540e" formatted="false">Nicht gesendet: %1$s. Deine Worte bleiben erhalten; sende erneut</string>
+    <string name="t_633eed3f" formatted="false">Du hast das Update abgebrochen.</string>
     <string name="t_6358935d" formatted="false">Schlüssel gespeichert</string>
     <string name="t_6361c341" formatted="false">die Verbindung brach ab; ist es ein MCP-Server (Streamable HTTP)?</string>
     <string name="t_6418f0e2" formatted="false">Gib dein bb Connect-Handle ein</string>
@@ -327,6 +334,7 @@
     <string name="t_714149a6" formatted="false">Bei Ansprache an Chief senden</string>
     <string name="t_71cc04b4" formatted="false">bb hat keinen Anmeldecode gesendet. Starte sie erneut.</string>
     <string name="t_721589c1" formatted="false">Heute</string>
+    <string name="t_72ec293c" formatted="false">GitHub hat etwas Unerwartetes geschickt</string>
     <string name="t_72f939f7" formatted="false">Antwort wartet: deine Nachricht wird gesendet</string>
     <string name="t_7382e59f" formatted="false">Abmelden…</string>
     <string name="t_73c2d986" formatted="false">Gespeichert, verschlüsselt · Verfeinern nutzt dein Anthropic-Guthaben</string>
@@ -378,6 +386,7 @@
     <string name="t_84119bba" formatted="false">Verschlüsselte Daten konnten nicht gespeichert werden.</string>
     <string name="t_842cec6c" formatted="false">Ungültige Aufnahme-ID</string>
     <string name="t_84737d17" formatted="false">Anruf mit deinem Chief</string>
+    <string name="t_8490116f" formatted="false">GitHub-Limit erreicht; es wird später erneut geprüft</string>
     <string name="t_84dd077d" formatted="false">günstig</string>
     <string name="t_84e5353d" formatted="false">Gespeichertes Audio verwerfen</string>
     <string name="t_85004d41" formatted="false">Tippen zur Aufnahme</string>
@@ -432,6 +441,7 @@
     <string name="t_9931e57c" formatted="false">Konnte nicht starten. Berechtigungen prüfen und erneut versuchen.</string>
     <string name="t_998a8ce0" formatted="false">Stattdessen kopiert, mit langem Drücken einfügen</string>
     <string name="t_9a6bdb3b" formatted="false">Jev · verfeinert von selbst</string>
+    <string name="t_9ae57457" formatted="false">Nach Updates suchen</string>
     <string name="t_9aefa862" formatted="false">Schlüssel auf openrouter.ai holen</string>
     <string name="t_9b464b7c_one" formatted="false">%1$d Anhang für dieses Diktat</string>
     <string name="t_9b464b7c_other" formatted="false">%1$d Anhänge für dieses Diktat</string>
@@ -449,6 +459,7 @@
     <string name="t_9e4d5639" formatted="false">Angaben über dich, deine Wörter und die genannte Vorlage werden automatisch ergänzt.</string>
     <string name="t_9ed229fb" formatted="false">Was OpenRouter für jeden Aufruf berechnet hat. Für einige Aufrufe wurden keine Kosten gemeldet, daher liegt der tatsächliche Gesamtbetrag etwas höher.</string>
     <string name="t_9f58abd6" formatted="false">bb ist nicht verbunden. Verbinde es unter Einstellungen → bb.</string>
+    <string name="t_9f89304e" formatted="false">Aktualisieren</string>
     <string name="t_9feb71c0" formatted="false">OpenRouter-Schlüssel entfernen?</string>
     <string name="t_a0341d02" formatted="false">Erst das Transkript, dann entscheidest du</string>
     <string name="t_a035c0e5" formatted="false">Wörter %1$s  Tempo %2$s</string>
@@ -460,6 +471,7 @@
     <string name="t_a26731c2" formatted="false">Die Schritte jeder Notiz: welches Modell was erledigt hat, wie lange es dauerte und was es kostete. Bleibt mit deinen Notizen auf diesem Gerät; die Zeiten schließen die Verbindung ein.</string>
     <string name="t_a2878767" formatted="false">Wähle zuerst ein Modell.</string>
     <string name="t_a2dc1b11" formatted="false">Gespeichertes Audio löschen</string>
+    <string name="t_a2e6cadf" formatted="false">Android fragt nach einer Bestätigung für das Update.</string>
     <string name="t_a385a418" formatted="false">Eigene</string>
     <string name="t_a3b4d495" formatted="false">bb hat die Anfrage abgelehnt (HTTP 403). Darf diese Adresse den MCP-Server von bb nutzen?</string>
     <string name="t_a3c82a2d" formatted="false">offline, kostenlos</string>
@@ -489,6 +501,7 @@
     <string name="t_ab247fbe" formatted="false">Deine Stimme und dein Text gehen nur an die Anbieter, die du wählst. Es gibt keinen Server von Dictate &amp; Delegate.</string>
     <string name="t_ab7143b8" formatted="false">Berechtigungen</string>
     <string name="t_ab754703" formatted="false">Höre dich</string>
+    <string name="t_ab93f81c" formatted="false">das Release hat keine Prüfsumme</string>
     <string name="t_abfd3b0d" formatted="false">Talker verwenden</string>
     <string name="t_ac224344" formatted="false">Gespeichert, verschlüsselt · Sprache, Entscheidungen und Verfeinern</string>
     <string name="t_ac5e3616" formatted="false">Dictate &amp; Delegate nutzt die Bedienungshilfen-Berechtigung von Android ausschließlich für zwei Dinge: um deinen Text beim Tippen auf „Einfügen“ direkt am Cursor einzufügen und um das Halten der gewählten Lautstärketaste zu erkennen. Es fragt keine Bedienungshilfen-Ereignisse ab und liest nichts auf deinem Bildschirm; das Textfeld wird erst beim Antippen von „Einfügen“ abgefragt. Dictate &amp; Delegate ist Open Source, du kannst den Code jederzeit prüfen.</string>
@@ -589,6 +602,7 @@
     <string name="t_c7ad7feb" formatted="false">Keine Verbindung zu OpenRouter. Prüfe deine Internetverbindung und versuche es erneut.</string>
     <string name="t_c7b2a2f8" formatted="false">noch kein Schlüssel</string>
     <string name="t_c8210626" formatted="false">Sprachausgabe-Modell</string>
+    <string name="t_c82c4a5b" formatted="false">Update auf %1$s</string>
     <string name="t_c90e13f1" formatted="false">Nur an Talker gesendet. Der Chief hat es nicht erhalten: %1$s</string>
     <string name="t_c96b1a45" formatted="false">Startet…</string>
     <string name="t_c997df74" formatted="false">bb hat die Anmeldung abgelehnt: %1$s</string>
@@ -601,6 +615,7 @@
     <string name="t_cba5c7dd" formatted="false">Lautstärke leiser</string>
     <string name="t_cc1ec5e4" formatted="false">ntfy ist kostenlos und Open Source. Installiere es und tippe erneut auf „In ntfy öffnen“.</string>
     <string name="t_cc9b594b" formatted="false">Änderungen konnten nicht gespeichert werden</string>
+    <string name="t_ccd1bf1c" formatted="false">der Download ist beschädigt (Prüfsumme)</string>
     <string name="t_cd782109" formatted="false">Füge zuerst deinen Schlüssel ein</string>
     <string name="t_cd7cb0fd" formatted="false">Ein einzelner bb-Thread empfängt jede per Sprache übergebene Aufgabe. Er erledigt Kleinigkeiten selbst, startet Unter-Threads für Größeres und benachrichtigt dich per ntfy, wenn er fertig ist oder dich braucht.</string>
     <string name="t_cd8737fa" formatted="false">Artikel</string>
@@ -705,6 +720,7 @@
     <string name="t_ec8fbe93" formatted="false">Text, Versionen, Kosten und Audio werden unwiderruflich gelöscht.</string>
     <string name="t_ecb6c206" formatted="false">Letzten Anruf kopieren</string>
     <string name="t_ed4646d0" formatted="false">Schließe ausstehende Aufnahme erst ab oder verwerfe sie</string>
+    <string name="t_ed46f7d2" formatted="false">keine Verbindung</string>
     <string name="t_ed783112" formatted="false">✓  Verwendet %1$s (%2$s). Wurde angewiesen, die Skills zu nutzen.</string>
     <string name="t_ed8814bc" formatted="false">Kopieren</string>
     <string name="t_edd0c3d2" formatted="false">(als Base64)</string>
@@ -717,6 +733,7 @@
     <string name="t_f01db452" formatted="false">Erstelle dort einen Schlüssel, kopiere ihn und füge ihn oben ein. Lade auch ein paar Dollar Guthaben auf OpenRouter auf: Eine einminütige Notiz kostet meist deutlich unter einem Cent.</string>
     <string name="t_f032e365" formatted="false">Schlüssel auf console.anthropic.com abrufen</string>
     <string name="t_f05beeb6" formatted="false">Am günstigsten</string>
+    <string name="t_f08ccc4e" formatted="false">Suche nach Updates nicht möglich: %1$s</string>
     <string name="t_f0d83244" formatted="false">Das Sprachmodell hat kein Transkript zurückgegeben. Die Aufnahme bleibt erhalten; versuche es erneut.</string>
     <string name="t_f13b16c1" formatted="false">Dein Chief of Staff nutzt zwei Skills in bb (chief-of-staff und dictate-and-delegate): wie Aufgaben für dich erledigt werden und wie Benachrichtigungen sowie Text zurückgesendet werden. Dictate &amp; Delegate installiert und aktualisiert diese in bb über einen kurzen Thread.</string>
     <string name="t_f157fddc" formatted="false">Füge den Text so ein oder tippe ihn so, wie du ihn senden würdest.</string>
@@ -748,6 +765,7 @@
     <string name="t_f8a28f83" formatted="false">Schnelleinstellungs-Kachel</string>
     <string name="t_f8bfec6c" formatted="false">ElevenLabs-Schlüssel</string>
     <string name="t_f927dded" formatted="false">%1$s aufgenommen</string>
+    <string name="t_f9db5ec8" formatted="false">es ist nicht diese App</string>
     <string name="t_f9dd979f" formatted="false">✓  Gespeichert.</string>
     <string name="t_fa57ce65" formatted="false">Nur Transkript</string>
     <string name="t_fa8361bc" formatted="false">Kachel hinzufügen</string>

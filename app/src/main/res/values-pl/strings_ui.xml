@@ -13,6 +13,7 @@
     <string name="t_02986d74" formatted="false">Na przykład: Zgłoszenie o mieszkanie</string>
     <string name="t_02eb1806" formatted="false">Dodaj Dictate &amp; Delegate do Szybkich ustawień</string>
     <string name="t_0369ff1c" formatted="false">Odpowiedź przerwana: wtrąciłeś się; szef usłyszy, do którego momentu udało ci się dotrzeć</string>
+    <string name="t_039fff92" formatted="false">nie jest podpisana kluczem tej aplikacji</string>
     <string name="t_04577256" formatted="false">Model mowy nie usłyszał słów: koniec Twojej kolejki</string>
     <string name="t_04bb15b6" formatted="false">Zapisany dźwięk został usunięty</string>
     <string name="t_04fc2b5b" formatted="false">Obraz</string>
@@ -60,6 +61,7 @@
     <string name="t_13f11ba3" formatted="false">Wył.</string>
     <string name="t_14f38eda" formatted="false">Instalowanie umiejętności i tworzenie wątku w bb…</string>
     <string name="t_1515cfb6" formatted="false">Brak wyników.</string>
+    <string name="t_15f8ef12" formatted="false">Aktualna (%1$s)</string>
     <string name="t_16545ddd" formatted="false">Model</string>
     <string name="t_16666fb3" formatted="false">przekroczono czas oczekiwania na odpowiedź</string>
     <string name="t_174fc48a" formatted="false">nie wysłano</string>
@@ -81,6 +83,7 @@
     <string name="t_1c9d89f5" formatted="false">Wysyłanie…</string>
     <string name="t_1ca48dd6" formatted="false">Błąd sprawdzania polecenia, zachowano oryginał</string>
     <string name="t_1cbdcf91" formatted="false">✨ Dopracuj ponownie</string>
+    <string name="t_1dba215a" formatted="false">Pobieranie aktualizacji…</string>
     <string name="t_1e4ae9cd" formatted="false">Lub użyj istniejącego wątku</string>
     <string name="t_1e528165" formatted="false">%1$s.getbb.app odpowiedział kodem HTTP %2$d. Spróbuj ponownie za chwilę.</string>
     <string name="t_1e8f2a1c" formatted="false">Zapomnij ten adres</string>
@@ -136,6 +139,7 @@
     <string name="t_2e5c65fd" formatted="false">przez OpenRouter: %1$s</string>
     <string name="t_2ef3166c" formatted="false">Serwer ntfy</string>
     <string name="t_2f79a315" formatted="false">Szanowny Panie Weber,\n\nchciałbym poinformować, że kran w łazience cieknie od poniedziałku.</string>
+    <string name="t_2fa2161a" formatted="false">Zezwól Dictate &amp; Delegate na instalowanie aktualizacji, a potem dotknij ponownie Aktualizuj.</string>
     <string name="t_2fc562b8" formatted="false">Nie znaleziono notatki</string>
     <string name="t_3017cfb9" formatted="false">nie przekazano: %1$s</string>
     <string name="t_30a4185d" formatted="false">Wydano</string>
@@ -212,6 +216,7 @@
     <string name="t_47fbfb16" formatted="false">Zmień</string>
     <string name="t_481510cc" formatted="false">Opłaty pobrane przez OpenRouter za poszczególne wywołania.</string>
     <string name="t_487286f2" formatted="false">Wysłano: zadałeś pytanie (%1$d%%)</string>
+    <string name="t_48b31da3" formatted="false">Nie udało się zainstalować aktualizacji: %1$s</string>
     <string name="t_49db38fb" formatted="false">Na żywo wył. · brak klucza %1$s</string>
     <string name="t_4a473e6c" formatted="false">Nie udało się wczytać zapisanych danych. Twoje dane nie zostały usunięte.</string>
     <string name="t_4a881de5" formatted="false">Najpierw dokończ nagrywanie lub przesyłanie</string>
@@ -293,10 +298,12 @@
     <string name="t_5f1cb221" formatted="false">Co zazwyczaj dyktujesz</string>
     <string name="t_60a70b6d" formatted="false">Dopracowuj automatycznie</string>
     <string name="t_61710ff3" formatted="false">Według modelu</string>
+    <string name="t_6183a1b8" formatted="false">nie jest nowsza niż ta wersja</string>
     <string name="t_61e2b45c" formatted="false">Ty: %1$s</string>
     <string name="t_62171086" formatted="false">Możesz dotknąć Dopracuj lub Szef jeszcze w trakcie mówienia. Poproś o to od razu („zrób z tego e-mail”, „użyj wniosku o mieszkanie”), a funkcja Dopracuj włączy się sama. Zadania trafiają do szefa automatycznie tylko wtedy, gdy się do niego zwrócisz: „szefie sztabu, …”.</string>
     <string name="t_62bfeb04" formatted="false">Odpowiedź logowania z bb nie zawierała tokenu.</string>
     <string name="t_62e4540e" formatted="false">Nie wysłano: %1$s. Twoje słowa zachowano; wyślij ponownie</string>
+    <string name="t_633eed3f" formatted="false">Anulowano aktualizację.</string>
     <string name="t_6358935d" formatted="false">Klucz zapisany</string>
     <string name="t_6361c341" formatted="false">połączenie zostało przerwane; czy to serwer MCP (Streamable HTTP)?</string>
     <string name="t_6418f0e2" formatted="false">Wpisz swój identyfikator bb Connect</string>
@@ -329,6 +336,7 @@
     <string name="t_714149a6" formatted="false">Wysyłaj do szefa po wywołaniu</string>
     <string name="t_71cc04b4" formatted="false">bb nie przesłało kodu logowania. Rozpocznij ponownie.</string>
     <string name="t_721589c1" formatted="false">Dzisiaj</string>
+    <string name="t_72ec293c" formatted="false">GitHub przesłał coś nieoczekiwanego</string>
     <string name="t_72f939f7" formatted="false">Odpowiedź oczekuje: trwa wysyłanie wiadomości</string>
     <string name="t_7382e59f" formatted="false">Wylogowywanie…</string>
     <string name="t_73c2d986" formatted="false">Zapisano, zaszyfrowano · Dopracuj używa Twoich środków w Anthropic</string>
@@ -382,6 +390,7 @@
     <string name="t_84119bba" formatted="false">Nie udało się zapisać zaszyfrowanych danych.</string>
     <string name="t_842cec6c" formatted="false">Nieprawidłowe ID nagrania</string>
     <string name="t_84737d17" formatted="false">Rozmowa z szefem</string>
+    <string name="t_8490116f" formatted="false">Osiągnięto limit GitHuba; sprawdzi ponownie później</string>
     <string name="t_84dd077d" formatted="false">tani</string>
     <string name="t_84e5353d" formatted="false">Odrzuć zapisany dźwięk</string>
     <string name="t_85004d41" formatted="false">Dotknij, aby nagrać</string>
@@ -436,6 +445,7 @@
     <string name="t_9931e57c" formatted="false">Nie udało się uruchomić. Sprawdź uprawnienia i spróbuj ponownie.</string>
     <string name="t_998a8ce0" formatted="false">Zamiast tego skopiowano, wklej długim naciśnięciem</string>
     <string name="t_9a6bdb3b" formatted="false">Jev · sam dopracowuje</string>
+    <string name="t_9ae57457" formatted="false">Sprawdź aktualizacje</string>
     <string name="t_9aefa862" formatted="false">Pobierz klucz na openrouter.ai</string>
     <string name="t_9b464b7c_few" formatted="false">%1$d załączniki do tego dyktowania</string>
     <string name="t_9b464b7c_many" formatted="false">%1$d załączników do tego dyktowania</string>
@@ -455,6 +465,7 @@
     <string name="t_9e4d5639" formatted="false">Informacje o tobie, twoje słowa i nazwany szablon są dodawane automatycznie.</string>
     <string name="t_9ed229fb" formatted="false">Opłaty pobrane przez OpenRouter za poszczególne wywołania. Niektóre wywołania nie zgłosiły kosztu, więc rzeczywista suma jest nieco wyższa.</string>
     <string name="t_9f58abd6" formatted="false">bb nie jest połączone. Połącz je w Ustawienia → bb.</string>
+    <string name="t_9f89304e" formatted="false">Aktualizuj</string>
     <string name="t_9feb71c0" formatted="false">Usunąć klucz OpenRouter?</string>
     <string name="t_a0341d02" formatted="false">Najpierw transkrypcja, potem decyzja</string>
     <string name="t_a035c0e5" formatted="false">słowa %1$s  szybkość %2$s</string>
@@ -466,6 +477,7 @@
     <string name="t_a26731c2" formatted="false">Kroki każdej notatki: który model co zrobił, ile to trwało i ile kosztowało. Przechowywane na tym urządzeniu razem z notatkami; czasy obejmują połączenie.</string>
     <string name="t_a2878767" formatted="false">Najpierw wybierz model.</string>
     <string name="t_a2dc1b11" formatted="false">Usuń zapisany dźwięk</string>
+    <string name="t_a2e6cadf" formatted="false">Android poprosi o potwierdzenie aktualizacji.</string>
     <string name="t_a385a418" formatted="false">Własne</string>
     <string name="t_a3b4d495" formatted="false">bb odrzuciło żądanie (HTTP 403). Czy ten adres ma dostęp do serwera MCP w bb?</string>
     <string name="t_a3c82a2d" formatted="false">offline, darmowy</string>
@@ -495,6 +507,7 @@
     <string name="t_ab247fbe" formatted="false">Twój głos i tekst trafiają wyłącznie do wybranych przez Ciebie dostawców. Dictate &amp; Delegate nie ma własnego serwera.</string>
     <string name="t_ab7143b8" formatted="false">Uprawnienia</string>
     <string name="t_ab754703" formatted="false">Słucham Cię</string>
+    <string name="t_ab93f81c" formatted="false">wydanie nie ma sumy kontrolnej</string>
     <string name="t_abfd3b0d" formatted="false">Używaj mówcy</string>
     <string name="t_ac224344" formatted="false">Zapisano, zaszyfrowano · mowa, decyzje i Dopracuj</string>
     <string name="t_ac5e3616" formatted="false">Dictate &amp; Delegate używa uprawnienia Ułatwienia dostępu tylko w dwóch celach: aby wstawić tekst przy kursorze po dotknięciu Wstaw oraz aby wykryć przytrzymanie wybranego przycisku głośności. Nie wymaga zdarzeń ułatwień dostępu i nie czyta ekranu; sprawdza pole tekstowe tylko po naciśnięciu Wstaw. Dictate &amp; Delegate to projekt open source, więc możesz to sprawdzić.</string>
@@ -599,6 +612,7 @@
     <string name="t_c7ad7feb" formatted="false">Brak połączenia z OpenRouter. Sprawdź połączenie z internetem i spróbuj ponownie.</string>
     <string name="t_c7b2a2f8" formatted="false">brak klucza</string>
     <string name="t_c8210626" formatted="false">Model tekstu na mowę</string>
+    <string name="t_c82c4a5b" formatted="false">Aktualizacja do %1$s</string>
     <string name="t_c90e13f1" formatted="false">Wysłano tylko do mówcy. Szef tego nie otrzymał: %1$s</string>
     <string name="t_c96b1a45" formatted="false">Uruchamianie…</string>
     <string name="t_c997df74" formatted="false">bb odrzuciło logowanie: %1$s</string>
@@ -611,6 +625,7 @@
     <string name="t_cba5c7dd" formatted="false">Ciszej</string>
     <string name="t_cc1ec5e4" formatted="false">ntfy jest darmowe i open source. Zainstaluj je, a następnie dotknij ponownie Otwórz w ntfy.</string>
     <string name="t_cc9b594b" formatted="false">Nie udało się zapisać zmian</string>
+    <string name="t_ccd1bf1c" formatted="false">pobrany plik jest uszkodzony (suma kontrolna)</string>
     <string name="t_cd782109" formatted="false">Najpierw wklej swój klucz</string>
     <string name="t_cd7cb0fd" formatted="false">Jeden wątek bb odbiera każde zadanie przekazane głosowo. Mniejsze wykonuje sam, do większych tworzy wątki podrzędne i powiadamia Cię przez ntfy, gdy skończy lub potrzebuje pomocy.</string>
     <string name="t_cd8737fa" formatted="false">Artykuł</string>
@@ -715,6 +730,7 @@
     <string name="t_ec8fbe93" formatted="false">Jej tekst, wersje, koszty i dźwięk zostaną usunięte. Tego nie można cofnąć.</string>
     <string name="t_ecb6c206" formatted="false">Kopiuj ostatnią rozmowę</string>
     <string name="t_ed4646d0" formatted="false">Najpierw dokończ lub odrzuć oczekujące nagranie</string>
+    <string name="t_ed46f7d2" formatted="false">brak połączenia</string>
     <string name="t_ed783112" formatted="false">✓  Używa %1$s (%2$s). Poinstruowano o użyciu umiejętności.</string>
     <string name="t_ed8814bc" formatted="false">Kopiuj</string>
     <string name="t_edd0c3d2" formatted="false">(jako base64)</string>
@@ -727,6 +743,7 @@
     <string name="t_f01db452" formatted="false">Utwórz tam klucz, skopiuj go i wklej powyżej. Doładuj też konto kwotą kilku dolarów na OpenRouter: minuta notatki kosztuje zwykle znacznie poniżej jednego centa.</string>
     <string name="t_f032e365" formatted="false">Pobierz klucz na console.anthropic.com</string>
     <string name="t_f05beeb6" formatted="false">Najtańszy</string>
+    <string name="t_f08ccc4e" formatted="false">Nie udało się sprawdzić aktualizacji: %1$s</string>
     <string name="t_f0d83244" formatted="false">Model mowy nie zwrócił transkrypcji. Nagranie zostało zachowane; spróbuj ponownie.</string>
     <string name="t_f13b16c1" formatted="false">Twój szef sztabu korzysta z dwóch umiejętności w bb: chief-of-staff i dictate-and-delegate (jak pracować dla Ciebie oraz jak wysyłać powiadomienia i tekst z powrotem). Dictate &amp; Delegate instaluje je i aktualizuje w bb w krótkim wątku.</string>
     <string name="t_f157fddc" formatted="false">Wklej lub wpisz tekst tak, jak chcesz go wysłać.</string>
@@ -758,6 +775,7 @@
     <string name="t_f8a28f83" formatted="false">Kafelek szybkich ustawień</string>
     <string name="t_f8bfec6c" formatted="false">Klucz ElevenLabs</string>
     <string name="t_f927dded" formatted="false">Nagrano: %1$s</string>
+    <string name="t_f9db5ec8" formatted="false">to nie jest ta aplikacja</string>
     <string name="t_f9dd979f" formatted="false">✓  Zapisano.</string>
     <string name="t_fa57ce65" formatted="false">Tylko transkrypcja</string>
     <string name="t_fa8361bc" formatted="false">Dodaj kafelek</string>

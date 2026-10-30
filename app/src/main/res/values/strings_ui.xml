@@ -13,6 +13,7 @@
     <string name="t_02986d74" formatted="false">For example: Apartment application</string>
     <string name="t_02eb1806" formatted="false">Add Dictate &amp; Delegate to Quick Settings</string>
     <string name="t_0369ff1c" formatted="false">Reply stopped: you talked over it; the chief will hear how far you got</string>
+    <string name="t_039fff92" formatted="false">it isn\'t signed with this app\'s key</string>
     <string name="t_04577256" formatted="false">The speech model heard no words: your turn ends</string>
     <string name="t_04bb15b6" formatted="false">Saved audio deleted</string>
     <string name="t_04fc2b5b" formatted="false">Image</string>
@@ -60,6 +61,7 @@
     <string name="t_13f11ba3" formatted="false">Off</string>
     <string name="t_14f38eda" formatted="false">Installing the skills and creating the thread in bb…</string>
     <string name="t_1515cfb6" formatted="false">Nothing matches.</string>
+    <string name="t_15f8ef12" formatted="false">Up to date (%1$s)</string>
     <string name="t_16545ddd" formatted="false">Model</string>
     <string name="t_16666fb3" formatted="false">no answer in time</string>
     <string name="t_174fc48a" formatted="false">not sent</string>
@@ -81,6 +83,7 @@
     <string name="t_1c9d89f5" formatted="false">Sending…</string>
     <string name="t_1ca48dd6" formatted="false">Request check failed, kept as said</string>
     <string name="t_1cbdcf91" formatted="false">✨ Refine again</string>
+    <string name="t_1dba215a" formatted="false">Downloading the update…</string>
     <string name="t_1e4ae9cd" formatted="false">Or use a thread you have</string>
     <string name="t_1e528165" formatted="false">%1$s.getbb.app answered with HTTP %2$d. Try again in a moment.</string>
     <string name="t_1e8f2a1c" formatted="false">Forget this address</string>
@@ -136,6 +139,7 @@
     <string name="t_2e5c65fd" formatted="false">via OpenRouter: %1$s</string>
     <string name="t_2ef3166c" formatted="false">ntfy server</string>
     <string name="t_2f79a315" formatted="false">Dear Mr. Weber,\n\nI would like to let you know that the bathroom tap has been dripping since Monday.</string>
+    <string name="t_2fa2161a" formatted="false">Allow Dictate &amp; Delegate to install updates, then tap Update again.</string>
     <string name="t_2fc562b8" formatted="false">Note not found</string>
     <string name="t_3017cfb9" formatted="false">not passed on: %1$s</string>
     <string name="t_30a4185d" formatted="false">Spent</string>
@@ -212,6 +216,7 @@
     <string name="t_47fbfb16" formatted="false">Change</string>
     <string name="t_481510cc" formatted="false">What OpenRouter charged for each call.</string>
     <string name="t_487286f2" formatted="false">Sent: you asked your question (%1$d%%)</string>
+    <string name="t_48b31da3" formatted="false">The update couldn\'t be installed: %1$s</string>
     <string name="t_49db38fb" formatted="false">Live off · no %1$s key</string>
     <string name="t_4a473e6c" formatted="false">Could not load saved data. Your data has not been removed.</string>
     <string name="t_4a881de5" formatted="false">Finish recording or upload first</string>
@@ -293,10 +298,12 @@
     <string name="t_5f1cb221" formatted="false">What you usually dictate</string>
     <string name="t_60a70b6d" formatted="false">Refine automatically</string>
     <string name="t_61710ff3" formatted="false">By model</string>
+    <string name="t_6183a1b8" formatted="false">it isn\'t newer than this version</string>
     <string name="t_61e2b45c" formatted="false">You: %1$s</string>
     <string name="t_62171086" formatted="false">You can tap Refine or Chief while you\'re still talking. Ask in the same breath (“make this an email”, “use my apartment application”) and Refine starts by itself. Tasks go to your chief by themselves only when you address it: “chief of staff, …”.</string>
     <string name="t_62bfeb04" formatted="false">bb\'s sign-in answer had no token.</string>
     <string name="t_62e4540e" formatted="false">Not sent: %1$s. Your words are kept; send again</string>
+    <string name="t_633eed3f" formatted="false">You cancelled the update.</string>
     <string name="t_6358935d" formatted="false">Key saved</string>
     <string name="t_6361c341" formatted="false">the connection broke off; is it an MCP server (Streamable HTTP)?</string>
     <string name="t_6418f0e2" formatted="false">Enter your bb Connect handle</string>
@@ -329,6 +336,7 @@
     <string name="t_714149a6" formatted="false">Send to chief when addressed</string>
     <string name="t_71cc04b4" formatted="false">bb sent no sign-in code. Start it again.</string>
     <string name="t_721589c1" formatted="false">Today</string>
+    <string name="t_72ec293c" formatted="false">GitHub sent something unexpected</string>
     <string name="t_72f939f7" formatted="false">Reply waits: your message is being sent</string>
     <string name="t_7382e59f" formatted="false">Signing out…</string>
     <string name="t_73c2d986" formatted="false">Saved, encrypted · Refine uses your Anthropic credits</string>
@@ -382,6 +390,7 @@
     <string name="t_84119bba" formatted="false">Could not save encrypted data.</string>
     <string name="t_842cec6c" formatted="false">Invalid recording ID</string>
     <string name="t_84737d17" formatted="false">Call with your chief</string>
+    <string name="t_8490116f" formatted="false">GitHub\'s limit for now; it checks again later</string>
     <string name="t_84dd077d" formatted="false">cheap</string>
     <string name="t_84e5353d" formatted="false">Discard saved audio</string>
     <string name="t_85004d41" formatted="false">Tap to record</string>
@@ -436,6 +445,7 @@
     <string name="t_9931e57c" formatted="false">Could not start. Check permissions and try again.</string>
     <string name="t_998a8ce0" formatted="false">Copied instead, paste with a long press</string>
     <string name="t_9a6bdb3b" formatted="false">Jev · refines by itself</string>
+    <string name="t_9ae57457" formatted="false">Check for updates</string>
     <string name="t_9aefa862" formatted="false">Get a key on openrouter.ai</string>
     <string name="t_9b464b7c_few" formatted="false">%1$d attachments for this dictation</string>
     <string name="t_9b464b7c_many" formatted="false">%1$d attachments for this dictation</string>
@@ -455,6 +465,7 @@
     <string name="t_9e4d5639" formatted="false">About you, your words and the template you name are added automatically.</string>
     <string name="t_9ed229fb" formatted="false">What OpenRouter charged for each call. Some calls reported no cost, so the real total is a little higher.</string>
     <string name="t_9f58abd6" formatted="false">bb isn\'t connected. Connect it in Settings → bb.</string>
+    <string name="t_9f89304e" formatted="false">Update</string>
     <string name="t_9feb71c0" formatted="false">Remove your OpenRouter key?</string>
     <string name="t_a0341d02" formatted="false">Transcript first, then you decide</string>
     <string name="t_a035c0e5" formatted="false">words %1$s  speed %2$s</string>
@@ -466,6 +477,7 @@
     <string name="t_a26731c2" formatted="false">Every note\'s steps: which model did what, how long it took and what it cost. Kept on this device with your notes; times include the connection.</string>
     <string name="t_a2878767" formatted="false">Choose a model first.</string>
     <string name="t_a2dc1b11" formatted="false">Delete saved audio</string>
+    <string name="t_a2e6cadf" formatted="false">Android asks you to confirm the update.</string>
     <string name="t_a385a418" formatted="false">Your own</string>
     <string name="t_a3b4d495" formatted="false">bb refused the request (HTTP 403). Is this address allowed to use bb\'s MCP server?</string>
     <string name="t_a3c82a2d" formatted="false">offline, free</string>
@@ -495,6 +507,7 @@
     <string name="t_ab247fbe" formatted="false">Your voice and text go only to the providers you choose. There\'s no Dictate &amp; Delegate server.</string>
     <string name="t_ab7143b8" formatted="false">Permissions</string>
     <string name="t_ab754703" formatted="false">Hearing you</string>
+    <string name="t_ab93f81c" formatted="false">the release has no checksum</string>
     <string name="t_abfd3b0d" formatted="false">Use the talker</string>
     <string name="t_ac224344" formatted="false">Saved, encrypted · speech, decisions and Refine</string>
     <string name="t_ac5e3616" formatted="false">Dictate &amp; Delegate uses Android\'s Accessibility permission for two things only: to put your text at the cursor when you tap Insert, and to notice when you hold the volume key you chose. It asks for no accessibility events and reads nothing on your screen; it looks up the text field you\'re typing in only when you tap Insert. Dictate &amp; Delegate is open source, so you can check.</string>
@@ -599,6 +612,7 @@
     <string name="t_c7ad7feb" formatted="false">No connection to OpenRouter. Check your internet connection, then try again.</string>
     <string name="t_c7b2a2f8" formatted="false">no key yet</string>
     <string name="t_c8210626" formatted="false">Text-to-speech model</string>
+    <string name="t_c82c4a5b" formatted="false">Update to %1$s</string>
     <string name="t_c90e13f1" formatted="false">Sent to the talker only. The chief didn\'t get it: %1$s</string>
     <string name="t_c96b1a45" formatted="false">Starting…</string>
     <string name="t_c997df74" formatted="false">bb refused the sign-in: %1$s</string>
@@ -611,6 +625,7 @@
     <string name="t_cba5c7dd" formatted="false">Volume down</string>
     <string name="t_cc1ec5e4" formatted="false">ntfy is free and open source. Install it, then tap Open in ntfy again.</string>
     <string name="t_cc9b594b" formatted="false">Could not save your changes</string>
+    <string name="t_ccd1bf1c" formatted="false">the download is damaged (checksum)</string>
     <string name="t_cd782109" formatted="false">Paste your key first</string>
     <string name="t_cd7cb0fd" formatted="false">One bb thread gets every task you hand over by voice. It does small things itself, starts child threads for bigger work, and notifies you through ntfy when it\'s done or needs you.</string>
     <string name="t_cd8737fa" formatted="false">Article</string>
@@ -715,6 +730,7 @@
     <string name="t_ec8fbe93" formatted="false">Its text, versions, costs and audio are removed. This can\'t be undone.</string>
     <string name="t_ecb6c206" formatted="false">Copy last call</string>
     <string name="t_ed4646d0" formatted="false">Finish or discard the pending recording first</string>
+    <string name="t_ed46f7d2" formatted="false">no connection</string>
     <string name="t_ed783112" formatted="false">✓  Using %1$s (%2$s). It was told to use the skills.</string>
     <string name="t_ed8814bc" formatted="false">Copy</string>
     <string name="t_edd0c3d2" formatted="false">(as base64)</string>
@@ -727,6 +743,7 @@
     <string name="t_f01db452" formatted="false">Create a key there and copy it, then paste it above. Add a few dollars of credits on OpenRouter too: a one-minute note usually costs well under one cent.</string>
     <string name="t_f032e365" formatted="false">Get a key on console.anthropic.com</string>
     <string name="t_f05beeb6" formatted="false">Cheapest</string>
+    <string name="t_f08ccc4e" formatted="false">Couldn\'t check for updates: %1$s</string>
     <string name="t_f0d83244" formatted="false">The speech model returned no transcript. The recording is kept; try again.</string>
     <string name="t_f13b16c1" formatted="false">Your chief of staff follows two skills in bb, chief-of-staff and dictate-and-delegate: how to work for you, and how to notify you and send text back. Dictate &amp; Delegate installs and updates them in bb through a short thread.</string>
     <string name="t_f157fddc" formatted="false">Paste or type the text as you\'d send it.</string>
@@ -758,6 +775,7 @@
     <string name="t_f8a28f83" formatted="false">Quick Settings tile</string>
     <string name="t_f8bfec6c" formatted="false">ElevenLabs key</string>
     <string name="t_f927dded" formatted="false">%1$s recorded</string>
+    <string name="t_f9db5ec8" formatted="false">it isn\'t this app</string>
     <string name="t_f9dd979f" formatted="false">✓  Saved.</string>
     <string name="t_fa57ce65" formatted="false">Transcript only</string>
     <string name="t_fa8361bc" formatted="false">Add tile</string>
