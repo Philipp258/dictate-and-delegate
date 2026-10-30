@@ -50,11 +50,11 @@ test('theTalkerSkillIsFilledInWithTheAppsNtfyAndNothingPersonal', () => {
   assert.ok(t.includes('`[didn\'t hear your reply: "…"]`'));
   assert.ok(t.includes('`[heard up to: "…"]`'));
   assert.ok(t.includes('Never invent it.'));
-  assert.ok(t.includes('say only a very short holding phrase: "Checking." / "One moment." / "On it."'));
-  assert.ok(t.includes("don't explain what will be checked, don't guess, don't add advice or warnings of your own"));
+  assert.ok(t.includes('say in one short sentence what is being checked, in their words, e.g. "Checking Kleinanzeigen for clearance services."'));
+  assert.ok(t.includes("Don't guess the answer and don't add advice or warnings of your own"));
   assert.ok(t.includes('Everything else, including general knowledge'));
-  assert.ok(t.includes('as the answer itself (no "the chief says")'));
-  assert.ok(t.includes("Use it only if Alex asks what's going on."));
+  assert.ok(t.includes('as the answer itself (no "the chief says"). Say it in full, including any question it ends with'));
+  assert.ok(t.includes("give a short spoken recap: what they asked in this call, what came back, and what's still open"));
   assert.ok(t.includes('[you are the talker]'));
   // Open source: no thread IDs, no topic, no person of its own.
   const tmpl = template(ChiefSkills.TALKER);
@@ -86,7 +86,7 @@ test('theChiefSkillStatesTheTalkerContractAndTheTurnRule', () => {
   const r = router('Alex', 't', '');
   assert.ok(r.includes('from the call start until `[hands-free call ended]` you post nothing to ntfy: no spoken replies and no notifications'));
   assert.ok(r.includes('bb thread tell <talker thread id> --mode queue --message-file -'));
-  assert.ok(r.includes('which tells Alex the answer itself, briefly, without "the chief says"'), r);
+  assert.ok(r.includes('which tells Alex the answer itself, in full, without "the chief says"'), r);
   assert.ok(!r.includes('in its own words'));
   assert.ok(r.includes('[chief] <what Alex needs to know or decide'));
   assert.ok(r.includes("A reply never plays while it's Alex's turn"));

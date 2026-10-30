@@ -58,11 +58,11 @@ public class ChiefSkillsTest {
     assertTrue(t.contains("`[didn't hear your reply: \"…\"]`"));
     assertTrue(t.contains("`[heard up to: \"…\"]`"));
     assertTrue(t.contains("Never invent it."));
-    assertTrue(t.contains("say only a very short holding phrase: \"Checking.\" / \"One moment.\" / \"On it.\""));
-    assertTrue(t.contains("don't explain what will be checked, don't guess, don't add advice or warnings of your own"));
+    assertTrue(t.contains("say in one short sentence what is being checked, in their words, e.g. \"Checking Kleinanzeigen for clearance services.\""));
+    assertTrue(t.contains("Don't guess the answer and don't add advice or warnings of your own"));
     assertTrue(t.contains("Everything else, including general knowledge"));
-    assertTrue(t.contains("as the answer itself (no \"the chief says\")"));
-    assertTrue(t.contains("Use it only if Alex asks what's going on."));
+    assertTrue(t.contains("as the answer itself (no \"the chief says\"). Say it in full, including any question it ends with"));
+    assertTrue(t.contains("give a short spoken recap: what they asked in this call, what came back, and what's still open"));
     assertTrue(t.contains("[you are the talker]"));
     // Open source: no thread IDs, no topic, no person of its own.
     String template = template(ChiefSkills.TALKER);
@@ -95,7 +95,7 @@ public class ChiefSkillsTest {
     String r = router("Alex", "t", "");
     assertTrue(r.contains("from the call start until `[hands-free call ended]` you post nothing to ntfy: no spoken replies and no notifications"));
     assertTrue(r.contains("bb thread tell <talker thread id> --mode queue --message-file -"));
-    assertTrue(r, r.contains("which tells Alex the answer itself, briefly, without \"the chief says\""));
+    assertTrue(r, r.contains("which tells Alex the answer itself, in full, without \"the chief says\""));
     assertFalse(r.contains("in its own words"));
     assertTrue(r.contains("[chief] <what Alex needs to know or decide"));
     assertTrue(r.contains("A reply never plays while it's Alex's turn"));
