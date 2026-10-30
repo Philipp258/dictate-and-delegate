@@ -109,7 +109,7 @@ bb runs Claude Code and Codex and adds nice extra features on top. It works with
 
 **You need:** an [OpenRouter](https://openrouter.ai) key and an Android phone with Android 14 or newer. For agents: [bb](https://getbb.app) with Claude Code or Codex, and the free [ntfy](https://ntfy.sh) app for notifications.
 
-1. Download the APK from [Releases](https://github.com/Philipp258/dictate-and-delegate/releases/latest) and open it on your phone.
+1. Download the APK of the newest Android release (tag `v…`) from [Releases](https://github.com/Philipp258/dictate-and-delegate/releases) and open it on your phone. After that the app updates itself: it shows **Update to …** on Home when there's a new version (Settings → About → Check for updates checks at once), and Android asks you to confirm the install.
 2. Open Dictate & Delegate and paste your OpenRouter key. Setup walks you through the microphone, the start key and Insert.
 3. Optional: in bb, run `bb plugin enable bb--mcp`, then sign in from Dictate & Delegate. It sets up your agent.
 
