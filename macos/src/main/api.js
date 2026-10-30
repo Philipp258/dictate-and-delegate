@@ -409,6 +409,8 @@ function listItems(notes) {
  */
 function createMethods(ctx, shell = {}, push = () => {}) {
   const { prefs, vault, profile, templates, history, attachments, archive, bb, skills } = ctx;
+  /** In-app updates (main/updater.js); null where the shell has none (tests). */
+  const updater = () => (typeof shell.updater === 'function' ? shell.updater() : null);
   let catalog = null;
   try {
     catalog = new ModelCatalog();
@@ -622,6 +624,7 @@ function createMethods(ctx, shell = {}, push = () => {}) {
       return {
         version: ctx.version,
         sourceUrl: SOURCE_URL,
+        update: updater() ? updater().state() : null,
         onboarded: prefs.get('onboarded', false) === true,
         keys: {
           openrouter: openrouter.hasKey(vault),
@@ -1398,6 +1401,19 @@ function createMethods(ctx, shell = {}, push = () => {}) {
       await call('copy', events + (network ? '\n\nNetwork:\n' + network : ''));
       return tr('Copied. Paste it where you report the problem.');
     },
+    // ---------------------------------------------------------------- updates
+
+    /** Check for updates (Settings → About): what's there, or why it couldn't tell. */
+    async checkUpdates() {
+      if (!updater()) throw new Error(tr('Updates are not available in this build.'));
+      return updater().check({ manual: true });
+    },
+    /** Update: downloads, checks and installs the new version, then the app restarts. */
+    async installUpdate() {
+      if (!updater()) throw new Error(tr('Updates are not available in this build.'));
+      return updater().install();
+    },
+
     /** Copy network log: every request of the last days, with a header that says how to read the times. */
     async copyNetworkLog() {
       const os = require('os');
@@ -1680,6 +1696,8 @@ function registerApi(ctx, shell = {}) {
     }, 80);
   });
   ctx.on('notes', (id) => push('notes', id || ''));
+  const updater = typeof shell.updater === 'function' ? shell.updater() : null;
+  if (updater) updater.on('change', (s) => push('update', s));
   ctx.on('skills', () => push('skills', methods.skills()));
   if (typeof shell.onCallChange === 'function') {
     // The call changes many times a second while it listens; the window needs a few frames of it.

@@ -28,11 +28,17 @@ The app is signed with its own certificate, not Apple's, so macOS asks once befo
    - **bb**: sign in with bb Connect (your bb handle, the part before .getbb.app); the browser hands you back
      to the app. Then pick your chief (and, for calls, the talker).
 
-Updates: replace the app in Applications with the new one. Every build is signed with the same
-certificate, so macOS keeps the microphone and Accessibility permissions. On the first start after an
-update, macOS asks whether Dictate & Delegate may use its Keychain item (the app has no Apple Team ID,
-so the Keychain treats each build as new): enter your password and click **Always Allow**, and your
-saved keys stay.
+Updates come from the app: it checks GitHub's releases at start (once the last check is a day
+old) and once a day, and Settings → About → **Check for updates** checks now. When there's a newer
+version, Home shows **Update to X** with what's new (and macOS shows one notification); **Update**
+downloads it, checks it (its SHA-256 from the release, its code signature with the app's one
+certificate, the bundle and the version), replaces the app in place and starts it again. Settings,
+keys and notes stay. The checks are anonymous requests to GitHub's API; nothing else is sent. The
+app must be somewhere it can replace itself, like Applications. Every build is signed with the same
+certificate, so macOS keeps the microphone and Accessibility permissions. On the first start after
+an update, macOS asks whether Dictate & Delegate may use its Keychain item (the app has no Apple
+Team ID, so the Keychain treats each build as new): enter your password and click **Always Allow**,
+and your saved keys stay.
 
 ## Use
 

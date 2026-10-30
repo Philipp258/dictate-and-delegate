@@ -69,7 +69,8 @@ module.exports = async function (dd) {
     await waitFor(() => tellsCache.some((c) => c.includes('hands-free call ended')), 15000, 'call end told');
     const notes = ctx.history.all().filter((n) => n.json.handsFree);
     assert.ok(notes.length >= 1, 'the message was kept as a note');
-    assert.equal(notes[0].json.chiefRequest, request);
+    // The call can run on into another turn (the waits above really wait): any note may be newer.
+    assert.ok(notes.some((n) => n.json.chiefRequest === request), 'the note of the message sent, among ' + notes.map((n) => n.json.chiefRequest).join(', '));
     fs.writeFileSync(path.join(shots, 'handsfree.log'), log);
   } finally {
     clearInterval(poller);

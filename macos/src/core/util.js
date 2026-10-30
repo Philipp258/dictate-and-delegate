@@ -65,11 +65,11 @@ class SerialQueue {
   }
 }
 
-/** Polls until check() is truthy (tests), failing after timeoutMs. */
+/** Polls until check() is truthy (tests), failing after timeoutMs; an async check is awaited. */
 async function waitFor(check, timeoutMs = 5000, what = 'condition', stepMs = 5) {
   const until = Date.now() + timeoutMs;
   for (;;) {
-    const v = check();
+    const v = await check();
     if (v) return v;
     if (Date.now() > until) throw new Error(`waited ${timeoutMs} ms for ${what}`);
     await sleep(stepMs);

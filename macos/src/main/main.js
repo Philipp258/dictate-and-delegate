@@ -32,6 +32,7 @@ const { ActivationGate, giveFocusBack } = require('../core/activation');
 const { caller } = require('../core/window-log');
 const { sleep } = require('../core/util');
 const nativeMac = require('./macos-native');
+const { Updater, appPathOf } = require('./updater');
 
 const RENDERER = path.join(__dirname, '..', 'renderer');
 const PRELOAD = path.join(RENDERER, 'preload.js');
@@ -60,7 +61,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 function start() {
-  let ctx, audio, dictation, panel, mainWindow, notifier, call;
+  let ctx, audio, dictation, panel, mainWindow, notifier, call, updater;
   let pendingUrls = [];
   const callListeners = new Set();
 
@@ -167,6 +168,23 @@ function start() {
       ctx.log(`app: hands-free unavailable (${e.message})`);
       call = null;
     }
+    // Updates from GitHub (Settings → About → Check for updates; a banner on Home when there's one).
+    updater = new Updater({
+      prefs: ctx.prefs,
+      log: ctx.log,
+      version: app.getVersion(),
+      appPath: appPathOf(app.getPath('exe')),
+      notify: (version) => {
+        const { Notification } = require('electron');
+        if (!Notification.isSupported()) return;
+        const n = new Notification({ title: `Update to Dictate & Delegate ${version} available`, body: 'Open the app and click Update.' });
+        n.on('click', () => openMain('home'));
+        n.show();
+      },
+      quit: () => app.quit(),
+    });
+    // Packaged apps check on their own; a run from the repo (and the e2e runs) only when asked.
+    if (app.isPackaged && !process.env.DD_E2E) updater.start();
     try {
       require('./api').registerApi(ctx, appShell());
     } catch (e) {
@@ -183,7 +201,7 @@ function start() {
     if (ctx.bb.connected()) ctx.skills.sync(false);
     for (const url of pendingUrls.splice(0)) handleUrl(url);
     if (process.env.DD_E2E) {
-      global.__dd = { ctx, audio, dictation: () => dictation, panel: () => panel, call: () => call, openMain, panelAction, startCall, toggleDictation, notifier: () => notifier, mainWindow: () => mainWindow, activation };
+      global.__dd = { ctx, audio, dictation: () => dictation, panel: () => panel, call: () => call, openMain, panelAction, startCall, toggleDictation, notifier: () => notifier, mainWindow: () => mainWindow, activation, updater: () => updater };
       const done = (code, message) => {
         const line = message + '\n';
         if (process.env.DD_TRACE) fs.appendFileSync(process.env.DD_TRACE, line);
@@ -611,6 +629,7 @@ function start() {
       },
       endCall: () => call && call.end(),
       sendNow: () => call && call.sendNow(),
+      updater: () => updater,
       callSnapshot: () => (call ? call.snapshot() : null),
       onCallChange: (fn) => {
         callListeners.add(fn);

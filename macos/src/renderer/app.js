@@ -1011,8 +1011,43 @@ async function pageNtfy(root, onboarding) {
 
 // ------------------------------------------------------------------ home and notes
 
+/** The share of an update's download that's in, 0–100. */
+function downloaded(u) {
+  const d = u && u.downloading;
+  return d && d.total ? Math.min(100, Math.round((100 * d.received) / d.total)) : 0;
+}
+
+/** Home's banner when a newer version is out: what's new, and Update (download, check, restart). */
+function updateBanner() {
+  const u = S.update;
+  if (!u || !u.available) return null;
+  const busy = !!(u.downloading || u.installing);
+  return card('tint gap-12',
+    strong(fmt('Update to %1$s', u.available.version)),
+    u.available.notes ? h('p', { class: 'text muted small gap-4', style: 'white-space:pre-line' }, u.available.notes) : null,
+    p('After updating, macOS asks once for your password to let the app use its Keychain item: click Always Allow.', 'muted small gap-8'),
+    u.error ? p(u.error, 'warn small gap-8') : null,
+    h('div', { class: 'head-row gap-8' },
+      busy
+        ? h('p', { class: 'text small', id: 'update-progress' }, u.installing ? 'Installing… the app restarts in a moment' : fmt('Downloading… %1$d%', downloaded(u)))
+        : btn('Update', 'primary', () => act(() => api('installUpdate'))),
+      u.available.url ? btn("What's new", 'quiet', () => openUrl(u.available.url)) : null));
+}
+
+/** Settings → About: this version, and what the last check found. */
+function updateLine() {
+  const u = S.update;
+  if (!u) return fmt('Version %1$s', S.version);
+  if (u.checking) return 'Checking…';
+  if (u.error) return u.error;
+  if (u.available) return fmt('Update to %1$s available: see Home', u.available.version);
+  if (u.upToDate) return fmt('Up to date (%1$s)', S.version);
+  return fmt('Version %1$s', S.version);
+}
+
 async function pageHome(root) {
   add(root, h('h1', { class: 'title' }, 'Dictate & Delegate'));
+  add(root, updateBanner());
   if (!S.keys.openrouter) add(root, h('button', { class: 'card warncard clickable gap-12 btn block', style: 'height:auto;padding:14px 16px;justify-content:flex-start', onclick: () => open('key') }, strong('Add your OpenRouter key to start dictating')));
   else if (S.permissions.microphone === 'denied' || S.permissions.microphone === 'restricted')
     add(root, h('button', { class: 'card warncard clickable gap-12 btn block', style: 'height:auto;padding:14px 16px;justify-content:flex-start', onclick: () => open('start') }, strong('Finish setup to start dictating')));
@@ -1319,7 +1354,8 @@ function pageSettings(root) {
     card('list',
       h('div', { class: 'row' }, p("Your voice and text go only to the providers you choose. There's no Dictate & Delegate server.", 'muted')),
       row({ title: 'Source code', sub: 'Open source, MIT License · github.com/Philipp258/dictate-and-delegate', onclick: () => openUrl(S.sourceUrl) }),
-      row({ title: 'Report a problem', sub: 'On GitHub', onclick: () => openUrl(S.sourceUrl + '/issues') })),
+      row({ title: 'Report a problem', sub: 'On GitHub', onclick: () => openUrl(S.sourceUrl + '/issues') }),
+      row({ title: 'Check for updates', sub: updateLine(), id: 'check-updates', onclick: () => act(() => api('checkUpdates')) })),
     p('Dictate & Delegate ' + S.version, 'muted small center gap-16'),
   ]);
 }
@@ -1912,6 +1948,17 @@ dd.on('event', (name, payload) => {
     case 'settings':
       if (ui.page === 'note' || ui.page === 'try1') return;
       return refreshSoon();
+    case 'update': {
+      if (S) S.update = payload;
+      // While it downloads only the progress line changes; the rest redraws.
+      const line = document.getElementById('update-progress');
+      if (line && payload && payload.downloading) {
+        line.textContent = fmt('Downloading… %1$d%', downloaded(payload));
+        return;
+      }
+      if (['home', 'settings'].includes(ui.page)) return refreshSoon();
+      return;
+    }
   }
 });
 
