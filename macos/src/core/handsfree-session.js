@@ -2347,6 +2347,14 @@ class HandsFreeSession {
         missedNow.push(n.text);
       }
     if (missedNow.length) notes += '\n\n' + HandsFreeSession.missed(missedNow);
+    // Without a talker, the chief's replies still waiting play once this message went: it hears
+    // so, and doesn't answer the same again (Philipp's call, 31 October 2026: "Hi, can you hear
+    // me?" asked again before the first answer played, answered again, and "Yes, I can hear you"
+    // heard twice).
+    if (!this.dropsOutdated && !last) {
+      const waiting = this._held.filter((w) => w.answers < number).map((w) => w.text);
+      if (waiting.length) notes += '\n\n' + HandsFreeSession.notPlayedYet(waiting);
+    }
     return { number, request, notes };
   }
 
@@ -2503,6 +2511,19 @@ class HandsFreeSession {
     const words = replies.trim().split(/\s+/);
     const first = words.slice(0, Math.min(12, words.length)).join(' ');
     return '[didn\'t hear your reply: "' + first + (words.length > 12 ? '…' : '') + '"]';
+  }
+
+  /**
+   * The note in your message about the chief's replies still waiting (they play once it went):
+   * one by its first words; several as how many, the first one's first words and how many more.
+   */
+  static notPlayedYet(replies) {
+    const n = replies.length === 1 ? 12 : 8;
+    const words = replies[0].trim().split(/\s+/);
+    const quoted = '"' + words.slice(0, Math.min(n, words.length)).join(' ') + (words.length > n ? '…' : '') + '"';
+    return replies.length === 1
+      ? '[your reply hasn\'t played yet, it plays after this message: ' + quoted + ']'
+      : '[' + replies.length + ' replies haven\'t played yet, they play after this message: ' + quoted + ' and ' + (replies.length - 1) + ' more]';
   }
 }
 

@@ -49,6 +49,7 @@ test('handsFreeMessagesAreTaggedAndTheSkillExplainsThem', () => {
   assert.ok(skill.includes('[hands-free]'));
   assert.ok(skill.includes('Tags: talkrouter-speak,req-<id>'));
   assert.ok(skill.includes('send one spoken reply, soon'));
+  assert.ok(skill.includes('[your reply hasn\'t played yet, it plays after this message: '));
   assert.ok(skill.includes('[hands-free call started]') && skill.includes('[hands-free call ended]'));
   assert.ok(skill.includes('[didn\'t hear your reply:'));
   assert.ok(!skill.includes('quick spoken reaction'));
@@ -86,7 +87,7 @@ test('whileAReplysAudioIsFetchedTheFloorStaysOpenAndYouCanTalk', async () => {
   assert.equal(f.spoken.length, 0); // Held: the floor is yours.
   f.quiet(1200);
   await until(() => f.sent.length === 1);
-  assert.equal(f.sent[0], 'Wait, one more thing.');
+  assert.equal(f.sent[0], `Wait, one more thing.\n\n[your reply hasn't played yet, it plays after this message: "Here's the answer."]`);
   await until(() => f.spoken.length === 1); // Not dropped: it plays once your turn is over.
   assert.equal(f.spoken[0], 'Here\'s the answer.');
 });
@@ -213,7 +214,7 @@ test('aTranscriptionThatFailsKeepsYourWordsAndTheNextCheckTriesAgain', async () 
   f.transcripts.push('Book the hotel. Over.');
   await f.talk();
   await until(() => f.sent.length === 1);
-  assert.equal(f.sent[0], 'Book the hotel.');
+  assert.equal(f.sent[0], `Book the hotel.\n\n[your reply hasn't played yet, it plays after this message: "Read now."]`);
   await until(() => f.spoken.length === 1); // Your turn is over.
 });
 

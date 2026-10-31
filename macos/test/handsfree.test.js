@@ -155,7 +155,7 @@ test('aReplyWaitsWhileYouTalkIsNotDroppedBySendingAndPlaysAtThePause', async () 
   await f.talk();
   await until(() => f.sent.length === 1);
   // Your message as said: nothing about the reply, which isn't dropped.
-  assert.equal(f.sent[0], 'Also check the train to Lisbon.');
+  assert.equal(f.sent[0], `Also check the train to Lisbon.\n\n[your reply hasn't played yet, it plays after this message: "The flight leaves at nine in the morning and costs about two…"]`);
   // Your turn is over: it plays now.
   await until(() => f.spoken.length === 1);
   assert.equal(f.spoken[0], 'The flight leaves at nine in the morning and costs about two hundred euros, I think.');
@@ -182,7 +182,7 @@ test('aReplyNeverPlaysInALongThinkingPauseWithUnsentWordsOnlyOnceTheyreSent', as
   f.quiet(2000);
   f.session.tick();
   await until(() => f.sent.length === 1);
-  assert.equal(f.sent[0], 'Book the hotel');
+  assert.equal(f.sent[0], `Book the hotel\n\n[your reply hasn't played yet, it plays after this message: "Here's what I found."]`);
   await until(() => f.spoken.length === 1);
   assert.ok(reasons(f).includes('Reply plays: your turn is over'), reasons(f));
   const log = f.logText();
@@ -309,6 +309,45 @@ test('withoutATalkerAReplyToAnOlderMessageStillPlays', async () => {
   await sendTurn(f, 3);
   assert.equal(f.sent[2], 'Anything else?');
   assert.ok(!f.logText().includes('dropped'));
+});
+
+test('withoutATalkerAReplyStillWaitingWhenYourNextMessageGoesIsNotedInItAndStillPlays', async () => {
+  // Philipp's call, 31 October 2026: "Hi, can you hear me?" asked again before the first answer
+  // played; the chief answered it again, and he heard "Yes, I can hear you" twice.
+  const f = new Fake('Hi, can you hear me? Over.', 'Hi, can you hear me? Over.', 'Book the table. Over.');
+  f.quiet(1000);
+  await sendTurn(f, 1);
+  f.speak(); // You ask again; the answer to the first comes meanwhile and waits.
+  f.session.reply('r1', 'Yes, I hear you. Go ahead.');
+  assert.equal(f.session.held(), 1);
+  f.quiet(1200);
+  await until(() => f.sent.length === 2);
+  // The chief hears that its answer is still to play: it doesn't answer the same again.
+  assert.equal(f.sent[1], 'Hi, can you hear me?\n\n[your reply hasn\'t played yet, it plays after this message: "Yes, I hear you. Go ahead."]');
+  await hear(f, 1);
+  assert.deepEqual(f.spoken, ['Yes, I hear you. Go ahead.']);
+  await sendTurn(f, 3);
+  assert.equal(f.sent[2], 'Book the table.', 'played: not noted again');
+  assert.ok(!f.logText().includes('dropped'));
+});
+
+test('withATalkerNoMessageSaysAReplyHasntPlayedYet', async () => {
+  const f = new Fake('Is the table booked? Over.', 'And the train? Over.');
+  f.session.dropsOutdated = true;
+  f.quiet(1000);
+  await sendTurn(f, 1);
+  f.speak();
+  f.session.reply('r1', 'Yes, it\'s booked for eight.');
+  f.quiet(1200);
+  await until(() => f.sent.length === 2);
+  assert.equal(f.sent[1], 'And the train?');
+});
+
+test('severalRepliesNotPlayedYetAreNotedAsOne', () => {
+  assert.equal(
+    HandsFreeSession.notPlayedYet(['One moment, I\'m checking the booking for you now.', 'It\'s booked.']),
+    '[2 replies haven\'t played yet, they play after this message: "One moment, I\'m checking the booking for you…" and 1 more]',
+  );
 });
 
 test('withATalkerAReplyArrivingWhileYourNewMessageIsOnItsWayWaitsAndIsOutdatedOnceItsDelivered', async () => {

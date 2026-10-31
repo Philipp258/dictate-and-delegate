@@ -2554,6 +2554,15 @@ final class HandsFreeSession {
         missedNow.add(n.text);
       }
     if (!missedNow.isEmpty()) notes.append("\n\n").append(missed(missedNow));
+    // Without a talker, the chief's replies still waiting play once this message went: it hears
+    // so, and doesn't answer the same again (Philipp's call, 31 October 2026: "Hi, can you hear
+    // me?" asked again before the first answer played, answered again, and "Yes, I can hear you"
+    // heard twice).
+    if (!dropsOutdated && !last) {
+      List<String> waiting = new ArrayList<>();
+      for (Held w : held) if (w.answers < number) waiting.add(w.text);
+      if (!waiting.isEmpty()) notes.append("\n\n").append(notPlayedYet(waiting));
+    }
     return new Handoff(number, request, notes.toString());
   }
 
@@ -2691,5 +2700,20 @@ final class HandsFreeSession {
     StringBuilder first = new StringBuilder();
     for (int i = 0; i < Math.min(12, words.length); i++) first.append(i == 0 ? "" : " ").append(words[i]);
     return "[didn't hear your reply: \"" + first + (words.length > 12 ? "…" : "") + "\"]";
+  }
+
+  /**
+   * The note in your message about the chief's replies still waiting (they play once it went):
+   * one by its first words; several as how many, the first one's first words and how many more.
+   */
+  static String notPlayedYet(List<String> replies) {
+    int n = replies.size() == 1 ? 12 : 8;
+    String[] words = replies.get(0).trim().split("\\s+");
+    StringBuilder first = new StringBuilder();
+    for (int i = 0; i < Math.min(n, words.length); i++) first.append(i == 0 ? "" : " ").append(words[i]);
+    String quoted = "\"" + first + (words.length > n ? "…" : "") + "\"";
+    return replies.size() == 1
+        ? "[your reply hasn't played yet, it plays after this message: " + quoted + "]"
+        : "[" + replies.size() + " replies haven't played yet, they play after this message: " + quoted + " and " + (replies.size() - 1) + " more]";
   }
 }
