@@ -142,7 +142,7 @@ test('importChecksEachSettingAndSkipsBadOnes', () => {
         hfVoice: 'no-such-voice', // not one of the choices: skipped
         bubbleOpacity: 500, // out of range: skipped
         hfLive: 'yes', // a boolean setting: skipped
-        talkerOn: true,
+        talkerOn2: true,
         bbUrl: 'https://x.getbb.app/mcp',
         chiefTitle: 7, // a text setting given a number: skipped
         somethingUnknown: 'x', // not a setting this app has: skipped
@@ -153,7 +153,7 @@ test('importChecksEachSettingAndSkipsBadOnes', () => {
       keys: { openrouterKey: 42, bbAuth: 'tokens', anthropicKey: ' sk-ant ' },
     }),
   );
-  assert.deepEqual(r.prefs, { talkerOn: true, bbUrl: 'https://x.getbb.app/mcp', autoRefine: false, hfTurnPauseMs: 2500 });
+  assert.deepEqual(r.prefs, { talkerOn2: true, bbUrl: 'https://x.getbb.app/mcp', autoRefine: false, hfTurnPauseMs: 2500 });
   assert.deepEqual(r.keys, { anthropicKey: 'sk-ant' });
   assert.deepEqual(r.skipped.sort(), ['bbAuth', 'bubbleOpacity', 'chiefTitle', 'hfLive', 'hfVoice', 'model', 'openrouterKey', 'somethingUnknown'].sort());
 });

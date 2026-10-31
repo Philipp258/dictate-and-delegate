@@ -89,9 +89,12 @@ test('theChiefSkillStatesTheTalkerContractAndTheTurnRule', () => {
   assert.ok(r.includes('which tells Alex the answer itself, in full, without "the chief says"'), r);
   assert.ok(!r.includes('in its own words'));
   // It stays free for the next message: longer work goes to child threads.
-  assert.ok(r.includes('**Stay responsive.** Do only quick things yourself (a lookup, one command).'));
+  assert.ok(r.includes('**Stay responsive: delegate.** Do only one quick lookup or one command you already know yourself.'));
+  assert.ok(r.includes('bb thread spawn --parent-self --project "$BB_PROJECT_ID" --model claude-opus-5-5 --permission-mode full'));
+  assert.ok(r.includes('Spawn it first, then say so in one sentence'));
+  assert.ok(r.includes('No fillers'));
+  assert.ok(r.includes('Normally there is no talker and you do the talking'));
   assert.ok(r.includes('Each fact goes to the talker once'));
-  assert.ok(r.includes('goes to a child thread (`bb thread spawn --parent-self`) with a clear brief, and you keep answering'));
   assert.ok(r.includes('If something you started yourself fails, hand it off instead of retrying in place.'));
   assert.ok(r.includes('by child threads for anything more than a quick step, so you\'re free for the next message'));
   assert.ok(!r.includes('do whatever research or work'));

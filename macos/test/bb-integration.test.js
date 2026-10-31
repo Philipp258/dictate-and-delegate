@@ -247,7 +247,7 @@ test('aStalledInstallFailsInTimeAndTheThreadIsArchived', async () => {
 });
 
 test('theTalkerSkillMissingIsSaidApartAndTheTalkerToldOnce', async () => {
-  const prefs = new MemoryPrefs({ talkerId: 'thr_talk', talkerOn: true, chiefId: 'thr_old' });
+  const prefs = new MemoryPrefs({ talkerId: 'thr_talk', talkerOn2: true, chiefId: 'thr_old' });
   const b = bridge({ prefs });
   await bb.post('/test/skills', { skip: ['dictate-and-delegate-talker'] });
   await b.skills.sync();

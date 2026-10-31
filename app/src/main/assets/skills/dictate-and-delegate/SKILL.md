@@ -7,7 +7,16 @@ description: "How to read messages from Dictate & Delegate, the voice app on {{N
 
 Messages from Dictate & Delegate are voice dictations, written down by a speech model, so expect the odd misheard word. Text the user pasted follows the dictation in `<pasted>` blocks. Each message ends with `[request: <id>]`.
 
-**Stay responsive.** Do only quick things yourself (a lookup, one command). Anything that needs more than a minute or two of tool work (browser actions, research, debugging, retries after a failure) goes to a child thread (`bb thread spawn --parent-self`) with a clear brief, and you keep answering. If something you started yourself fails, hand it off instead of retrying in place. During a hands-free call this matters most: {{NAME}}'s next message must never wait for your own work.
+**Stay responsive: delegate.** Do only one quick lookup or one command you already know yourself. Everything beyond that (research, browser actions, comparisons, debugging, retries after a failure) goes to a child thread with a clear brief (context, intent, what done looks like), and you keep answering:
+
+```sh
+bb thread spawn --parent-self --project "$BB_PROJECT_ID" --model claude-opus-5-5 --permission-mode full \
+  --title "<short title>" --prompt-file - <<'TEXT'
+<the brief; say which request ID it's for>
+TEXT
+```
+
+If something you started yourself fails, hand it off instead of retrying in place. During a hands-free call this matters most: {{NAME}}'s next message must never wait for your own work.
 
 **When a request is done, or when you need {{NAME}},** send one notification, then end your turn. Send none for the steps in between:
 
@@ -40,9 +49,15 @@ The app tells you only what didn't reach them:
 - `[heard up to: "…"]` on a message: they talked over that reply after those words, and the rest of it was dropped. Answer their new message first; repeat from the rest only what still matters, briefly and in your own words. If they hardly heard any of it, it shows as `[didn't hear your reply: "…"]`.
 - `[didn't hear your reply: "…"]` or `[heard up to: "…"]` on `[hands-free call ended]`: the call ended with that reply still waiting, cut off after those words, or talked over with no message after it. They didn't hear it, or the rest of it. Don't speak it again, since they're no longer on the call; make sure what they need from it is in your reply in the thread, and notify as usual if it matters.
 
-For each hands-free message, send a first spoken answer soon, from what you already know: a real answer, not a filler like "one moment", saying how sure you are and inventing nothing. Then get the research or work done, by a child thread for anything more than a quick step (see Stay responsive), and send a final spoken answer with what {{NAME}} needs to know or decide; if you need something from them, end with the question. Write both the way you'd say them: short, plain sentences, no markdown, lists, tables, links or code, numbers as words where that reads better aloud. The full details go in your reply in the thread, where {{NAME}} can read them later.
+You talk with {{NAME}} directly. For each hands-free message, send one spoken reply, soon:
 
-Spoken replies go to ntfy like this, and during a call they replace the usual notification; outside a call, notify as usual:
+- If you can answer from what you know, or with one quick lookup or one command you already know, answer: the most important first, saying how sure you are, inventing nothing.
+- Anything more goes to a child thread (see Stay responsive). Spawn it first, then say so in one sentence, for example "I've started a thread to compare the two offers; I'll tell you when it's back." Add a quick answer from what you already know only if it's real and useful.
+- When a child thread's result comes back and the call is still on, speak it, tagged with the request ID it was for: what {{NAME}} needs to know or decide, with any question at the end. If the call has ended, notify as usual instead.
+
+No fillers: no "one moment", "let me check", "good question", and no repeating what {{NAME}} just said. Say each thing once per call: before you speak, think of what you already said in this call and say only what's new; when {{NAME}} asks what they missed, give just that. Write the way you'd say it: short, plain sentences, two or three as a rule; no markdown, lists, tables, links or code; numbers as words where that reads better aloud. The full details go in your reply in the thread, where {{NAME}} can read them later.
+
+Spoken replies go to ntfy like this. During a call each spoken reply is the notification for its request: send no other notification. Outside a call, notify as usual:
 
 ```sh
 curl -s -H "Title: Spoken reply" -H "Tags: talkrouter-speak,req-<id>" -H "Priority: low" \
@@ -53,9 +68,9 @@ TEXT
 
 The call start and end messages need no reply.
 
-### With a talker
+### With a talker (only if the call start names one)
 
-The call start may name a talker: `[hands-free call started] [talker: <thread id>]`. The talker is a second, fast agent thread that gets every hands-free message too, with the same request ID, and does the talking: it answers {{NAME}} by voice right away and keeps the conversation going. Two voices would talk over each other, so from the call start until `[hands-free call ended]` you post nothing to ntfy: no spoken replies and no notifications. Everything above about spoken replies is the talker's job. Its replies are the ones `[didn't hear your reply: "…"]` and `[heard up to: "…"]` refer to.
+Normally there is no talker and you do the talking, as above. Only if {{NAME}} switched one on in Dictate & Delegate does the call start name it: `[hands-free call started] [talker: <thread id>]`. The talker is a second, fast agent thread that gets every hands-free message too, with the same request ID, and does the talking: it answers {{NAME}} by voice right away and keeps the conversation going. Two voices would talk over each other, so from the call start until `[hands-free call ended]` you post nothing to ntfy: no spoken replies and no notifications. Everything above about spoken replies is the talker's job. Its replies are the ones `[didn't hear your reply: "…"]` and `[heard up to: "…"]` refer to.
 
 Your part is the work: get done what each message asks, by child threads for anything more than a quick step, so you're free for the next message. When you have a result, something {{NAME}} needs to decide, or a question for them, send it to the talker, which tells {{NAME}} the answer itself, in full, without "the chief says". So write it as the spoken answer: the most important first, short enough to listen to, with any question at the end. One message per result, starting with `[chief]`:
 
@@ -67,4 +82,4 @@ TEXT
 
 Send nothing to the talker for the steps in between, and nothing it already knows: it reads {{NAME}}'s messages itself, and it keeps what you sent it before. Each fact goes to the talker once: before you send, look at what you already sent it (also in the previous call) and send only what's new. A briefing at the call start is background the talker doesn't read aloud; don't follow it with a "say this" covering the same things. When {{NAME}} asks what they missed, the talker answers from what it has; send something only if there's news it doesn't have. The full details go in your reply in the thread, as usual. After `[hands-free call ended]`, notify as usual; don't send the talker anything more for that call.
 
-If the call start names no talker, there is none: send your spoken replies yourself, as above.
+If the call start names no talker, there is none: send your spoken replies yourself, as above, and send nothing to any talker thread.

@@ -48,7 +48,7 @@ test('handsFreeMessagesAreTaggedAndTheSkillExplainsThem', () => {
   const skill = assets.read('skills/dictate-and-delegate/SKILL.md');
   assert.ok(skill.includes('[hands-free]'));
   assert.ok(skill.includes('Tags: talkrouter-speak,req-<id>'));
-  assert.ok(skill.includes('first spoken answer'));
+  assert.ok(skill.includes('send one spoken reply, soon'));
   assert.ok(skill.includes('[hands-free call started]') && skill.includes('[hands-free call ended]'));
   assert.ok(skill.includes('[didn\'t hear your reply:'));
   assert.ok(!skill.includes('quick spoken reaction'));

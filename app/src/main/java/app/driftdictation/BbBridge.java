@@ -39,7 +39,8 @@ final class BbBridge {
       CHIEF_ID = "chiefId",
       CHIEF_NAME = "chiefTitle",
       TALKER_ID = "talkerId",
-      TALKER_ON = "talkerOn",
+      // A new key: calls go straight to the chief again (3.3.4), so a talker switched on before is off.
+      TALKER_ON = "talkerOn2",
       NTFY_SERVER = "ntfyServer",
       TOKEN = "bbToken",
       NTFY_TOPIC = "ntfyTopic";

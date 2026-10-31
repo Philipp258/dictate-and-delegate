@@ -100,9 +100,12 @@ public class ChiefSkillsTest {
     assertTrue(r, r.contains("which tells Alex the answer itself, in full, without \"the chief says\""));
     assertFalse(r.contains("in its own words"));
     // It stays free for the next message: longer work goes to child threads.
-    assertTrue(r.contains("**Stay responsive.** Do only quick things yourself (a lookup, one command)."));
+    assertTrue(r.contains("**Stay responsive: delegate.** Do only one quick lookup or one command you already know yourself."));
+    assertTrue(r.contains("bb thread spawn --parent-self --project \"$BB_PROJECT_ID\" --model claude-opus-5-5 --permission-mode full"));
+    assertTrue(r.contains("Spawn it first, then say so in one sentence"));
+    assertTrue(r.contains("No fillers"));
+    assertTrue(r.contains("Normally there is no talker and you do the talking"));
     assertTrue(r.contains("Each fact goes to the talker once"));
-    assertTrue(r.contains("goes to a child thread (`bb thread spawn --parent-self`) with a clear brief, and you keep answering"));
     assertTrue(r.contains("If something you started yourself fails, hand it off instead of retrying in place."));
     assertTrue(r.contains("by child threads for anything more than a quick step, so you're free for the next message"));
     assertFalse(r.contains("do whatever research or work"));

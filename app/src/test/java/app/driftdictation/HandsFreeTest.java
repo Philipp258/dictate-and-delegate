@@ -1145,7 +1145,7 @@ public class HandsFreeTest {
             java.nio.charset.StandardCharsets.UTF_8);
     assertTrue(skill.contains("[hands-free]"));
     assertTrue(skill.contains("Tags: talkrouter-speak,req-<id>"));
-    assertTrue(skill.contains("first spoken answer"));
+    assertTrue(skill.contains("send one spoken reply, soon"));
     assertTrue(skill.contains("[hands-free call started]") && skill.contains("[hands-free call ended]"));
     assertTrue(skill.contains("[didn't hear your reply:"));
     assertFalse(skill.contains("quick spoken reaction"));

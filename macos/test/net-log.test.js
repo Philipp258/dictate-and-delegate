@@ -217,7 +217,7 @@ test('theMacsNetworkComesFromTheDefaultRoute', async () => {
 
 test('anMcpTellLogsWhoItWentToAndItsRequest', async () => {
   fresh();
-  const prefs = new MemoryPrefs({ chiefId: 'thr_chief', talkerId: 'thr_talk', talkerOn: true });
+  const prefs = new MemoryPrefs({ chiefId: 'thr_chief', talkerId: 'thr_talk', talkerOn2: true });
   const b = new BbBridge.BbBridge({ prefs, vault: new MemoryVault(), fetch: fakeBb() });
   b.useCustom('https://bb.example/mcp', '', '');
   await b.send('thr_chief', BbBridge.handsFreeMessage('hello', 'abc123'));

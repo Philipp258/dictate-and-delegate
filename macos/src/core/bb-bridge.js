@@ -31,7 +31,8 @@ const LINK_BASE = 'bbLinkBase';
 const CHIEF_ID = 'chiefId';
 const CHIEF_NAME = 'chiefTitle';
 const TALKER_ID = 'talkerId';
-const TALKER_ON = 'talkerOn';
+// A new key: calls go straight to the chief again (0.2.4), so a talker switched on before is off.
+const TALKER_ON = 'talkerOn2';
 const NTFY_SERVER = 'ntfyServer';
 const TOKEN = 'bbToken';
 const NTFY_TOPIC = 'ntfyTopic';
