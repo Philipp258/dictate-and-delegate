@@ -194,12 +194,21 @@ public final class HandsFreeService extends Service {
               return r.text();
             },
             (said, request) -> {
-              if (talker.isEmpty()) {
-                bb.sendHandsFree(bb.chiefId(), said, request);
-                keepNote(said, request, model);
-                return;
+              try {
+                if (talker.isEmpty()) {
+                  bb.sendHandsFree(bb.chiefId(), said, request);
+                  keepNote(said, request, model);
+                  return;
+                }
+                sendBoth(bb, said, request, model);
+              } catch (HandsFreeSession.PartlySent p) {
+                if (p.chiefMissed) Outbox.failure(this, "call:" + request, "call", "Hands-free message " + request + " (the talker got it)", p.getMessage());
+                throw p;
+              } catch (Exception ex) {
+                // Your words are kept by the call and go with the next message; this is for the report.
+                Outbox.failure(this, "call:" + request, "call", "Hands-free message " + request, DictationService.friendly(ex));
+                throw ex;
               }
-              sendBoth(bb, said, request, model);
             },
             new HandsFreeSession.Speaker() {
               public Object prepare(String request, String text) {
@@ -920,6 +929,8 @@ public final class HandsFreeService extends Service {
   public void onDestroy() {
     if (session != null) finish();
     instance = null;
+    // The call's failures, if any, go to the chief once the end of the call is through.
+    if (Outbox.failuresWaiting(this) > 0) Outbox.schedule(this, 60_000);
     super.onDestroy();
   }
 }

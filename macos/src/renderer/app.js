@@ -748,7 +748,11 @@ function recordControls(root, startLabel) {
     await attempt(null, () => api('toggleDictation'));
   }, { block: true, tall: true, attrs: { id: 'record' } });
   const status = h('div', { class: 'record-hint', id: 'record-status' }, S.hotkey ? ['or press ', h('kbd', null, accelLabel(S.hotkey)), ' in any app'] : '');
-  const recovery = h('div', { class: 'btns gap-8 hidden', id: 'recovery' }, btn('Retry saved recording', 'outline', () => act(() => api('retryRecording'), null)), btn('Discard saved audio', 'quiet', async () => {
+  const recovery = h('div', { class: 'btns gap-8 hidden', id: 'recovery' }, btn('Retry saved recording', 'outline', () => act(() => api('retryRecording'), null)), btn(S.profile.reportLabel || 'Send report to your chief', 'quiet', async (e) => {
+    toast('Sending the report…');
+    const r = await attempt(e.currentTarget, () => api('sendReport', ''));
+    if (r) toast(r);
+  }), btn('Discard saved audio', 'quiet', async () => {
     if (await confirmDialog({ title: 'Discard the saved audio?', message: 'Partial text and reported costs stay in your notes.', ok: 'Discard', cancel: 'Keep', danger: true })) act(() => api('discardRecording'), null);
   }));
   add(root, [button, status, recovery]);
@@ -1158,16 +1162,36 @@ async function pageNote(root) {
       add(root, [
         h('div', { class: 'btns gap-16' }, btn('Sent to chief of staff ↗', 'primary', () => (n.chief.link ? openUrl(n.chief.link) : toast('Set the bb web address for links in Settings → bb.')))),
         p("Your chief of staff works on it in bb and notifies you through ntfy when it's done or needs you. The button opens the thread.", 'muted small gap-8'),
+        n.chief.tries > 0 ? p(fmt('It went through on try %1$d; the first failed at %2$s.', n.chief.tries + 1, n.chief.failedAt), 'muted small gap-4') : null,
       ]);
     else
       add(root, [
-        p(fmt('Not sent to your chief of staff: %1$s Below is what you said.', n.chief.failed), 'warn gap-12'),
-        n.canSendAgain ? h('div', { class: 'btns gap-8' }, btn('Send again', 'outline', async (e) => {
-          toast('Sending to your chief of staff…');
-          const r = await attempt(e.currentTarget, () => api('sendAgain', id));
-          if (r) toast(r);
-          render();
-        })) : null,
+        p(
+          n.chief.retrying
+            ? fmt('Not sent yet: %1$s', n.chief.failed) + ' ' + n.chief.waiting
+            : fmt('Not sent to your chief of staff: %1$s Below is what you said.', n.chief.failed),
+          'warn gap-12',
+        ),
+        h(
+          'div',
+          { class: 'btns gap-8' },
+          n.canSendAgain
+            ? btn('Retry now', 'outline', async (e) => {
+                toast('Sending to your chief of staff…');
+                const r = await attempt(e.currentTarget, () => api('sendAgain', id));
+                if (r) toast(r);
+                render();
+              })
+            : null,
+          n.canSendReport
+            ? btn(n.reportLabel, 'quiet', async (e) => {
+                toast('Sending the report…');
+                const r = await attempt(e.currentTarget, () => api('sendReport', id));
+                if (r) toast(r);
+                render();
+              })
+            : null,
+        ),
       ]);
   }
   if (n.chiefReply)

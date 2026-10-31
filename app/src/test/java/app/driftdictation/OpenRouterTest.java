@@ -97,4 +97,14 @@ public class OpenRouterTest {
     assertNull(OpenRouter.cost(new JSONObject("{\"usage\": {\"cost\": \"n/a\"}}")));
     assertNull(OpenRouter.cost(new JSONObject("{\"usage\": {\"cost\": true}}")));
   }
+
+  @Test
+  public void onlyRequestsThatNeverReachedOpenRouterAreTriedAgain() {
+    assertTrue(OpenRouter.unreached(new java.io.IOException("No connection", new java.net.UnknownHostException("openrouter.ai"))));
+    assertTrue(OpenRouter.unreached(new java.io.IOException("x", new java.net.ConnectException("Connection refused"))));
+    assertTrue(OpenRouter.unreached(new java.io.IOException("x", new java.net.SocketTimeoutException("failed to connect to openrouter.ai"))));
+    // A read timeout may have run (and cost): not tried again by itself.
+    assertFalse(OpenRouter.unreached(new java.io.IOException("x", new java.net.SocketTimeoutException("Read timed out"))));
+    assertFalse(OpenRouter.unreached(new java.io.IOException("The model provider had a problem (HTTP 502).")));
+  }
 }

@@ -190,6 +190,8 @@ function createCall({ ctx, audio, shell }) {
       bb,
       transcribe: (wav, { model, hints }) => openRouter.transcribe(wav, model, hints),
       speechModel: profile.fixedModel(),
+      sendFailed: (request, why, partly) =>
+        ctx.outbox && ctx.outbox.failure('call:' + request, 'call', 'Hands-free message ' + request + (partly ? ' (the talker got it)' : ''), why),
       hintWords: profile.hintWords(),
       judge: (said, { sendWords, endWords }) => jev.turn(openRouter, said, sendWords, endWords),
       createLive: (keyterms, { onText, onFailure, log }) => {

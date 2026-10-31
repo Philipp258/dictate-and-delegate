@@ -28,6 +28,7 @@ test.beforeEach(async () => {
 /** A bridge in custom-address mode on the fake, with fast skill polling. */
 function bridge({ prefs = new MemoryPrefs(), vault = new MemoryVault(), token = '', skillOptions = {} } = {}) {
   const b = new BbBridge.BbBridge({ prefs, vault });
+  b.againMs = [10, 10, 10];
   b.useCustom(bb.url + '/mcp', token, '');
   b.skills = new ChiefSkills.ChiefSkills({ bridge: b, prefs, pollMs: 10, installWaitMs: 2000, talkerGraceMs: 100, ...skillOptions });
   return b;
@@ -190,13 +191,70 @@ test('aMessageOnlyOneOfThemGotCountsAsPartlySent', async () => {
     assert.equal(ex.request, 'r1');
     return true;
   });
-  await bb.post('/test/fail', { kind: 'tell', error: 'http503', thread: 'thr_chief' });
+  await bb.post('/test/fail', { kind: 'tell', error: 'tool', thread: 'thr_chief' });
   await assert.rejects(b.sendHandsFree('thr_chief', 'hi', 'r2', 'thr_talk'), (ex) => ex instanceof BbBridge.PartlySent && ex.chiefMissed);
   await bb.post('/test/fail', { kind: 'tell', error: 'tool', thread: 'thr_chief' });
   await bb.post('/test/fail', { kind: 'tell', error: 'tool', thread: 'thr_talk' });
   await assert.rejects(b.sendHandsFree('thr_chief', 'hi', 'r3', 'thr_talk'), (ex) => !(ex instanceof BbBridge.PartlySent) && /neither the chief nor the talker got it/.test(ex.message));
   // Without a talker it's just the chief.
   await b.sendHandsFree('thr_chief', 'hi', 'r4');
+});
+
+// ------------------------------------------------------------------ when bb can't be reached
+
+const told = async () => (await bb.get('/test/told')).told;
+
+test('aTellBbConnectAnswers502ForIsTriedAgainAndArrivesOnce', async () => {
+  const b = bridge();
+  await bb.post('/test/fail', { kind: 'tell', error: 'http502' });
+  await bb.post('/test/fail', { kind: 'tell', error: 'http503' });
+  await b.sendHandsFree('thr_chief', 'hi', 'r9');
+  const got = (await told()).filter((t) => t.text.includes('[request: r9]'));
+  assert.equal(got.length, 1);
+  // The tries after the first check the thread before telling it.
+  const codes = (await tells()).map((c) => c.code);
+  assert.equal(codes.length, 3);
+  assert.ok(!codes[0].includes('"thread","history"'));
+  assert.ok(codes[1].includes('"thread","history"') && codes[2].includes('"thread","history"'));
+});
+
+test('aTellWhoseAnswerWasLostIsntDeliveredTwice', async () => {
+  const b = bridge();
+  await bb.post('/test/fail', { kind: 'tell', error: 'lost' });
+  await b.sendHandsFree('thr_chief', 'hi', 'r10');
+  assert.equal((await told()).filter((t) => t.text.includes('[request: r10]')).length, 1);
+  assert.equal((await tells()).length, 2);
+});
+
+test('aSessionThatCouldntStartIsTriedAgainEvenWithoutAMark', async () => {
+  const b = bridge();
+  await bb.post('/test/fail', { kind: 'initialize', error: 'http502' });
+  await b.send('thr_chief', '[call started]');
+  assert.deepEqual((await told()).map((t) => t.text), ['[call started]']);
+});
+
+test('aMessageWithoutAMarkIsntRepeatedOnceBbMayHaveRunIt', async () => {
+  const b = bridge();
+  await bb.post('/test/fail', { kind: 'tell', error: 'lost' });
+  await assert.rejects(b.send('thr_chief', '[call ended]'), /HTTP 502/);
+  assert.equal((await tells()).length, 1);
+});
+
+test('afterItsWaitsItGivesUpWithAReadableReason', async () => {
+  const b = bridge();
+  for (let i = 0; i < 4; i++) await bb.post('/test/fail', { kind: 'tell', error: 'http502' });
+  await assert.rejects(b.sendHandsFree('thr_chief', 'hi', 'r11'), /bb isn't reachable right now \(HTTP 502\)/);
+  assert.equal((await tells()).length, 4);
+  assert.equal((await told()).length, 0);
+});
+
+test('aNoteSentAgainChecksFirstSoItNeverArrivesTwice', async () => {
+  const b = bridge();
+  await b.sendRequest('thr_chief', 'buy milk', [], [], 'r12');
+  await b.sendRequest('thr_chief', 'buy milk', [], [], 'r12', true);
+  assert.equal((await told()).filter((t) => t.text.includes('[request: r12]')).length, 1);
+  const last = (await tells()).pop();
+  assert.ok(last.code.includes('"thread","history"'));
 });
 
 // ------------------------------------------------------------------ skills

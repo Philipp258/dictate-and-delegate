@@ -102,7 +102,7 @@ sequenceDiagram
     You->>BB: tap → the thread opens in bb
 ```
 
-If bb can't be reached, the note keeps what you said, says why, and offers **Send again**.
+If bb can't be reached, the app tries again a few times within seconds (bb Connect's tunnel to your computer drops now and then and is back quickly). If that isn't enough, the note keeps what you said and the request ID, says why, and sends it again by itself, further apart each time (15 s up to every 15 min, for two days), also after a restart or once the network is back. A try after one whose answer got lost checks the thread first, so the chief never gets a note twice. **Retry now** and **Send report** are on the note; once bb takes messages again, the chief gets an `[app failure report]` with what failed, when, and the network log around it.
 
 ## Signing in to bb
 

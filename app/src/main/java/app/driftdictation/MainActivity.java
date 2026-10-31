@@ -1732,6 +1732,13 @@ public final class MainActivity extends Activity {
     ui.add(
         recovery,
         ui.button(
+            reportLabel(),
+            Ui.Kind.QUIET,
+            v -> sendReport("Recording (writing it down)", "it didn't finish: " + prefs.getString("detail", ""))),
+        0);
+    ui.add(
+        recovery,
+        ui.button(
             tr("Discard saved audio"),
             Ui.Kind.QUIET,
             v ->
@@ -2153,7 +2160,11 @@ public final class MainActivity extends Activity {
         default -> tr("unfinished");
       };
     if (chiefNote(n.shown()))
-      return DictationService.sentToChief(n.shown()) ? tr("chief of staff") : tr("not sent");
+      return switch (Outbox.state(n.shown().json)) {
+        case SENT -> tr("chief of staff");
+        case RETRYING -> tr("sending again");
+        default -> tr("not sent");
+      };
     if (n.versions().size() > 1) return tr("redone");
     return "original".equals(n.shown().json.optString("version")) ? tr("as said") : null;
   }
@@ -2352,19 +2363,73 @@ public final class MainActivity extends Activity {
               13,
               Ui.MUTED),
           6);
+      int tries = e.json.optInt("chiefTries");
+      if (tries > 0)
+        ui.add(
+            content,
+            ui.text(
+                tr("It went through on try %1$d; the first failed at %2$s.", tries + 1, time(e.json.optLong("chiefFailedAt"))),
+                13,
+                Ui.MUTED),
+            4);
       return;
     }
+    boolean retrying = Outbox.state(e.json) == Outbox.State.RETRYING;
     ui.add(
         content,
         ui.text(
-            tr("Not sent to your chief of staff: %1$s Below is what you said.", e.json.optString("chiefFailed")),
+            retrying
+                ? tr("Not sent yet: %1$s", e.json.optString("chiefFailed")) + " " + Outbox.waitingLine(e.json, System.currentTimeMillis())
+                : tr("Not sent to your chief of staff: %1$s Below is what you said.", e.json.optString("chiefFailed")),
             14,
             Ui.WARN),
         12);
-    ui.add(content, ui.button(tr("Send again"), Ui.Kind.OUTLINE, v -> sendAgain()), 8);
+    ui.add(content, ui.button(tr("Retry now"), Ui.Kind.OUTLINE, v -> sendAgain()), 8);
+    ui.add(
+        content,
+        ui.button(
+            reportLabel(),
+            Ui.Kind.QUIET,
+            v ->
+                sendReport(
+                    "Note to you, request " + e.json.optString("chiefRequest", "(none)"),
+                    "not sent yet, " + e.json.optInt("chiefTries", 1) + " tries since " + time(e.json.optLong("chiefFailedAt"))
+                        + ": " + e.json.optString("chiefFailed"))),
+        4);
   }
 
-  /** Sends a note to the chief of staff once more, after sending failed. */
+  /** "Send report to Alex": the chief's name, if it has one. */
+  private String reportLabel() {
+    String name = new Profile(prefs).chiefName();
+    return name.isEmpty() ? tr("Send report to your chief") : tr("Send report to %1$s", name);
+  }
+
+  private static String time(long ms) {
+    return ms <= 0
+        ? "?"
+        : java.time.format.DateTimeFormatter.ofPattern("HH:mm", java.util.Locale.ROOT)
+            .format(java.time.Instant.ofEpochMilli(ms).atZone(java.time.ZoneId.systemDefault()));
+  }
+
+  /**
+   * Send report: what failed, the network log around it and the app's version go to the chief as
+   * an "[app failure report]", now or as soon as bb takes messages again.
+   */
+  private void sendReport(String what, String why) {
+    Outbox.askReport(this, what, why);
+    toast(tr("Sending the report…"));
+    io.execute(
+        () -> {
+          boolean went = Outbox.flush(this, true) && Outbox.failuresWaiting(this) == 0;
+          main.post(
+              () -> {
+                toast(went ? tr("Report sent") : tr("bb can't be reached right now. The report goes by itself once it can."));
+                if (page.equals("note") || page.equals("home")) show(page);
+              });
+        });
+  }
+
+  /** Sends a note to the chief of staff once more, after sending failed (the outbox does it too). */
   private void sendAgain() {
     if (applying) return;
     applying = true;

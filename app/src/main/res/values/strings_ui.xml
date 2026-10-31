@@ -30,6 +30,7 @@
     <string name="t_092d8ce0" formatted="false">cheapest</string>
     <string name="t_098821db" formatted="false">Copy network log</string>
     <string name="t_09b31ec9" formatted="false">Send ignored: just sent (%1$.1f s ago)</string>
+    <string name="t_0a30dd5e" formatted="false">Not sent yet: %1$s It\'s kept and goes by itself once bb can be reached.</string>
     <string name="t_0a3cb13f" formatted="false">fastest, cheapest, less accurate</string>
     <string name="t_0a7ebfef" formatted="false">Added</string>
     <string name="t_0ae539d0" formatted="false">Your words</string>
@@ -128,10 +129,12 @@
     <string name="t_2be92a36" formatted="false">Give Dictate &amp; Delegate what you\'re talking about, like the offer you\'re replying to. It\'s used when you ask for something.</string>
     <string name="t_2bf38097" formatted="false">Your Anthropic key isn\'t valid. Check it in Settings → Models &amp; providers → Anthropic key.</string>
     <string name="t_2c113272" formatted="false">Your bb Connect handle</string>
+    <string name="t_2c3420a8" formatted="false">Dictate &amp; Delegate keeps it and sends it again by itself (tried %1$d×, next try within a minute).</string>
     <string name="t_2c467e9e" formatted="false">Tap to stop</string>
     <string name="t_2cad992e" formatted="false">File</string>
     <string name="t_2ce33943" formatted="false">Default</string>
     <string name="t_2d53863e" formatted="false">Add to this dictation</string>
+    <string name="t_2d8e320f" formatted="false">Sending the report…</string>
     <string name="t_2dace0e0" formatted="false">Allow microphone access in Dictate &amp; Delegate first.</string>
     <string name="t_2dad13e3" formatted="false">Language</string>
     <string name="t_2dc29d4d" formatted="false">Later</string>
@@ -155,6 +158,8 @@
     <string name="t_33e841f4" formatted="false">Not sent to your chief of staff: %1$s</string>
     <string name="t_33fdfd35" formatted="false">Helps Dictate &amp; Delegate spell names right and process each note for its purpose.</string>
     <string name="t_345d171c" formatted="false">bb\'s sign-in server answered with HTTP %1$d.</string>
+    <string name="t_34f63f9b" formatted="false">Report sent</string>
+    <string name="t_3575eb12" formatted="false">Send report to your chief</string>
     <string name="t_35c96237" formatted="false">Refine instructions</string>
     <string name="t_35dab0c1" formatted="false">Reply couldn\'t be played: %1$s. Your next message tells the chief</string>
     <string name="t_36633739" formatted="false">Writes down what you say while you speak, so a send word sends at once. It runs with your own key for the provider, billed by them for the time it\'s listening (closed after a minute without speech).</string>
@@ -173,6 +178,7 @@
     <string name="t_3b9938d1" formatted="false">Delete this template?</string>
     <string name="t_3c847f8f" formatted="false">Floating panel · optional</string>
     <string name="t_3ce1b08b" formatted="false">best voice</string>
+    <string name="t_3d021462" formatted="false">It went through on try %1$d; the first failed at %2$s.</string>
     <string name="t_3d06124e" formatted="false">Your OpenRouter key isn\'t valid anymore. Change it in Dictate &amp; Delegate\'s Settings.</string>
     <string name="t_3d38c7ad" formatted="false">Saving recording…</string>
     <string name="t_3da1dbe7" formatted="false">Dictate &amp; Delegate is running</string>
@@ -190,6 +196,7 @@
     <string name="t_3eef8148_many" formatted="false">%1$d versions</string>
     <string name="t_3eef8148_one" formatted="false">%1$d version</string>
     <string name="t_3eef8148_other" formatted="false">%1$d versions</string>
+    <string name="t_3f582d5c" formatted="false">bb can\'t be reached right now. The report goes by itself once it can.</string>
     <string name="t_3f77ee75" formatted="false">Saving…</string>
     <string name="t_3f983199" formatted="false">%1$s The recording is saved.</string>
     <string name="t_400b4b63" formatted="false">You say</string>
@@ -210,6 +217,7 @@
     <string name="t_46713b89" formatted="false">Insert · Accessibility permission</string>
     <string name="t_46783a6e" formatted="false">Create chief of staff</string>
     <string name="t_467f1c34" formatted="false">Stop recording</string>
+    <string name="t_46d6d32e" formatted="false">Retry now</string>
     <string name="t_46e4fba1" formatted="false">%1$d s</string>
     <string name="t_477632ba" formatted="false">Reply plays: your turn is over</string>
     <string name="t_47eaeab4" formatted="false">Hands-free</string>
@@ -222,6 +230,7 @@
     <string name="t_4a881de5" formatted="false">Finish recording or upload first</string>
     <string name="t_4ae2821e" formatted="false">in progress</string>
     <string name="t_4b2ded64" formatted="false">Emails</string>
+    <string name="t_4b8a0a2e" formatted="false">sending again</string>
     <string name="t_4bfe4352" formatted="false">Open recovery</string>
     <string name="t_4c0014e2" formatted="false">Refine goes through OpenRouter again.</string>
     <string name="t_4c2540de" formatted="false">Anthropic couldn\'t run this request (HTTP %1$d): %2$s</string>
@@ -237,7 +246,6 @@
     <string name="t_4f95835a" formatted="false">The web address starts with https://</string>
     <string name="t_4f95d631" formatted="false">That\'s it. It works the same in any app: start, talk, stop, insert. Your notes are saved in Dictate &amp; Delegate, where you can also copy them or switch back to exactly what you said.</string>
     <string name="t_4fcbfdd0" formatted="false">This file is too large (at most 10 MB).</string>
-    <string name="t_4feae27e" formatted="false">Send again</string>
     <string name="t_503970b4" formatted="false">Untitled</string>
     <string name="t_503e7474" formatted="false">audio discarded</string>
     <string name="t_5048970e" formatted="false">Partial text and reported costs stay in your notes.</string>
@@ -343,6 +351,7 @@
     <string name="t_74350de7" formatted="false">About</string>
     <string name="t_749dd663" formatted="false">%1$s · Anthropic, your key</string>
     <string name="t_75cfcf01" formatted="false">Sign out</string>
+    <string name="t_75f6490a" formatted="false">Dictate &amp; Delegate keeps it and sends it again by itself (tried %1$d×, next try now).</string>
     <string name="t_76010d0f" formatted="false">Nothing yet.</string>
     <string name="t_76692d71" formatted="false">🎧 Hands-free is on</string>
     <string name="t_77083f49" formatted="false">What leaves your phone</string>
@@ -374,6 +383,7 @@
     <string name="t_7fd53415_one" formatted="false">%1$d template</string>
     <string name="t_7fd53415_other" formatted="false">%1$d templates</string>
     <string name="t_8053d9fa" formatted="false">Talk, then pause: when you\'re clearly done (a question asked, %1$s), it\'s sent; say %2$s to end. Send and the headset button send at once. A reply waits while you talk and plays when you pause; talk over it to stop it, and it plays again later.</string>
+    <string name="t_808a4ee8" formatted="false">Send report to %1$s</string>
     <string name="t_80b095f9" formatted="false">🧑‍💼 Send again</string>
     <string name="t_8108fc2e" formatted="false">No connection to Anthropic.</string>
     <string name="t_816affe2" formatted="false">Reply waiting · plays when your turn is over</string>
@@ -396,6 +406,7 @@
     <string name="t_85004d41" formatted="false">Tap to record</string>
     <string name="t_857a0fd3" formatted="false">When you tap ✨ Refine · %1$s</string>
     <string name="t_859034c6" formatted="false">Optional. If Android won\'t let you turn it on, open App info → ⋮ → Allow restricted settings, then try again.</string>
+    <string name="t_85f45f36" formatted="false">Not sent yet: %1$s</string>
     <string name="t_863d2a86" formatted="false">🧑‍💼 Chief</string>
     <string name="t_86657af4" formatted="false">A sound right after the reply was ignored (mic paused)</string>
     <string name="t_86889c2c" formatted="false">✓  Created %1$s (%2$s).</string>
@@ -460,6 +471,7 @@
     <string name="t_9c550f09" formatted="false">Tile or hold volume down</string>
     <string name="t_9c7b6819" formatted="false">Delete audio</string>
     <string name="t_9c9743f1" formatted="false">Needed to redo a note with a smarter model</string>
+    <string name="t_9caf8e89" formatted="false">Dictate &amp; Delegate keeps it and sends it again by itself (tried %1$d×, next try in %2$d minutes).</string>
     <string name="t_9cc96167" formatted="false">Work notes</string>
     <string name="t_9dbafb52" formatted="false">Still transcribing.</string>
     <string name="t_9e4d5639" formatted="false">About you, your words and the template you name are added automatically.</string>

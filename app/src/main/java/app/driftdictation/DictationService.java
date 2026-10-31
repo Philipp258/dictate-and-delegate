@@ -709,7 +709,10 @@ public final class DictationService extends Service {
           prefs.edit().putLong("historyRevision", System.nanoTime()).apply();
           if (failed != null || e == null) {
             s.chief = FAILED;
-            s.message = tr("Not sent to your chief of staff: %1$s", failed == null ? "" : failed);
+            s.message =
+                e != null && e.json.optBoolean("chiefQueued")
+                    ? tr("Not sent yet: %1$s It's kept and goes by itself once bb can be reached.", failed == null ? "" : failed)
+                    : tr("Not sent to your chief of staff: %1$s", failed == null ? "" : failed);
           } else {
             s.chief = DONE;
             s.chiefLink = e.json.optString("chiefLink");
@@ -941,17 +944,47 @@ public final class DictationService extends Service {
   /** What the activity log calls the chief-of-staff step's target. */
   static final String CHIEF_STEP = "bb", CHIEF_TARGET = "chief of staff";
 
+  /** Notes being sent right now: a second send of one (Retry while the outbox tries) waits its turn. */
+  private static final java.util.Set<String> SENDING = new java.util.HashSet<>();
+
   /**
    * Hands what was said, with pasted text as context and a request ID, to the chief-of-staff
-   * thread in bb. On failure the note records why, so it can offer to send it again. Returns
-   * null, or why it failed.
+   * thread in bb. On failure the note records why and stays queued in the Outbox, which sends it
+   * again by itself (with the same request ID, so it never arrives twice). Returns null, or why
+   * it failed.
    */
   static String sendNote(Context context, String id) {
+    synchronized (SENDING) {
+      while (SENDING.contains(id))
+        try {
+          SENDING.wait();
+        } catch (InterruptedException ex) {
+          Thread.currentThread().interrupt();
+          return tr("bb couldn't be reached. Try again.");
+        }
+      SENDING.add(id);
+    }
+    try {
+      return sendNoteOnce(context, id);
+    } finally {
+      synchronized (SENDING) {
+        SENDING.remove(id);
+        SENDING.notifyAll();
+      }
+    }
+  }
+
+  private static String sendNoteOnce(Context context, String id) {
     HistoryEntry entry = load(context, id);
     if (entry == null) return tr("This note was deleted.");
+    // Sent meanwhile (by the outbox, or a Retry before this one): nothing to do.
+    if (entry.json.has("chiefThread") && !entry.json.has("chiefFailed")) return null;
     String said = entry.json.optString("original", entry.text());
     BbBridge bb = new BbBridge(context);
-    String chief = bb.chiefId(), request = ChiefText.requestId();
+    // The same request ID on every try: the chief's reply finds the note, and a try that may
+    // have arrived isn't sent twice.
+    boolean again = entry.json.has("chiefFailed") && !entry.json.optString("chiefRequest").isEmpty();
+    String chief = bb.chiefId(), request = again ? entry.json.optString("chiefRequest") : ChiefText.requestId();
     long asked = SystemClock.elapsedRealtime();
     String why = null;
     BbBridge.Sent sent = null;
@@ -961,7 +994,7 @@ public final class DictationService extends Service {
       Attachments attachments = new Attachments(context);
       sent =
           bb.sendRequest(
-              chief, said, attachments.texts(entry.recordingId()), attachments.binaries(entry.recordingId()), request);
+              chief, said, attachments.texts(entry.recordingId()), attachments.binaries(entry.recordingId()), request, again);
     } catch (Exception ex) {
       why =
           ex.getClass() == IOException.class && ex.getMessage() != null
@@ -981,21 +1014,26 @@ public final class DictationService extends Service {
             if (files != null && files.files() > 0) step.put("files", files.files()).put("filesHow", files.how());
             if (files != null && files.refused() > 0) step.put("uploadRefused", files.refused());
             if (files != null && !files.failed().isEmpty()) step.put("filesFailed", String.join("; ", files.failed()));
-            e.json.put("route", "chief");
+            e.json.put("route", "chief").put("chiefRequest", request);
             if (failed != null) {
-              e.json.put("chiefFailed", failed);
+              Outbox.failed(e.json, failed, e.json.optInt("chiefTries") + 1, System.currentTimeMillis());
               return;
             }
+            Outbox.sent(e.json);
             e.json
                 .put("chiefThread", chief)
                 .put("chiefLink", bb.threadLink(chief))
-                .put("chiefSent", System.currentTimeMillis())
-                .put("chiefRequest", request)
-                .remove("chiefFailed");
+                .put("chiefSent", System.currentTimeMillis());
           });
     } catch (Exception ex) {
       return failed == null ? friendly(ex) : failed;
     }
+    String key = "chief:" + request;
+    if (failed != null) Outbox.failure(context, key, "chief", "Note to you, request " + request, failed);
+    else if (again) {
+      Outbox.resolved(context, key);
+      Outbox.worked(context);
+    } else if (Outbox.failuresWaiting(context) > 0) Outbox.worked(context); // A failure is kept for each queued note.
     return failed;
   }
 
@@ -1257,6 +1295,7 @@ public final class DictationService extends Service {
             synchronized (NOTES) {
               history.save(entry);
             }
+            Outbox.resolved(this, "recording:" + sessionId);
             boolean redo = !entry.recordingId().equals(entry.id());
             if (!empty && redo) history.prefer(entry);
             new AudioArchive(this).retain(entry.recordingId(), pcm);
@@ -1308,6 +1347,8 @@ public final class DictationService extends Service {
               /* Keep the original error and recoverable audio. */
             }
             prefs.edit().putLong("historyRevision", System.nanoTime()).apply();
+            // For the next failure report: the recording is kept for Retry.
+            Outbox.failure(this, "recording:" + sessionId, "recording", "Recording (writing it down)", friendly(ex));
             main.post(
                 () -> {
                   if (!alive) return;

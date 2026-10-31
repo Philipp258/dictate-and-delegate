@@ -201,12 +201,13 @@ function cost(response) {
  * when OpenRouter reported none).
  */
 class OpenRouter {
-  constructor({ vault, fetch: fetchImpl, baseUrl, retryMs = 1500, sleep: wait = sleep } = {}) {
+  constructor({ vault, fetch: fetchImpl, baseUrl, retryMs = 1500, sleep: wait = sleep, noConnectionMs = NO_CONNECTION_MS } = {}) {
     this.vault = vault;
     this.fetch = fetchImpl || ((...a) => globalThis.fetch(...a));
     this.baseUrl = baseUrl;
     this.retryMs = retryMs;
     this.sleep = wait;
+    this.noConnectionMs = noConnectionMs;
   }
 
   base() {
@@ -261,13 +262,28 @@ class OpenRouter {
         return await send(this.fetch, 'POST', this.base() + path, body, key, 120000, attempt);
       } catch (ex) {
         if (ex instanceof Unauthorized) throw wrap(badKey(), ex);
-        if (!(ex instanceof Busy)) throw ex;
+        if (!(ex instanceof Busy)) {
+          // No connection yet (a network switch): nothing reached OpenRouter, so nothing ran or was
+          // charged. Tried again a little later, a few times.
+          if (attempt >= this.noConnectionMs.length || !unreached(ex)) throw ex;
+          await this.sleep(this.noConnectionMs[attempt]);
+          continue;
+        }
         // Some hosts answer 429 in bursts; the same request usually passes a moment later.
         if (attempt >= 2) throw wrap(busy(), ex);
         await this.sleep(this.retryMs * (attempt + 1));
       }
     }
   }
+}
+
+/** The waits before each new try when OpenRouter couldn't be reached at all. */
+const NO_CONNECTION_MS = [2_000, 5_000, 10_000];
+
+/** The request never got to OpenRouter: no DNS, no connection, no route. */
+function unreached(ex) {
+  const k = netLog.classify(ex);
+  return ['DNS failure', 'connect timeout', 'connection refused', 'network unreachable', 'no route to host'].includes(k);
 }
 
 /** Checks a key before it is saved (GET /key); throws with a readable message if it doesn't work. */
@@ -306,4 +322,6 @@ module.exports = {
   chatBody,
   cost,
   error,
+  unreached,
+  NO_CONNECTION_MS,
 };

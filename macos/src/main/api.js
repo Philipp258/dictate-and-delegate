@@ -31,6 +31,7 @@ const bridgeLib = require('../core/bb-bridge');
 const oauthLib = require('../core/bb-oauth');
 const skillsLib = require('../core/chief-skills');
 const { friendly, CHIEF_STEP } = require('../core/dictation');
+const outboxLib = require('../core/outbox');
 const { elapsed } = require('../core/audio-files');
 const templatesLib = require('../core/templates');
 
@@ -332,6 +333,14 @@ function parseImport(text) {
 
 // ------------------------------------------------------------------ notes (pure, from MainActivity)
 
+/** "16:20", local time; "?" without one. */
+function hm(ms) {
+  const t = Number(ms) || 0;
+  if (t <= 0) return '?';
+  const d = new Date(t);
+  return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+
 /** The note was sent to the chief of staff, or sending it failed. */
 function chiefNote(e) {
   return has(e.json, 'chiefThread') || has(e.json, 'chiefFailed') || str(e.json.route) === 'chief';
@@ -352,7 +361,10 @@ function routeLabel(e) {
 function badge(n) {
   const s = str(n.shown.json.status);
   if (s !== 'complete') return s === 'pending' ? tr('in progress') : s === 'no speech' ? tr('no speech') : tr('unfinished');
-  if (chiefNote(n.shown)) return sentToChief(n.shown) ? tr('chief of staff') : tr('not sent');
+  if (chiefNote(n.shown)) {
+    const state = outboxLib.state(n.shown.json);
+    return state === outboxLib.State.SENT ? tr('chief of staff') : state === outboxLib.State.RETRYING ? tr('sending again') : tr('not sent');
+  }
   if (n.versions.length > 1) return tr('redone');
   return str(n.shown.json.version) === 'original' ? tr('as said') : null;
 }
@@ -421,6 +433,8 @@ function createMethods(ctx, shell = {}, push = () => {}) {
   let skillsTimer = null;
 
   const call = (name, ...args) => (typeof shell[name] === 'function' ? shell[name](...args) : undefined);
+  /** "Send report to Alex": the chief's name, if it has one. */
+  const reportLabel = () => (profile.chiefName() ? tr('Send report to %1$s', profile.chiefName()) : tr('Send report to your chief'));
   const hasKey = (name) => {
     try {
       const k = vault.get(name);
@@ -658,6 +672,7 @@ function createMethods(ctx, shell = {}, push = () => {}) {
           autoRefine: profile.autoRefine(),
           autoChief: profile.autoChief(),
           chiefName: profile.chiefName(),
+          reportLabel: reportLabel(),
           jevModel: jev.MODEL,
         },
         bb: {
@@ -856,7 +871,20 @@ function createMethods(ctx, shell = {}, push = () => {}) {
         status,
         warning,
         redoing,
-        chief: chief ? { sent, link: str(j.chiefLink), failed: str(j.chiefFailed) } : null,
+        chief: chief
+          ? {
+              sent,
+              link: str(j.chiefLink),
+              failed: str(j.chiefFailed),
+              // Not there yet, and sent again by itself: when, and how often it was tried.
+              retrying: outboxLib.state(j) === outboxLib.State.RETRYING,
+              waiting: outboxLib.state(j) === outboxLib.State.RETRYING ? outboxLib.waitingLine(j, Date.now()) : '',
+              tries: Number(j.chiefTries) || 0,
+              failedAt: hm(j.chiefFailedAt),
+            }
+          : null,
+        reportLabel: reportLabel(),
+        canSendReport: typeof shell.sendReport === 'function',
         chiefReply: has(j, 'chiefReply') ? str(j.chiefReply) : '',
         processingFailed: has(j, 'processingFailed') ? str(j.processingFailed) : '',
         twoVersions,
@@ -966,6 +994,29 @@ function createMethods(ctx, shell = {}, push = () => {}) {
       notesChanged(String(id));
       if (failed) throw new Error(failed);
       return tr('Refined');
+    },
+    /**
+     * Send report: what failed (this note's send, or with no note the saved recording), the network
+     * log around it and the app's version go to the chief as an "[app failure report]", now or as
+     * soon as bb takes messages again.
+     */
+    async sendReport(id) {
+      if (typeof shell.sendReport !== 'function') throw new Error(tr('Not available yet.'));
+      let what, why;
+      if (id) {
+        const n = currentNote(String(id));
+        if (!n) throw new Error(tr('This note was deleted.'));
+        const j = n.shown.json;
+        what = 'Note to you, request ' + (str(j.chiefRequest) || '(none)');
+        why = 'not sent yet, ' + (Number(j.chiefTries) || 1) + ' tries since ' + hm(j.chiefFailedAt) + ': ' + str(j.chiefFailed);
+      } else {
+        const s = call('dictationState');
+        what = 'Recording (writing it down)';
+        why = "it didn't finish: " + str(s && s.detail);
+      }
+      const went = await shell.sendReport(what, why);
+      if (id) notesChanged(String(id));
+      return went ? tr('Report sent') : tr("bb can't be reached right now. The report goes by itself once it can.");
     },
     async sendAgain(id) {
       if (typeof shell.sendNote !== 'function') throw new Error(tr('Not available yet.'));

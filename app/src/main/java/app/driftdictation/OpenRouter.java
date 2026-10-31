@@ -215,8 +215,23 @@ final class OpenRouter {
         // Some hosts answer 429 in bursts; the same request usually passes a moment later.
         if (attempt >= 2) throw new IOException(busy(), ex);
         Thread.sleep(1500L * (attempt + 1));
+      } catch (IOException ex) {
+        // No connection yet (a tunnel, a network switch): nothing reached OpenRouter, so nothing
+        // ran or was charged. Tried again a little later, a few times.
+        if (attempt >= NO_CONNECTION_MS.length || !unreached(ex)) throw ex;
+        Thread.sleep(NO_CONNECTION_MS[attempt]);
       }
     }
+  }
+
+  /** The waits before each new try when OpenRouter couldn't be reached at all. */
+  static volatile long[] NO_CONNECTION_MS = {2_000, 5_000, 10_000};
+
+  /** The request never got to OpenRouter: no DNS, no connection, no route. */
+  static boolean unreached(Throwable ex) {
+    String kind = NetLog.classify(ex);
+    return kind.equals("DNS failure") || kind.equals("connect timeout") || kind.equals("connection refused")
+        || kind.equals("network unreachable") || kind.equals("no route to host") || kind.equals("connect failed");
   }
 
   /** HTTP 401 and 429, turned into readable messages by the callers. */

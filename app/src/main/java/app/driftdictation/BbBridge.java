@@ -242,6 +242,29 @@ final class BbBridge {
         + "});\nreturn {threadId: r.threadId, delivery: r.delivery};";
   }
 
+  /**
+   * The same, for a message tried again after bb couldn't be reached: the last try may have
+   * arrived, so it goes only if the thread hasn't got the message's mark yet (its request ID or
+   * report ID) in its recent prompts or its queue.
+   */
+  static String tellOnceSnippet(String id, String message, List<String[]> attachments, String mark) {
+    return "const mark = " + js(mark) + ";\n"
+        + "const seen = JSON.stringify(await bb.json([\"thread\",\"history\"," + js(id) + ",\"--limit\",\"50\"])).includes(mark)\n"
+        + "  || JSON.stringify(await bb.json([\"thread\",\"queue\",\"list\"," + js(id) + "])).includes(mark);\n"
+        + "if (seen) return {threadId: " + js(id) + ", delivery: \"already there\"};\n"
+        + tellSnippet(id, message, attachments);
+  }
+
+  private static final Pattern REPORT_ID = Pattern.compile("Report ID: r-[a-z0-9]+");
+
+  /** What tells a message apart in the thread: "[request: …]", or a failure report's ID; "" for none. */
+  static String mark(String message) {
+    String request = NetLog.requestIn(message);
+    if (!request.isEmpty()) return "[request: " + request + "]";
+    Matcher m = REPORT_ID.matcher(message == null ? "" : message);
+    return m.find() ? m.group() : "";
+  }
+
   static String spawnSnippet(String prompt) {
     return "const t = await bb.json([\"thread\",\"spawn\",\"--project\","
         + js(PROJECT)
@@ -304,7 +327,8 @@ final class BbBridge {
   void test() throws Exception {
     call(
         "bb check",
-        c -> {
+        false,
+        (c, round) -> {
           for (Mcp.Tool t : c.tools()) if (t.name().equals("run")) return null;
           throw new IOException(tr("bb answers, but it doesn't offer the run tool. Update bb and check that the MCP plugin is on."));
         });
@@ -379,7 +403,22 @@ final class BbBridge {
 
   /** Sends a message to the chief: queued behind a turn that is running, else it starts one. */
   void send(String chiefId, String message) throws Exception {
-    run(tellSnippet(chiefId, message));
+    tell(chiefId, message, List.of());
+  }
+
+  /**
+   * Sends a message to a thread. One with a mark (a request or report ID) is tried again while bb
+   * can't be reached, and never arrives twice; others only until bb took the request.
+   */
+  JSONObject tell(String id, String message, List<String[]> attachments) throws Exception {
+    return tell(id, message, attachments, false);
+  }
+
+  /** checkFirst: an earlier send may have arrived (the note's last try failed), so even the first try checks. */
+  JSONObject tell(String id, String message, List<String[]> attachments, boolean checkFirst) throws Exception {
+    String mark = mark(message);
+    String once = mark.isEmpty() ? null : tellOnceSnippet(id, message, attachments, mark);
+    return snippet("run", checkFirst && once != null ? once : tellSnippet(id, message, attachments), once);
   }
 
   /**
@@ -407,6 +446,12 @@ final class BbBridge {
    * named in the message; the dictation always goes.
    */
   Sent sendRequest(String chiefId, String said, List<String[]> pasted, List<Attachments.Binary> files, String request)
+      throws Exception {
+    return sendRequest(chiefId, said, pasted, files, request, false);
+  }
+
+  /** again: the same request was sent before and may have arrived; it won't arrive twice. */
+  Sent sendRequest(String chiefId, String said, List<String[]> pasted, List<Attachments.Binary> files, String request, boolean again)
       throws Exception {
     List<String[]> refs = new java.util.ArrayList<>();
     List<String> failed = new java.util.ArrayList<>(), encoded = new java.util.ArrayList<>();
@@ -438,14 +483,14 @@ final class BbBridge {
           .append("(I also attached ")
           .append(String.join("; ", failed))
           .append(". Dictate & Delegate couldn't pass that on.)");
-    run(tellSnippet(chiefId, message(said, pasted, note.toString(), request), refs));
+    tell(chiefId, message(said, pasted, note.toString(), request), refs, again);
     String how = sent == 0 ? "" : encoded.isEmpty() ? "upload" : sent == encoded.size() ? "base64" : "upload+base64";
     return new Sent(sent, how, refused, failed);
   }
 
   /** A message from hands-free mode: what was said, tagged so the chief answers in speakable form. */
   void sendHandsFree(String chiefId, String said, String request) throws Exception {
-    run(tellSnippet(chiefId, handsFreeMessage(said, request)));
+    tell(chiefId, handsFreeMessage(said, request), List.of());
   }
 
   static String handsFreeMessage(String said, String request) {
@@ -490,7 +535,7 @@ final class BbBridge {
   private void tellOne(String id, String message, java.util.Map<String, String> failed, java.util.Map<String, Long> took) {
     long start = System.nanoTime();
     try {
-      run(tellSnippet(id, message));
+      tell(id, message, List.of());
     } catch (Exception ex) {
       failed.put(id, ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage());
     } finally {
@@ -628,7 +673,8 @@ final class BbBridge {
   // ------------------------------------------------------------------ transport
 
   private interface Call<T> {
-    T with(Mcp.Connection c) throws Exception;
+    /** round: 0, then 1, 2, … for each new try after bb couldn't be reached. */
+    T with(Mcp.Connection c, int round) throws Exception;
   }
 
   /** Runs a snippet with the run tool; its returned value as JSON. */
@@ -642,12 +688,19 @@ final class BbBridge {
   }
 
   private JSONObject snippet(String tool, String code) throws Exception {
-    if (code.length() > CODE_LIMIT)
-      throw new IOException(tr("This is too long for bb (%1$d characters, at most %2$d).", code.length(), CODE_LIMIT));
+    return snippet(tool, code, null);
+  }
+
+  /** again: the snippet for a new try that may repeat it (it checks whether the last one ran); null for none. */
+  private JSONObject snippet(String tool, String code, String again) throws Exception {
+    for (String s : again == null ? List.of(code) : List.of(code, again))
+      if (s.length() > CODE_LIMIT)
+        throw new IOException(tr("This is too long for bb (%1$d characters, at most %2$d).", s.length(), CODE_LIMIT));
     return call(
         "bb " + what(code, tool, chiefId(), talkerId()),
-        c -> {
-          JSONObject result = c.callResult(tool, new JSONObject().put("code", code));
+        again != null,
+        (c, round) -> {
+          JSONObject result = c.callResult(tool, new JSONObject().put("code", round > 0 && again != null ? again : code));
           String text = Mcp.Connection.text(result).trim();
           if (result.optBoolean("isError")) {
             if (text.length() > 400) text = text.substring(0, 400) + "…";
@@ -680,25 +733,35 @@ final class BbBridge {
   }
 
   /**
-   * One MCP session. With bb Connect, an expired or refused token is refreshed once and the call
-   * tried again. Every failure comes back as a plain IOException with a readable message.
+   * The waits before each new try while bb can't be reached. bb Connect's tunnel to bb drops every
+   * hour or two and is back within seconds (its gateway answers 502 meanwhile), now and then
+   * after a few minutes: those are left to Outbox.
    */
-  private <T> T call(String what, Call<T> work) throws Exception {
+  static volatile long[] AGAIN_MS = {1_500, 4_000, 8_000};
+
+  /**
+   * One MCP session, tried again (AGAIN_MS) while bb can't be reached: always before the session
+   * opened; after it, only when the work is repeatable (a tool that ran mustn't run twice). With
+   * bb Connect, an expired or refused token is refreshed once and the call tried again. Every
+   * failure comes back as a plain IOException with a readable message.
+   */
+  private <T> T call(String what, boolean repeatable, Call<T> work) throws Exception {
     String url = url();
     if (!connected() || url.isEmpty()) throw new IOException(tr("bb isn't connected. Connect it in Settings → bb."));
     boolean connect = mode().equals(CONNECT);
     try {
-      for (int attempt = 0; ; attempt++) {
-        String token = connect ? BbOAuth.accessToken(context, attempt > 0) : customToken();
-        Mcp.Connection c = new Mcp.Connection(new Mcp.Server("bb", url, token));
-        c.what = what;
-        c.retry = attempt;
+      for (int round = 0; ; round++) {
+        boolean[] opened = {false};
         try {
-          c.open();
-          return work.with(c);
+          return session(url, connect, what, work, round, opened);
         } catch (Mcp.McpException ex) {
-          if (ex.status == 401 && connect && attempt == 0) continue;
-          throw ex;
+          if (!ex.passing() || round >= AGAIN_MS.length || opened[0] && !repeatable) throw ex;
+          try {
+            java.lang.Thread.sleep(AGAIN_MS[round]);
+          } catch (InterruptedException stop) {
+            java.lang.Thread.currentThread().interrupt();
+            throw ex;
+          }
         }
       }
     } catch (Mcp.McpException ex) {
@@ -712,6 +775,24 @@ final class BbBridge {
       throw new IOException(tr("The connection to bb broke off. Try again."), ex);
     } catch (org.json.JSONException ex) {
       throw new IOException(tr("bb sent something unexpected. Update bb, then try again."), ex);
+    }
+  }
+
+  private <T> T session(String url, boolean connect, String what, Call<T> work, int round, boolean[] opened) throws Exception {
+    for (int attempt = 0; ; attempt++) {
+      String token = connect ? BbOAuth.accessToken(context, attempt > 0) : customToken();
+      Mcp.Connection c = new Mcp.Connection(new Mcp.Server("bb", url, token));
+      c.what = what;
+      c.retry = round + attempt;
+      opened[0] = false;
+      try {
+        c.open();
+        opened[0] = true;
+        return work.with(c, round);
+      } catch (Mcp.McpException ex) {
+        if (ex.status == 401 && connect && attempt == 0) continue;
+        throw ex;
+      }
     }
   }
 

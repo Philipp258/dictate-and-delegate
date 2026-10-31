@@ -304,7 +304,13 @@ class HandsFreeCall {
         return r.text;
       },
       sender: {
-        send: (said, request) => call.sendMessage(said, request, model),
+        send: (said, request) =>
+          call.sendMessage(said, request, model).catch((ex) => {
+            // Your words are kept by the call and go with the next message; this is for the report.
+            if (typeof opts.sendFailed === 'function' && (!isPartlySent(ex) || ex.chiefMissed))
+              opts.sendFailed(request, ex && ex.message ? ex.message : String(ex), isPartlySent(ex));
+            throw ex;
+          }),
       },
       speaker,
       changed: () => call.changed(),

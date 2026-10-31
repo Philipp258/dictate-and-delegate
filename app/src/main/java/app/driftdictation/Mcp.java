@@ -31,6 +31,9 @@ final class Mcp {
   static final class McpException extends IOException {
     final int status;
 
+    /** The server wasn't reached, or the connection broke off: worth trying again soon. */
+    boolean unreachable;
+
     McpException(String message) {
       this(message, 0);
     }
@@ -38,6 +41,14 @@ final class Mcp {
     McpException(String message, int status) {
       super(message);
       this.status = status;
+    }
+
+    /**
+     * bb couldn't be reached for now: no connection, or bb Connect's gateway answering for it
+     * while the tunnel to bb reconnects (502, 503, 504), or too busy (429).
+     */
+    boolean passing() {
+      return unreachable || status == 429 || status == 502 || status == 503 || status == 504;
     }
   }
 
@@ -172,7 +183,10 @@ final class Mcp {
                     : ex instanceof java.net.UnknownHostException
                         ? tr("unknown address")
                         : tr("the connection broke off; is it an MCP server (Streamable HTTP)?");
-        throw new McpException(tr("Could not reach %1$s at %2$s: %3$s.", server.name(), server.url(), why));
+        McpException failed = new McpException(tr("Could not reach %1$s at %2$s: %3$s.", server.name(), server.url(), why));
+        failed.unreachable = true;
+        failed.initCause(ex);
+        throw failed;
       }
     }
 

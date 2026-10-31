@@ -103,4 +103,35 @@ public class BbBridgeTest {
   public void aHandsFreeMessageIsTaggedBeforeItsRequest() {
     assertEquals("Book it\n\n[hands-free]\n\n[request: ab12]", BbBridge.handsFreeMessage(" Book it ", "ab12"));
   }
+
+  @Test
+  public void aMessageIsToldApartByItsRequestOrReportId() {
+    assertEquals("[request: k3x9qa]", BbBridge.mark("do this\n\n[request: k3x9qa]"));
+    assertEquals("Report ID: r-ab12", BbBridge.mark("[app failure report] …\n\nReport ID: r-ab12"));
+    assertEquals("", BbBridge.mark("[call started]"));
+    assertEquals("", BbBridge.mark(null));
+  }
+
+  @Test
+  public void aNewTryChecksTheThreadBeforeTellingIt() {
+    String message = "look\n\n[request: k3x9qa]";
+    String code = BbBridge.tellOnceSnippet("thr_c", message, List.of(), "[request: k3x9qa]");
+    int check = code.indexOf("[\"thread\",\"history\",\"thr_c\",\"--limit\",\"50\"]");
+    int queue = code.indexOf("[\"thread\",\"queue\",\"list\",\"thr_c\"]");
+    int tell = code.indexOf("[\"thread\",\"tell\",\"thr_c\"");
+    assertTrue(code, check > 0 && queue > check && tell > queue);
+    assertTrue(code, code.contains("if (seen) return {threadId: \"thr_c\", delivery: \"already there\"};"));
+    assertTrue(code.endsWith(BbBridge.tellSnippet("thr_c", message, List.of())));
+    // The network log still calls it a tell.
+    assertEquals("tell chief", BbBridge.what(code, "run", "thr_c", ""));
+  }
+
+  @Test
+  public void onlyPassingFailuresAreTriedAgain() {
+    Mcp.McpException unreachable = new Mcp.McpException("Could not reach bb");
+    unreachable.unreachable = true;
+    assertTrue(unreachable.passing());
+    for (int status : new int[] {429, 502, 503, 504}) assertTrue(new Mcp.McpException("x", status).passing());
+    for (int status : new int[] {0, 400, 401, 403, 404, 500}) assertFalse(new Mcp.McpException("x", status).passing());
+  }
 }

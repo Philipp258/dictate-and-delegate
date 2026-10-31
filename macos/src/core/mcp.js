@@ -25,6 +25,16 @@ class McpError extends Error {
     super(message);
     this.name = 'McpError';
     this.status = status;
+    /** The server wasn't reached, or the connection broke off: worth trying again soon. */
+    this.unreachable = false;
+  }
+
+  /**
+   * bb couldn't be reached for now: no connection, or bb Connect's gateway answering for it while
+   * the tunnel to bb reconnects (502, 503, 504), or too busy (429).
+   */
+  passing() {
+    return this.unreachable || [429, 502, 503, 504].includes(this.status);
   }
 }
 
@@ -156,6 +166,7 @@ class Connection {
               : tr('the connection broke off; is it an MCP server (Streamable HTTP)?');
       const e = new McpError(tr('Could not reach %1$s at %2$s: %3$s.', this.server.name, this.server.url, why));
       e.cause = ex;
+      e.unreachable = true;
       throw e;
     }
   }

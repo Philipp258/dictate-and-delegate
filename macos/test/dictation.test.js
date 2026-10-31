@@ -896,7 +896,11 @@ test('whenBbFailsTheNoteKeepsWhatYouSaidAndSendsAgain', async () => {
   assert.match(e.chiefFailed, /isn't reachable right now \(HTTP 503\)/);
   assert.match(e.steps[e.steps.length - 1].detail, /HTTP 503/);
   assert.equal(h.d.session.chief, D.FAILED);
-  assert.match(h.d.session.message, /^Not sent to your chief of staff:/);
+  // Kept and queued: the outbox sends it again by itself, with the same request ID.
+  assert.equal(e.chiefQueued, true);
+  assert.equal(e.chiefTries, 1);
+  assert.equal(e.chiefRequest, h.calls.chief[0].request);
+  assert.match(h.d.session.message, /^Not sent yet: .* It's kept and goes by itself once bb can be reached\.$/);
   assert.equal(h.panel().buttons.find((b) => b.id === 'chief').name, '🧑‍💼 Send again');
   assert.equal(h.clipboard.text, 'something I still need');
   // Send again.
@@ -905,8 +909,14 @@ test('whenBbFailsTheNoteKeepsWhatYouSaidAndSendsAgain', async () => {
   await h.d.idle();
   e = h.note();
   assert.ok(!('chiefFailed' in e));
+  assert.ok(!('chiefQueued' in e));
+  assert.equal(e.chiefTries, 1); // It says it took a second try.
   assert.equal(e.chiefLink, CHIEF_LINK);
   assert.equal(h.calls.chief[1].text, 'Henry, book the table for Friday');
+  // The same request, and bb checks first whether the first try arrived after all.
+  assert.equal(h.calls.chief[1].request, h.calls.chief[0].request);
+  assert.equal(h.calls.chief[1].again, true);
+  assert.equal(h.calls.chief[0].again, false);
   assert.equal(h.d.session.chief, D.DONE);
   // An error that wasn't written for the user reads as bb unreachable.
   const h2 = harness();

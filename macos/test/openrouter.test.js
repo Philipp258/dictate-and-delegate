@@ -72,3 +72,29 @@ test('errorsAreReadable', () => {
   assert.equal(OpenRouter.decisionsUrl('http://127.0.0.1:1/api/v1'), 'http://127.0.0.1:1/api/alpha/decisions');
   assert.equal(OpenRouter.decisionsUrl('https://openrouter.ai/api/v1/'), 'https://openrouter.ai/api/alpha/decisions');
 });
+
+test('onlyRequestsThatNeverReachedOpenRouterAreTriedAgain', async () => {
+  const refused = () => Object.assign(new TypeError('fetch failed'), { cause: Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' }) });
+  assert.ok(OpenRouter.unreached(refused()));
+  assert.ok(OpenRouter.unreached(Object.assign(new TypeError('fetch failed'), { cause: { code: 'ENOTFOUND' } })));
+  // A read timeout may have run (and cost): not tried again by itself.
+  assert.ok(!OpenRouter.unreached(Object.assign(new TypeError('fetch failed'), { cause: { code: 'UND_ERR_HEADERS_TIMEOUT' } })));
+  assert.ok(!OpenRouter.unreached(new Error('The model provider had a problem (HTTP 502).')));
+  // Two tries without a connection, then it goes through.
+  let calls = 0;
+  const { MemoryVault } = require('../src/core/store');
+  const vault = new MemoryVault();
+  vault.set(OpenRouter.KEY, 'sk-or-test');
+  const waits = [];
+  const client = new OpenRouter.OpenRouter({
+    vault,
+    fetch: async () => {
+      if (++calls <= 2) throw refused();
+      return new Response(JSON.stringify({ choices: [{ message: { content: 'hi' } }], usage: { cost: 0.0001 } }), { status: 200, headers: { 'content-type': 'application/json' } });
+    },
+    sleep: async (ms) => waits.push(ms),
+  });
+  await client.call('/chat/completions', { model: 'x' });
+  assert.equal(calls, 3);
+  assert.deepEqual(waits, [2000, 5000]);
+});

@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const { EventEmitter } = require('events');
 const { tr, format, SerialQueue, withTimeout } = require('./util');
+const outboxLib = require('./outbox');
 
 // States, as DictationService's (also the "state" a tray or the app may show).
 const READY = 'ready',
@@ -447,6 +448,7 @@ function newSession() {
 }
 
 const noop = () => {};
+const has = (o, k) => o != null && Object.prototype.hasOwnProperty.call(o, k);
 
 class Dictation extends EventEmitter {
   /**
@@ -527,6 +529,10 @@ class Dictation extends EventEmitter {
     this.log = o.log || noop;
     this.uuid = o.uuid || (() => crypto.randomUUID());
     this.newRequestId = o.requestId || requestId;
+    /** The Outbox (failures for the report, sending what's queued); a stand-in without one. */
+    this.outbox = o.outbox || { failure: noop, resolved: noop, worked: noop, failuresWaiting: () => 0, waiting: async () => false };
+    /** Notes being sent right now: a second send of one (Retry while the outbox tries) waits its turn. */
+    this.sendingNotes = new Map();
 
     this.state = READY;
     this.detail = READY_DETAIL;
@@ -1040,6 +1046,7 @@ class Dictation extends EventEmitter {
       entry.processingMs = (entry.processingMs || 0) + this.clock() - uploadStarted;
       await this.notesQueue.run(() => this.saveNote(entry));
       this.emit('notes', entry.id);
+      this.outbox.resolved('recording:' + sessionId);
       const redo = recordingIdOf(entry) !== entry.id;
       try {
         await this.archiveAudio(recordingIdOf(entry), pending);
@@ -1081,6 +1088,8 @@ class Dictation extends EventEmitter {
         /* Keep the original error and recoverable audio. */
       }
       this.emit('notes', sessionId);
+      // For the next failure report: the recording is kept for Retry.
+      this.outbox.failure('recording:' + sessionId, 'recording', 'Recording (writing it down)', friendly(ex));
       if (!this.destroyed) this.transition(ERROR, friendly(ex));
     }
   }
@@ -1281,12 +1290,26 @@ class Dictation extends EventEmitter {
 
   /**
    * Hands what was said, with pasted text as context and a request ID, to the chief-of-staff
-   * thread in bb. On failure the note records why, so it can offer to send it again. Returns null,
-   * or why it failed.
+   * thread in bb. On failure the note records why and stays queued in the Outbox, which sends it
+   * again by itself (with the same request ID, so it never arrives twice). Returns null, or why it
+   * failed.
    */
   async sendNote(id) {
+    while (this.sendingNotes.has(id)) await this.sendingNotes.get(id).catch(noop);
+    const p = this.sendNoteOnce(id);
+    this.sendingNotes.set(id, p);
+    try {
+      return await p;
+    } finally {
+      this.sendingNotes.delete(id);
+    }
+  }
+
+  async sendNoteOnce(id) {
     const entry = await this.loadNote(id);
     if (!entry) return tr('This note was deleted.');
+    // Sent meanwhile (by the outbox, or a Retry before this one): nothing to do.
+    if (has(entry, 'chiefThread') && !has(entry, 'chiefFailed')) return null;
     const said = saidOf(entry);
     let chief = null;
     try {
@@ -1294,13 +1317,16 @@ class Dictation extends EventEmitter {
     } catch {
       chief = null;
     }
-    const request = this.newRequestId();
+    // The same request ID on every try: the chief's reply finds the note, and a try that may have
+    // arrived isn't sent twice.
+    const again = has(entry, 'chiefFailed') && !!entry.chiefRequest;
+    const request = again ? entry.chiefRequest : this.newRequestId();
     const asked = this.clock();
     let why = null,
       files = null;
     try {
       if (!chief || !chief.id) throw new DictationError(tr('No chief of staff is set up. Set one up in Settings → bb.'));
-      files = await this.sendToChief(said, { request, recordingId: recordingIdOf(entry), chiefId: chief.id });
+      files = await this.sendToChief(said, { request, recordingId: recordingIdOf(entry), chiefId: chief.id, again });
     } catch (ex) {
       why = plainMessage(ex) ? ex.message : tr("bb couldn't be reached. Try again.");
     }
@@ -1313,19 +1339,25 @@ class Dictation extends EventEmitter {
         if (files && files.refused > 0) step.uploadRefused = files.refused;
         if (files && Array.isArray(files.failed) && files.failed.length) step.filesFailed = files.failed.join('; ');
         e.route = 'chief';
+        e.chiefRequest = request;
         if (why !== null) {
-          e.chiefFailed = why;
+          outboxLib.failed(e, why, (e.chiefTries || 0) + 1, this.clock());
           return;
         }
+        outboxLib.sent(e);
         e.chiefThread = chief.id;
         e.chiefLink = chief.link || '';
         e.chiefSent = this.clock();
-        e.chiefRequest = request;
-        delete e.chiefFailed;
       });
     } catch (ex) {
       return why === null ? friendly(ex) : why;
     }
+    const key = 'chief:' + request;
+    if (why !== null) this.outbox.failure(key, 'chief', 'Note to you, request ' + request, why);
+    else if (again) {
+      this.outbox.resolved(key);
+      this.outbox.worked();
+    } else if (this.outbox.failuresWaiting() > 0) this.outbox.worked(); // A failure is kept for each queued note.
     return why;
   }
 
@@ -1335,7 +1367,10 @@ class Dictation extends EventEmitter {
     const current = this.session === s;
     if (failed !== null || !e) {
       s.chief = FAILED;
-      s.message = tr('Not sent to your chief of staff: %1$s', failed === null ? '' : failed);
+      s.message =
+        e && e.chiefQueued === true
+          ? tr("Not sent yet: %1$s It's kept and goes by itself once bb can be reached.", failed === null ? '' : failed)
+          : tr('Not sent to your chief of staff: %1$s', failed === null ? '' : failed);
     } else {
       s.chief = DONE;
       s.chiefLink = e.chiefLink || '';

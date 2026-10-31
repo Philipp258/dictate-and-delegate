@@ -122,13 +122,16 @@ final class Attachments {
     delete(root());
   }
 
-  /** Same time limit as saved audio: a week, then only the note's text stays. */
+  /** Same time limit as saved audio: a week, then only the note's text stays (not for a note still queued for the chief). */
   void prune() {
     File[] notes = root().listFiles();
     long weekAgo = System.currentTimeMillis() - 7L * 86_400_000L;
+    java.util.Set<String> queued = null;
     for (int i = 0; notes != null && i < notes.length; i++)
-      if (!notes[i].getName().equals("pending") && notes[i].lastModified() < weekAgo)
-        delete(notes[i]);
+      if (!notes[i].getName().equals("pending") && notes[i].lastModified() < weekAgo) {
+        if (queued == null) queued = Outbox.queuedRecordings(context);
+        if (!queued.contains(notes[i].getName())) delete(notes[i]);
+      }
   }
 
   /** "Attached: pasted text (1,234 characters): "…"; image photo.jpg; PDF offer.pdf" */

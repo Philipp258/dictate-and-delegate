@@ -96,6 +96,36 @@ function tellSnippet(id, message, attachments = []) {
   );
 }
 
+/**
+ * The same, for a message tried again after bb couldn't be reached: the last try may have arrived,
+ * so it goes only if the thread hasn't got the message's mark yet (its request ID or report ID) in
+ * its recent prompts or its queue.
+ */
+function tellOnceSnippet(id, message, attachments, mark) {
+  return (
+    'const mark = ' + js(mark) + ';\n' +
+    'const seen = JSON.stringify(await bb.json(["thread","history",' + js(id) + ',"--limit","50"])).includes(mark)\n' +
+    '  || JSON.stringify(await bb.json(["thread","queue","list",' + js(id) + '])).includes(mark);\n' +
+    'if (seen) return {threadId: ' + js(id) + ', delivery: "already there"};\n' +
+    tellSnippet(id, message, attachments)
+  );
+}
+
+/** What tells a message apart in the thread: "[request: …]", or a failure report's ID; "" for none. */
+function mark(msg) {
+  const request = netLog.requestIn(msg);
+  if (request) return '[request: ' + request + ']';
+  const m = /Report ID: r-[a-z0-9]+/.exec(msg || '');
+  return m ? m[0] : '';
+}
+
+/**
+ * The waits before each new try while bb can't be reached. bb Connect's tunnel to bb drops every
+ * hour or two and is back within seconds (its gateway answers 502 meanwhile), now and then after a
+ * few minutes: those are left to the outbox.
+ */
+const AGAIN_MS = [1_500, 4_000, 8_000];
+
 function spawnSnippet(prompt) {
   return (
     'const t = await bb.json(["thread","spawn","--project",' +
@@ -265,6 +295,8 @@ class BbBridge {
     this._skills = skills || null;
     /** For a real check: treat the upload as refused, as bb Connect does. */
     this.refuseUploads = false;
+    /** The waits before each new try while bb can't be reached (tests: none). */
+    this.againMs = AGAIN_MS;
   }
 
   get skills() {
@@ -428,7 +460,7 @@ class BbBridge {
 
   /** Checks that bb answers and offers the run tool. */
   async test() {
-    await this.call('bb check', async (c) => {
+    await this.call('bb check', false, async (c) => {
       for (const t of await c.tools()) if (t.name === 'run') return null;
       throw new Error(tr("bb answers, but it doesn't offer the run tool. Update bb and check that the MCP plugin is on."));
     });
@@ -501,7 +533,18 @@ class BbBridge {
 
   /** Sends a message to a thread: queued behind a turn that is running, else it starts one. */
   async send(chiefId, msg) {
-    await this.run(tellSnippet(chiefId, msg));
+    await this.tell(chiefId, msg);
+  }
+
+  /**
+   * Sends a message to a thread. One with a mark (a request or report ID) is tried again while bb
+   * can't be reached, and never arrives twice; others only until bb took the request. checkFirst:
+   * an earlier send may have arrived (the note's last try failed), so even the first try checks.
+   */
+  async tell(id, msg, attachments = [], checkFirst = false) {
+    const m = mark(msg);
+    const once = m ? tellOnceSnippet(id, msg, attachments, m) : null;
+    return this.snippet('run', checkFirst && once ? once : tellSnippet(id, msg, attachments), once);
   }
 
   /**
@@ -513,7 +556,7 @@ class BbBridge {
    * them. A file that can't go either way is named in the message; the dictation always goes.
    * Returns {files, how: "upload"|"base64"|"upload+base64"|"", refused: HTTP status or 0, failed}.
    */
-  async sendRequest(chiefId, said, pasted = [], files = [], request = '') {
+  async sendRequest(chiefId, said, pasted = [], files = [], request = '', again = false) {
     const refs = [];
     const failed = [];
     const encoded = [];
@@ -547,7 +590,7 @@ class BbBridge {
     if (failed.length) {
       note += (note ? '\n\n' : '') + '(I also attached ' + failed.join('; ') + ". Dictate & Delegate couldn't pass that on.)";
     }
-    await this.run(tellSnippet(chiefId, message(said, pasted, note, request), refs));
+    await this.tell(chiefId, message(said, pasted, note, request), refs, again);
     const how = sent === 0 ? '' : encoded.length === 0 ? 'upload' : sent === encoded.length ? 'base64' : 'upload+base64';
     return { files: sent, how, refused, failed };
   }
@@ -561,7 +604,7 @@ class BbBridge {
     const msg = handsFreeMessage(said, request);
     if (!talker || talker === chiefId) {
       const start = Date.now();
-      await this.run(tellSnippet(chiefId, msg));
+      await this.tell(chiefId, msg);
       return { took: { [chiefId]: Date.now() - start } };
     }
     const took = {};
@@ -589,7 +632,7 @@ class BbBridge {
       entries.map(async ([id, msg]) => {
         const start = Date.now();
         try {
-          await this.run(tellSnippet(id, msg));
+          await this.tell(id, msg);
         } catch (ex) {
           failed[id] = why(ex);
         } finally {
@@ -709,12 +752,15 @@ class BbBridge {
     return this.snippet('read', code);
   }
 
-  async snippet(tool, code) {
-    if (code.length > CODE_LIMIT) {
-      throw new Error(tr('This is too long for bb (%1$d characters, at most %2$d).', code.length, CODE_LIMIT));
+  /** again: the snippet for a new try that may repeat it (it checks whether the last one ran); null for none. */
+  async snippet(tool, code, again = null) {
+    for (const s of again == null ? [code] : [code, again]) {
+      if (s.length > CODE_LIMIT) {
+        throw new Error(tr('This is too long for bb (%1$d characters, at most %2$d).', s.length, CODE_LIMIT));
+      }
     }
-    return this.call('bb ' + what(code, tool, this.chiefId(), this.talkerId()), async (c) => {
-      const result = await c.callResult(tool, { code });
+    return this.call('bb ' + what(code, tool, this.chiefId(), this.talkerId()), again != null, async (c, round) => {
+      const result = await c.callResult(tool, { code: round > 0 && again != null ? again : code });
       let text = mcp.Connection.text(result).trim();
       if (result.isError) {
         if (text.length > 400) text = text.substring(0, 400) + '…';
@@ -732,25 +778,24 @@ class BbBridge {
   }
 
   /**
-   * One MCP session. With bb Connect, an expired or refused token is refreshed once and the call
-   * tried again. Every failure comes back as an Error with a readable message.
+   * One MCP session, tried again (againMs) while bb can't be reached: always before the session
+   * opened; after it, only when the work is repeatable (a tool that ran mustn't run twice). With bb
+   * Connect, an expired or refused token is refreshed once and the call tried again. Every failure
+   * comes back as an Error with a readable message.
    */
-  async call(label, work) {
+  async call(label, repeatable, work) {
     const url = this.url();
     if (!this.connected() || !url) throw new Error(tr("bb isn't connected. Connect it in Settings → bb."));
     const connect = this.mode() === CONNECT;
     try {
-      for (let attempt = 0; ; attempt++) {
-        const token = connect ? await this.oauth.accessToken(attempt > 0) : this.customToken();
-        const c = new mcp.Connection({ name: 'bb', url, token }, { fetch: this.fetch });
-        c.what = label;
-        c.retry = attempt;
+      for (let round = 0; ; round++) {
+        const opened = { yes: false };
         try {
-          await c.open();
-          return await work(c);
+          return await this.session(url, connect, label, work, round, opened);
         } catch (ex) {
-          if (ex instanceof mcp.McpError && ex.status === 401 && connect && attempt === 0) continue;
-          throw ex;
+          const passing = ex instanceof mcp.McpError && ex.passing();
+          if (!passing || round >= this.againMs.length || (opened.yes && !repeatable)) throw ex;
+          await new Promise((r) => setTimeout(r, this.againMs[round]));
         }
       }
     } catch (ex) {
@@ -758,6 +803,24 @@ class BbBridge {
       if (ex instanceof SyntaxError) throw wrap(tr('bb sent something unexpected. Update bb, then try again.'), ex);
       if (ex instanceof Error && ex.message) throw ex;
       throw wrap(tr('The connection to bb broke off. Try again.'), ex);
+    }
+  }
+
+  async session(url, connect, label, work, round, opened) {
+    for (let attempt = 0; ; attempt++) {
+      const token = connect ? await this.oauth.accessToken(attempt > 0) : this.customToken();
+      const c = new mcp.Connection({ name: 'bb', url, token }, { fetch: this.fetch });
+      c.what = label;
+      c.retry = round + attempt;
+      opened.yes = false;
+      try {
+        await c.open();
+        opened.yes = true;
+        return await work(c, round);
+      } catch (ex) {
+        if (ex instanceof mcp.McpError && ex.status === 401 && connect && attempt === 0) continue;
+        throw ex;
+      }
     }
   }
 }
@@ -816,6 +879,9 @@ module.exports = {
   linkBaseFor,
   js,
   tellSnippet,
+  tellOnceSnippet,
+  mark,
+  AGAIN_MS,
   spawnSnippet,
   showSnippet,
   requestTag,

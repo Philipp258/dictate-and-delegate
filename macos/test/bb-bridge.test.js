@@ -103,3 +103,32 @@ test('theTalkerIsToldFirst', () => {
   ]);
   assert.deepEqual([...BbBridge.bothTo('thr_c', '', 'a', 'b').keys()], ['thr_c']);
 });
+
+test('aMessageIsToldApartByItsRequestOrReportId', () => {
+  assert.equal(BbBridge.mark('do this\n\n[request: k3x9qa]'), '[request: k3x9qa]');
+  assert.equal(BbBridge.mark('[app failure report] …\n\nReport ID: r-ab12'), 'Report ID: r-ab12');
+  assert.equal(BbBridge.mark('[call started]'), '');
+  assert.equal(BbBridge.mark(null), '');
+});
+
+test('aNewTryChecksTheThreadBeforeTellingIt', () => {
+  const message = 'look\n\n[request: k3x9qa]';
+  const code = BbBridge.tellOnceSnippet('thr_c', message, [], '[request: k3x9qa]');
+  const check = code.indexOf('["thread","history","thr_c","--limit","50"]');
+  const queue = code.indexOf('["thread","queue","list","thr_c"]');
+  const tell = code.indexOf('["thread","tell","thr_c"');
+  assert.ok(check > 0 && queue > check && tell > queue, code);
+  assert.ok(code.includes('if (seen) return {threadId: "thr_c", delivery: "already there"};'));
+  assert.ok(code.endsWith(BbBridge.tellSnippet('thr_c', message, [])));
+  // The network log still calls it a tell.
+  assert.equal(BbBridge.what(code, 'run', 'thr_c', ''), 'tell chief');
+});
+
+test('onlyPassingFailuresAreTriedAgain', () => {
+  const { McpError } = require('../src/core/mcp');
+  const unreachable = new McpError('Could not reach bb');
+  unreachable.unreachable = true;
+  assert.ok(unreachable.passing());
+  for (const status of [429, 502, 503, 504]) assert.ok(new McpError('x', status).passing());
+  for (const status of [0, 400, 401, 403, 404, 500]) assert.ok(!new McpError('x', status).passing());
+});

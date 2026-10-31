@@ -188,8 +188,8 @@ class Attachments {
     fs.rmSync(this.dir, { recursive: true, force: true });
   }
 
-  /** Same time limit as saved audio: a week, then only the note's text stays. */
-  prune() {
+  /** Same time limit as saved audio: a week, then only the note's text stays (keep: recordings of notes still queued for the chief). */
+  prune(keep = new Set()) {
     let notes;
     try {
       notes = fs.readdirSync(this.dir);
@@ -198,7 +198,7 @@ class Attachments {
     }
     const weekAgo = this.clock() - WEEK;
     for (const n of notes) {
-      if (n === 'pending') continue;
+      if (n === 'pending' || keep.has(n)) continue;
       const f = path.join(this.dir, n);
       try {
         if (fs.statSync(f).mtimeMs < weekAgo) fs.rmSync(f, { recursive: true, force: true });

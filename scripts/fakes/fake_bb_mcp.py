@@ -29,11 +29,14 @@ The MCP snippet "project","attachment","upload" (the base64 fallback) stores its
 
 Test control (not part of bb):
 
-  POST /test/fail     {"kind": "spawn"|"tell"|"show"|"any", "error": "tool"|"http401"|"http503"|"rpc"}
+  POST /test/fail     {"kind": "spawn"|"tell"|"show"|"any", "error": "tool"|"http401"|"http503"|"rpc"|"lost"}
                       queues one failure for the next matching call: "tool" is an isError result
                       ("bb thread tell failed: …"), "httpNNN" answers that HTTP status, "rpc" a
-                      JSON-RPC error; with "thread": "thr_…", only a call for that thread
-                      (a tell to the talker, not the chief)
+                      JSON-RPC error, "lost" does the call and then answers 502 (the answer lost on
+                      the way, as when bb Connect's tunnel drops); with "thread": "thr_…", only a
+                      call for that thread (a tell to the talker, not the chief).
+                      {"kind": "initialize", "error": "http502"} fails the next session's start
+                      instead (bb Connect's gateway while its tunnel to bb is down)
   POST /test/config   {"token": "secret"} requires "Authorization: Bearer secret" (401 otherwise);
                       {"token": ""} turns that off; {"tellDelayMs": 1500} makes each tell take that
                       long (as over a slow connection), 0 turns it off
@@ -47,6 +50,9 @@ Test control (not part of bb):
   POST /test/reset    empties failures, config, installed skills and the request log
   GET  /test/requests every MCP request since the last reset, oldest first:
                       {"method", "tool", "code", "auth"}
+  GET  /test/told     every message a thread got since the last reset: {"thread", "text"}. A tell
+                      that checks the thread first ("thread","history" with a mark) is skipped
+                      when a message holding the mark is there already ("delivery": "already there")
 
 Usage: python3 scripts/fakes/fake_bb_mcp.py [--port 8798]
 """
@@ -76,6 +82,7 @@ config = {"token": "", "uploadStatus": 200, "tellDelayMs": 0}
 uploads = []
 skills = {"installed": {}, "files": {}, "stall": False, "skip": []}
 requests = []
+told = []
 
 
 def kind_of(code):
@@ -149,6 +156,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/test/requests":
             with lock:
                 return self.send_json(200, {"requests": list(requests)})
+        if self.path == "/test/told":
+            with lock:
+                return self.send_json(200, {"told": list(told)})
         self.send_json(404, {"error": "not found"})
 
     def do_POST(self):
@@ -160,6 +170,7 @@ class Handler(BaseHTTPRequestHandler):
             with lock:
                 failures.clear()
                 requests.clear()
+                told.clear()
                 config["token"] = ""
                 config["uploadStatus"] = 200
                 config["tellDelayMs"] = 0
@@ -210,6 +221,12 @@ class Handler(BaseHTTPRequestHandler):
             return
         rid = body.get("id")
         if method == "initialize":
+            failure = take_failure("initialize", "")
+            if failure:
+                self.send_response(int(failure.get("error", "http502")[4:]))
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
             return self.send_event({"jsonrpc": "2.0", "id": rid, "result": {
                 "protocolVersion": "2025-06-18",
                 "capabilities": {"tools": {"listChanged": True}},
@@ -253,6 +270,12 @@ class Handler(BaseHTTPRequestHandler):
     def call(self, rid, code):
         kind = kind_of(code)
         failure = take_failure(kind, code)
+        if failure and failure.get("error") == "lost":
+            self.answer(rid, code, kind)  # It ran; its answer doesn't arrive.
+            self.send_response(502)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if failure:
             error = failure.get("error", "tool")
             if error.startswith("http"):
@@ -266,6 +289,12 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_event({"jsonrpc": "2.0", "id": rid, "result": {
                 "content": [{"type": "text", "text": "Error: bb thread %s failed: thread not found" % kind}],
                 "isError": True}})
+        value = self.answer(rid, code, kind)
+        self.send_event({"jsonrpc": "2.0", "id": rid, "result": {
+            "content": [{"type": "text", "text": json.dumps(value, indent=2)}], "isError": False}})
+
+    def answer(self, rid, code, kind):
+        """Does what the snippet asks and returns its value."""
         if kind == "upload":
             text = json.loads(re.search(r'\{stdin: ("(?:[^"\\]|\\.)*")\}', code).group(1))
             name = re.search(r'"--filename","([^"]*)"', code.replace(" ", "")).group(1)
@@ -306,13 +335,20 @@ class Handler(BaseHTTPRequestHandler):
                 delay = config["tellDelayMs"]
             if delay:
                 time.sleep(delay / 1000)
-            value = {"threadId": thread_arg(code, "tell"), "delivery": "sent"}
+            thread = thread_arg(code, "tell")
+            text = json.loads(re.search(r'\{stdin: ("(?:[^"\\]|\\.)*")\}', code).group(1))
+            mark = re.search(r'^const mark = ("(?:[^"\\]|\\.)*");', code, re.M)
+            with lock:
+                if mark and '"thread","history"' in code and any(
+                        t["thread"] == thread and json.loads(mark.group(1)) in t["text"] for t in told):
+                    return {"threadId": thread, "delivery": "already there"}
+                told.append({"thread": thread, "text": text})
+            value = {"threadId": thread, "delivery": "sent"}
         elif kind == "show":
             value = {"id": thread_arg(code, "show"), "title": "Chief of staff", "status": "idle", "archived": False}
         else:
             value = {}
-        self.send_event({"jsonrpc": "2.0", "id": rid, "result": {
-            "content": [{"type": "text", "text": json.dumps(value, indent=2)}], "isError": False}})
+        return value
 
 
 def main():

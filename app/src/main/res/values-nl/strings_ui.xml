@@ -30,6 +30,7 @@
     <string name="t_092d8ce0" formatted="false">goedkoopste</string>
     <string name="t_098821db" formatted="false">Netwerklogboek kopiëren</string>
     <string name="t_09b31ec9" formatted="false">Verzenden genegeerd: net verzonden (%1$.1f s geleden)</string>
+    <string name="t_0a30dd5e" formatted="false">Nog niet verstuurd: %1$s Het blijft bewaard en gaat vanzelf zodra bb bereikbaar is.</string>
     <string name="t_0a3cb13f" formatted="false">snelst, goedkoopst, minder nauwkeurig</string>
     <string name="t_0a7ebfef" formatted="false">Toegevoegd</string>
     <string name="t_0ae539d0" formatted="false">Jouw woorden</string>
@@ -128,10 +129,12 @@
     <string name="t_2be92a36" formatted="false">Geef Dictate &amp; Delegate context over waar je het over hebt, zoals de offerte waarop je reageert. Dit wordt gebruikt wanneer je ergens om vraagt.</string>
     <string name="t_2bf38097" formatted="false">Je Anthropic-sleutel is ongeldig. Controleer hem in Instellingen → Modellen en aanbieders → Anthropic-sleutel.</string>
     <string name="t_2c113272" formatted="false">Je bb Connect-gebruikersnaam</string>
+    <string name="t_2c3420a8" formatted="false">Dictate &amp; Delegate bewaart het en verstuurt het vanzelf opnieuw (%1$d× geprobeerd, volgende poging binnen een minuut).</string>
     <string name="t_2c467e9e" formatted="false">Tik om te stoppen</string>
     <string name="t_2cad992e" formatted="false">Bestand</string>
     <string name="t_2ce33943" formatted="false">Standaard</string>
     <string name="t_2d53863e" formatted="false">Toevoegen aan dit dictaat</string>
+    <string name="t_2d8e320f" formatted="false">Rapport wordt verstuurd…</string>
     <string name="t_2dace0e0" formatted="false">Geef eerst microfoontoegang in Dictate &amp; Delegate.</string>
     <string name="t_2dad13e3" formatted="false">Taal</string>
     <string name="t_2dc29d4d" formatted="false">Later</string>
@@ -155,6 +158,8 @@
     <string name="t_33e841f4" formatted="false">Niet verzonden naar je stafchef: %1$s</string>
     <string name="t_33fdfd35" formatted="false">Helpt Dictate &amp; Delegate namen goed te spellen en elke notitie doelgericht te verwerken.</string>
     <string name="t_345d171c" formatted="false">De aanmeldserver van bb antwoordde met HTTP %1$d.</string>
+    <string name="t_34f63f9b" formatted="false">Rapport verstuurd</string>
+    <string name="t_3575eb12" formatted="false">Rapport naar je chief sturen</string>
     <string name="t_35c96237" formatted="false">Instructies voor Verfijnen</string>
     <string name="t_35dab0c1" formatted="false">Antwoord kon niet worden afgespeeld: %1$s. Volgend bericht meldt het aan de chef</string>
     <string name="t_36633739" formatted="false">Schrijft op wat je zegt terwijl je praat, zodat een verzendwoord direct verzendt. Dit werkt met je eigen sleutel van de provider, door hen gefactureerd voor de luistertijd (sluit na een minuut zonder spraak).</string>
@@ -173,6 +178,7 @@
     <string name="t_3b9938d1" formatted="false">Dit sjabloon verwijderen?</string>
     <string name="t_3c847f8f" formatted="false">Zwevend paneel · optioneel</string>
     <string name="t_3ce1b08b" formatted="false">beste stem</string>
+    <string name="t_3d021462" formatted="false">Het lukte bij poging %1$d; de eerste mislukte om %2$s.</string>
     <string name="t_3d06124e" formatted="false">Je OpenRouter-sleutel is niet meer geldig. Wijzig deze in de instellingen van Dictate &amp; Delegate.</string>
     <string name="t_3d38c7ad" formatted="false">Opname opslaan…</string>
     <string name="t_3da1dbe7" formatted="false">Dictate &amp; Delegate is actief</string>
@@ -188,6 +194,7 @@
     <string name="t_3ed47f18" formatted="false">Uitschrijven duurde meer dan %1$.0f s: nog een keer proberen</string>
     <string name="t_3eef8148_one" formatted="false">%1$d versie</string>
     <string name="t_3eef8148_other" formatted="false">%1$d versies</string>
+    <string name="t_3f582d5c" formatted="false">bb is nu niet bereikbaar. Het rapport gaat vanzelf zodra het kan.</string>
     <string name="t_3f77ee75" formatted="false">Opslaan…</string>
     <string name="t_3f983199" formatted="false">%1$s De opname is opgeslagen.</string>
     <string name="t_400b4b63" formatted="false">Jij zegt</string>
@@ -208,6 +215,7 @@
     <string name="t_46713b89" formatted="false">Invoegen · Toegankelijkheidstoestemming</string>
     <string name="t_46783a6e" formatted="false">Stafchef aanmaken</string>
     <string name="t_467f1c34" formatted="false">Opname stoppen</string>
+    <string name="t_46d6d32e" formatted="false">Nu opnieuw proberen</string>
     <string name="t_46e4fba1" formatted="false">%1$d s</string>
     <string name="t_477632ba" formatted="false">Antwoord speelt af: je bent klaar</string>
     <string name="t_47eaeab4" formatted="false">Handsfree</string>
@@ -220,6 +228,7 @@
     <string name="t_4a881de5" formatted="false">Rond eerst opname of upload af</string>
     <string name="t_4ae2821e" formatted="false">bezig</string>
     <string name="t_4b2ded64" formatted="false">E-mails</string>
+    <string name="t_4b8a0a2e" formatted="false">wordt opnieuw verstuurd</string>
     <string name="t_4bfe4352" formatted="false">Herstel openen</string>
     <string name="t_4c0014e2" formatted="false">Verfijnen loopt weer via OpenRouter.</string>
     <string name="t_4c2540de" formatted="false">Anthropic kon dit verzoek niet uitvoeren (HTTP %1$d): %2$s</string>
@@ -235,7 +244,6 @@
     <string name="t_4f95835a" formatted="false">Het webadres begint met https://</string>
     <string name="t_4f95d631" formatted="false">Dat is alles. Het werkt overal hetzelfde: starten, praten, stoppen, invoegen. Je notities worden opgeslagen in Dictate &amp; Delegate, waar je ze ook kunt kopiëren of terug kunt naar exact wat je hebt gezegd.</string>
     <string name="t_4fcbfdd0" formatted="false">Dit bestand is te groot (maximaal 10 MB).</string>
-    <string name="t_4feae27e" formatted="false">Opnieuw verzenden</string>
     <string name="t_503970b4" formatted="false">Naamloos</string>
     <string name="t_503e7474" formatted="false">audio verwijderd</string>
     <string name="t_5048970e" formatted="false">Gedeeltelijke tekst en geregistreerde kosten blijven in je notities.</string>
@@ -341,6 +349,7 @@
     <string name="t_74350de7" formatted="false">Over</string>
     <string name="t_749dd663" formatted="false">%1$s · Anthropic, jouw sleutel</string>
     <string name="t_75cfcf01" formatted="false">Uitloggen</string>
+    <string name="t_75f6490a" formatted="false">Dictate &amp; Delegate bewaart het en verstuurt het vanzelf opnieuw (%1$d× geprobeerd, volgende poging nu).</string>
     <string name="t_76010d0f" formatted="false">Nog niets.</string>
     <string name="t_76692d71" formatted="false">🎧 Handsfree staat aan</string>
     <string name="t_77083f49" formatted="false">Wat je telefoon verlaat</string>
@@ -370,6 +379,7 @@
     <string name="t_7fd53415_one" formatted="false">%1$d sjabloon</string>
     <string name="t_7fd53415_other" formatted="false">%1$d sjablonen</string>
     <string name="t_8053d9fa" formatted="false">Praat en pauzeer: zodra je duidelijk klaar bent (vraag gesteld, %1$s), wordt het verzonden; zeg %2$s om af te sluiten. Verzenden en de headsetknop verzenden direct. Een antwoord wacht zolang je praat en speelt af bij een pauze; praat erdoorheen om het te stoppen, het speelt later opnieuw.</string>
+    <string name="t_808a4ee8" formatted="false">Rapport naar %1$s sturen</string>
     <string name="t_80b095f9" formatted="false">🧑‍💼 Opnieuw verzenden</string>
     <string name="t_8108fc2e" formatted="false">Geen verbinding met Anthropic.</string>
     <string name="t_816affe2" formatted="false">Antwoord wacht · speelt af zodra je klaar bent</string>
@@ -392,6 +402,7 @@
     <string name="t_85004d41" formatted="false">Tik om op te nemen</string>
     <string name="t_857a0fd3" formatted="false">Als je op ✨ Verfijnen tikt · %1$s</string>
     <string name="t_859034c6" formatted="false">Optioneel. Als Android dit niet toestaat, open dan App-info → ⋮ → Beperkte instellingen toestaan, en probeer het opnieuw.</string>
+    <string name="t_85f45f36" formatted="false">Nog niet verstuurd: %1$s</string>
     <string name="t_863d2a86" formatted="false">🧑‍💼 Stafchef</string>
     <string name="t_86657af4" formatted="false">Geluid vlak na antwoord genegeerd (microfoon gepauzeerd)</string>
     <string name="t_86889c2c" formatted="false">✓  %1$s aangemaakt (%2$s).</string>
@@ -454,6 +465,7 @@
     <string name="t_9c550f09" formatted="false">Tegel of volume omlaag ingedrukt houden</string>
     <string name="t_9c7b6819" formatted="false">Audio verwijderen</string>
     <string name="t_9c9743f1" formatted="false">Nodig om een notitie opnieuw te doen met een slimmer model</string>
+    <string name="t_9caf8e89" formatted="false">Dictate &amp; Delegate bewaart het en verstuurt het vanzelf opnieuw (%1$d× geprobeerd, volgende poging over %2$d minuten).</string>
     <string name="t_9cc96167" formatted="false">Werknotities</string>
     <string name="t_9dbafb52" formatted="false">Nog aan het transcriberen.</string>
     <string name="t_9e4d5639" formatted="false">Gegevens over jou, je woorden en het sjabloon dat je noemt worden automatisch toegevoegd.</string>

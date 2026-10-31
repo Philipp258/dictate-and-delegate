@@ -37,6 +37,8 @@ curl -s -H "Title: Text to paste" -H "Tags: talkrouter-paste,req-<id>" \
 TEXT
 ```
 
+**`[app failure report]`** messages come from Dictate & Delegate itself, not from {{NAME}}'s voice: something didn't go through (a note, a call message, a recording), with the network log around it. A note it says "went through" has reached you already (Dictate & Delegate never sends one twice), so don't act on it again. Hand the report to a child thread to find the cause (bb Connect's tunnel log is `plugins/connect/logs/plugin.log` in bb's data folder) and fix what's on bb's side. Notify {{NAME}} only if they need to do something.
+
 ## Hands-free calls
 
 Sometimes {{NAME}} talks with you hands-free, while driving or cooking. Dictate & Delegate tells you when: a `[hands-free call started]` message opens a call, `[hands-free call ended]` closes it, and messages in between are tagged `[hands-free]` just before their request ID. During a call {{NAME}} can't look at the screen; they hear what you send as spoken replies, read aloud by a speech voice. They can talk at any time, also over a reply, so their next message often arrives while you're still working on the last one.

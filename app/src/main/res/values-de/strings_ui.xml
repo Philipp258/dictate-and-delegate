@@ -30,6 +30,7 @@
     <string name="t_092d8ce0" formatted="false">am günstigsten</string>
     <string name="t_098821db" formatted="false">Netzwerkprotokoll kopieren</string>
     <string name="t_09b31ec9" formatted="false">Senden ignoriert: gerade gesendet (vor %1$.1f s)</string>
+    <string name="t_0a30dd5e" formatted="false">Noch nicht gesendet: %1$s Es bleibt gespeichert und geht von selbst raus, sobald bb erreichbar ist.</string>
     <string name="t_0a3cb13f" formatted="false">am schnellsten, günstigsten, weniger genau</string>
     <string name="t_0a7ebfef" formatted="false">Hinzugefügt</string>
     <string name="t_0ae539d0" formatted="false">Deine Wörter</string>
@@ -128,10 +129,12 @@
     <string name="t_2be92a36" formatted="false">Gib Dictate &amp; Delegate den Kontext mit, etwa das Angebot, auf das du antwortest. Wird genutzt, wenn du um etwas bittest.</string>
     <string name="t_2bf38097" formatted="false">Dein Anthropic-Schlüssel ist ungültig. Prüfe ihn unter Einstellungen → Modelle &amp; Anbieter → Anthropic-Schlüssel.</string>
     <string name="t_2c113272" formatted="false">Dein bb Connect-Handle</string>
+    <string name="t_2c3420a8" formatted="false">Dictate &amp; Delegate behält es und sendet es von selbst erneut (%1$d× versucht, nächster Versuch innerhalb einer Minute).</string>
     <string name="t_2c467e9e" formatted="false">Tippen zum Stoppen</string>
     <string name="t_2cad992e" formatted="false">Datei</string>
     <string name="t_2ce33943" formatted="false">Standard</string>
     <string name="t_2d53863e" formatted="false">Zu diesem Diktat hinzufügen</string>
+    <string name="t_2d8e320f" formatted="false">Bericht wird gesendet…</string>
     <string name="t_2dace0e0" formatted="false">Erlaube Dictate &amp; Delegate zuerst den Mikrofonzugriff.</string>
     <string name="t_2dad13e3" formatted="false">Sprache</string>
     <string name="t_2dc29d4d" formatted="false">Später</string>
@@ -155,6 +158,8 @@
     <string name="t_33e841f4" formatted="false">Nicht an deinen Chief of Staff gesendet: %1$s</string>
     <string name="t_33fdfd35" formatted="false">Hilft Dictate &amp; Delegate dabei, Namen korrekt zu schreiben und Notizen passend zu verarbeiten.</string>
     <string name="t_345d171c" formatted="false">Der Anmeldeserver von bb hat mit HTTP %1$d geantwortet.</string>
+    <string name="t_34f63f9b" formatted="false">Bericht gesendet</string>
+    <string name="t_3575eb12" formatted="false">Bericht an deinen Chief senden</string>
     <string name="t_35c96237" formatted="false">Anweisungen fürs Verfeinern</string>
     <string name="t_35dab0c1" formatted="false">Antwort konnte nicht abgespielt werden: %1$s. Deine nächste Nachricht informiert den Chef</string>
     <string name="t_36633739" formatted="false">Schreibt Gesprochenes direkt während des Sprechens mit, damit ein Sendewort sofort sendet. Läuft mit deinem eigenen API-Schlüssel beim Anbieter, Abrechnung nach Hörzeit (schließt nach einer Minute ohne Sprache).</string>
@@ -173,6 +178,7 @@
     <string name="t_3b9938d1" formatted="false">Diese Vorlage löschen?</string>
     <string name="t_3c847f8f" formatted="false">Schwebendes Fenster · optional</string>
     <string name="t_3ce1b08b" formatted="false">beste Stimme</string>
+    <string name="t_3d021462" formatted="false">Beim %1$d. Versuch ging es durch; der erste scheiterte um %2$s.</string>
     <string name="t_3d06124e" formatted="false">Dein OpenRouter-Key ist ungültig. Ändere ihn in den Einstellungen von Dictate &amp; Delegate.</string>
     <string name="t_3d38c7ad" formatted="false">Aufnahme wird gespeichert…</string>
     <string name="t_3da1dbe7" formatted="false">Dictate &amp; Delegate läuft</string>
@@ -188,6 +194,7 @@
     <string name="t_3ed47f18" formatted="false">Aufschreiben dauerte über %1$.0f s: versuche es noch einmal</string>
     <string name="t_3eef8148_one" formatted="false">%1$d Version</string>
     <string name="t_3eef8148_other" formatted="false">%1$d Versionen</string>
+    <string name="t_3f582d5c" formatted="false">bb ist gerade nicht erreichbar. Der Bericht geht von selbst raus, sobald es geht.</string>
     <string name="t_3f77ee75" formatted="false">Wird gespeichert…</string>
     <string name="t_3f983199" formatted="false">%1$s Die Aufnahme wurde gespeichert.</string>
     <string name="t_400b4b63" formatted="false">Du sagst</string>
@@ -208,6 +215,7 @@
     <string name="t_46713b89" formatted="false">Einfügen · Bedienungshilfen-Berechtigung</string>
     <string name="t_46783a6e" formatted="false">Chief of Staff erstellen</string>
     <string name="t_467f1c34" formatted="false">Aufnahme stoppen</string>
+    <string name="t_46d6d32e" formatted="false">Jetzt erneut versuchen</string>
     <string name="t_46e4fba1" formatted="false">%1$d s</string>
     <string name="t_477632ba" formatted="false">Antwort spielt: du bist nicht mehr dran</string>
     <string name="t_47eaeab4" formatted="false">Freisprechen</string>
@@ -220,6 +228,7 @@
     <string name="t_4a881de5" formatted="false">Beende erst Aufnahme oder Upload</string>
     <string name="t_4ae2821e" formatted="false">in Bearbeitung</string>
     <string name="t_4b2ded64" formatted="false">E-Mails</string>
+    <string name="t_4b8a0a2e" formatted="false">wird erneut gesendet</string>
     <string name="t_4bfe4352" formatted="false">Wiederherstellung öffnen</string>
     <string name="t_4c0014e2" formatted="false">Verfeinern läuft wieder über OpenRouter.</string>
     <string name="t_4c2540de" formatted="false">Anthropic konnte die Anfrage nicht verarbeiten (HTTP %1$d): %2$s</string>
@@ -235,7 +244,6 @@
     <string name="t_4f95835a" formatted="false">Die Webadresse beginnt mit https://</string>
     <string name="t_4f95d631" formatted="false">Das war\'s schon! Funktioniert in jeder App genauso: starten, sprechen, stoppen, einfügen. Deine Notizen werden in Dictate &amp; Delegate gespeichert, wo du sie kopieren oder zum Original-Wortlaut zurückwechseln kannst.</string>
     <string name="t_4fcbfdd0" formatted="false">Diese Datei ist zu groß (maximal 10 MB).</string>
-    <string name="t_4feae27e" formatted="false">Erneut senden</string>
     <string name="t_503970b4" formatted="false">Ohne Titel</string>
     <string name="t_503e7474" formatted="false">Audio verworfen</string>
     <string name="t_5048970e" formatted="false">Teilweiser Text und erfasste Kosten bleiben in den Notizen.</string>
@@ -341,6 +349,7 @@
     <string name="t_74350de7" formatted="false">Über</string>
     <string name="t_749dd663" formatted="false">%1$s · Anthropic, eigener Schlüssel</string>
     <string name="t_75cfcf01" formatted="false">Abmelden</string>
+    <string name="t_75f6490a" formatted="false">Dictate &amp; Delegate behält es und sendet es von selbst erneut (%1$d× versucht, nächster Versuch jetzt).</string>
     <string name="t_76010d0f" formatted="false">Noch nichts da.</string>
     <string name="t_76692d71" formatted="false">🎧 Freisprechen ist an</string>
     <string name="t_77083f49" formatted="false">Was dein Smartphone verlässt</string>
@@ -370,6 +379,7 @@
     <string name="t_7fd53415_one" formatted="false">%1$d Vorlage</string>
     <string name="t_7fd53415_other" formatted="false">%1$d Vorlagen</string>
     <string name="t_8053d9fa" formatted="false">Sprich, dann mach eine Pause: Wenn du klar fertig bist (Frage gestellt, %1$s), wird gesendet; sag %2$s zum Beenden. Senden und die Headset-Taste senden sofort. Eine Antwort wartet, während du sprichst, und läuft, wenn du eine Pause machst; sprich dazwischen, um sie anzuhalten, dann läuft sie später erneut.</string>
+    <string name="t_808a4ee8" formatted="false">Bericht an %1$s senden</string>
     <string name="t_80b095f9" formatted="false">🧑‍💼 Erneut senden</string>
     <string name="t_8108fc2e" formatted="false">Keine Verbindung zu Anthropic.</string>
     <string name="t_816affe2" formatted="false">Antwort wartet · wird abgespielt, wenn du fertig bist</string>
@@ -392,6 +402,7 @@
     <string name="t_85004d41" formatted="false">Tippen zur Aufnahme</string>
     <string name="t_857a0fd3" formatted="false">Wenn du auf ✨ Verfeinern tippst · %1$s</string>
     <string name="t_859034c6" formatted="false">Optional. Wenn Android das Aktivieren blockiert, öffne App-Info → ⋮ → Eingeschränkte Einstellungen zulassen und versuche es erneut.</string>
+    <string name="t_85f45f36" formatted="false">Noch nicht gesendet: %1$s</string>
     <string name="t_863d2a86" formatted="false">🧑‍💼 Chief</string>
     <string name="t_86657af4" formatted="false">Geräusch direkt nach der Antwort ignoriert (Mikrofon pausiert)</string>
     <string name="t_86889c2c" formatted="false">✓  %1$s (%2$s) erstellt.</string>
@@ -454,6 +465,7 @@
     <string name="t_9c550f09" formatted="false">Kachel oder Lautstärke leiser halten</string>
     <string name="t_9c7b6819" formatted="false">Audio löschen</string>
     <string name="t_9c9743f1" formatted="false">Nötig zur Wiederholung mit klügerem Modell</string>
+    <string name="t_9caf8e89" formatted="false">Dictate &amp; Delegate behält es und sendet es von selbst erneut (%1$d× versucht, nächster Versuch in %2$d Minuten).</string>
     <string name="t_9cc96167" formatted="false">Arbeitsnotizen</string>
     <string name="t_9dbafb52" formatted="false">Wird noch transkribiert.</string>
     <string name="t_9e4d5639" formatted="false">Angaben über dich, deine Wörter und die genannte Vorlage werden automatisch ergänzt.</string>

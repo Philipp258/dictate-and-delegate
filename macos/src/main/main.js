@@ -18,6 +18,7 @@ const {
   clipboard,
   dialog,
   systemPreferences,
+  powerMonitor,
 } = require('electron');
 
 const { createContext } = require('./context');
@@ -25,6 +26,8 @@ const { AudioBridge } = require('./audio-bridge');
 const insertion = require('./insert');
 const { Notifier } = require('./notifier');
 const { Dictation, FilePendingAudio } = require('../core/dictation');
+const { Outbox } = require('../core/outbox');
+const netLog = require('../core/net-log');
 const { panelModel } = require('../core/panel-model');
 const chiefText = require('../core/chief-text');
 const openrouter = require('../core/openrouter');
@@ -142,6 +145,7 @@ function start() {
     ctx = await createContext({ log: (line) => process.env.DD_TRACE && fs.appendFileSync(process.env.DD_TRACE, line + '\n') });
     ctx.log(`app: Dictate & Delegate ${app.getVersion()} started (Electron ${process.versions.electron}, macOS ${process.getSystemVersion ? process.getSystemVersion() : ''})`);
     audio = new AudioBridge({ log: ctx.log });
+    ctx.outbox = createOutbox();
     dictation = createDictation();
     panel = createPanel();
     notifier = new Notifier(ctx, {
@@ -162,6 +166,8 @@ function start() {
         if (!!snap.active !== wasActive) {
           wasActive = !!snap.active;
           registerHotkeys(); // The headset's play/pause key sends only during a call.
+          // The call's failures, if any, go to the chief once the end of the call is through.
+          if (!wasActive && ctx.outbox.failuresWaiting() > 0) ctx.outbox.schedule(60_000);
         }
       });
     } catch (e) {
@@ -218,12 +224,35 @@ function start() {
       return;
     }
     if (!ctx.prefs.get('onboarded', false) || !openrouter.hasKey(ctx.vault)) openMain('welcome');
-    setInterval(() => {
+    setInterval(async () => {
       try {
-        ctx.attachments.prune();
+        // Not the attachments of a note still queued for the chief.
+        const queued = new Set((await ctx.outbox.queued()).map((n) => n.recordingId || n.id));
+        ctx.attachments.prune(queued);
         ctx.archive.prune();
       } catch {}
     }, 6 * 3600_000);
+    // Notes not at the chief yet, and failures not reported: a try now, and when the Mac wakes up.
+    ctx.outbox.kick();
+    powerMonitor.on('resume', () => ctx.outbox.kick());
+  }
+
+  // ---------------------------------------------------------------- the outbox
+
+  function createOutbox() {
+    return new Outbox({
+      prefs: ctx.prefs,
+      notes: async () => ctx.history.list(300, 0).map((e) => e.json),
+      sendNote: (id) => dictation.sendNote(id),
+      tell: (id, text) => ctx.bb.tell(id, text, [], true),
+      chiefId: () => ctx.bb.chiefId(),
+      connected: () => ctx.bb.connected(),
+      inCall: () => !!(call && call.active()),
+      readLog: () => netLog.read(),
+      app: 'Dictate & Delegate ' + app.getVersion() + ' (macOS ' + (process.getSystemVersion ? process.getSystemVersion() : '') + ')',
+      requestId: () => chiefText.requestId(),
+      log: ctx.log,
+    });
   }
 
   // ---------------------------------------------------------------- dictation
@@ -250,8 +279,9 @@ function start() {
         const id = ctx.bb.chiefId();
         return id ? { id, link: ctx.bb.threadLink(id) } : null;
       },
-      sendToChief: async (text, { request, recordingId, chiefId }) =>
-        ctx.bb.sendRequest(chiefId || ctx.bb.chiefId(), text, ctx.attachments.texts(recordingId), ctx.attachments.binaries(recordingId), request),
+      sendToChief: async (text, { request, recordingId, chiefId, again }) =>
+        ctx.bb.sendRequest(chiefId || ctx.bb.chiefId(), text, ctx.attachments.texts(recordingId), ctx.attachments.binaries(recordingId), request, !!again),
+      outbox: ctx.outbox,
       waitForChiefText: (request, since, onText) => {
         const l = new chiefText.Listener(ctx.bb.ntfyServer(), ctx.bb.ntfyTopic(), request, since, onText);
         l.start();
@@ -677,6 +707,11 @@ function start() {
       dictationState: () => ({ ...dictation.snapshot(), hasSavedRecording: dictation.hasSavedRecording(), recordingId: ctx.prefs.get('recordingId', '') }),
       refineNote: (id, template) => dictation.refineNote(id, template),
       sendNote: (id) => dictation.sendNote(id),
+      // Send report: what failed goes to the chief now, or as soon as bb takes messages again.
+      sendReport: async (what, why) => {
+        ctx.outbox.askReport(what, why);
+        return (await ctx.outbox.flush(true)) && ctx.outbox.failuresWaiting() === 0;
+      },
       retryRecording: () => dictation.retry().then(() => true),
       discardRecording: () => dictation.discard().then(() => true),
       attach: () => attachMenu(),
