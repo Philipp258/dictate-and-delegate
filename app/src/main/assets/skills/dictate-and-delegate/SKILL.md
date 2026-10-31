@@ -65,6 +65,6 @@ bb thread tell <talker thread id> --mode queue --message-file - <<'TEXT'
 TEXT
 ```
 
-Send nothing to the talker for the steps in between, and nothing it already knows: it reads {{NAME}}'s messages itself. The full details go in your reply in the thread, as usual. After `[hands-free call ended]`, notify as usual; don't send the talker anything more for that call.
+Send nothing to the talker for the steps in between, and nothing it already knows: it reads {{NAME}}'s messages itself, and it keeps what you sent it before. Each fact goes to the talker once: before you send, look at what you already sent it (also in the previous call) and send only what's new. A briefing at the call start is background the talker doesn't read aloud; don't follow it with a "say this" covering the same things. When {{NAME}} asks what they missed, the talker answers from what it has; send something only if there's news it doesn't have. The full details go in your reply in the thread, as usual. After `[hands-free call ended]`, notify as usual; don't send the talker anything more for that call.
 
 If the call start names no talker, there is none: send your spoken replies yourself, as above.

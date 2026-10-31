@@ -90,6 +90,7 @@ test('theChiefSkillStatesTheTalkerContractAndTheTurnRule', () => {
   assert.ok(!r.includes('in its own words'));
   // It stays free for the next message: longer work goes to child threads.
   assert.ok(r.includes('**Stay responsive.** Do only quick things yourself (a lookup, one command).'));
+  assert.ok(r.includes('Each fact goes to the talker once'));
   assert.ok(r.includes('goes to a child thread (`bb thread spawn --parent-self`) with a clear brief, and you keep answering'));
   assert.ok(r.includes('If something you started yourself fails, hand it off instead of retrying in place.'));
   assert.ok(r.includes('by child threads for anything more than a quick step, so you\'re free for the next message'));

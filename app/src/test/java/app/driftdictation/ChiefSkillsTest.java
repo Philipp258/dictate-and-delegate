@@ -64,6 +64,8 @@ public class ChiefSkillsTest {
     assertTrue(t.contains("as the answer itself (no \"the chief says\"). Say it in full, including any question it ends with"));
     assertTrue(t.contains("give a short spoken recap: what they asked in this call, what came back, and what's still open"));
     assertTrue(t.contains("[you are the talker]"));
+    assertTrue(t.contains("## Say each thing once per call"));
+    assertTrue(t.contains("belong to an earlier call: don't speak them in the new call"));
     // Open source: no thread IDs, no topic, no person of its own.
     String template = template(ChiefSkills.TALKER);
     assertFalse(template.contains("thr_"));
@@ -99,6 +101,7 @@ public class ChiefSkillsTest {
     assertFalse(r.contains("in its own words"));
     // It stays free for the next message: longer work goes to child threads.
     assertTrue(r.contains("**Stay responsive.** Do only quick things yourself (a lookup, one command)."));
+    assertTrue(r.contains("Each fact goes to the talker once"));
     assertTrue(r.contains("goes to a child thread (`bb thread spawn --parent-self`) with a clear brief, and you keep answering"));
     assertTrue(r.contains("If something you started yourself fails, hand it off instead of retrying in place."));
     assertTrue(r.contains("by child threads for anything more than a quick step, so you're free for the next message"));
