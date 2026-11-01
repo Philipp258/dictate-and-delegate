@@ -358,6 +358,7 @@ final class NetLog {
       if (m.contains("abort")) return "connection aborted";
       if (m.contains("unreachable")) return "network unreachable";
       if (m.contains("socket closed") || m.contains("socket is closed")) return "closed by the app";
+      if (m.contains("end of file") || m.contains("end of stream")) return "connection closed early";
       return "socket error";
     }
     if (t instanceof java.io.EOFException || t instanceof java.net.ProtocolException && m.contains("end of stream"))

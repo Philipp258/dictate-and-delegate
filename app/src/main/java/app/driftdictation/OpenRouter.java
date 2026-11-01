@@ -206,9 +206,16 @@ final class OpenRouter {
   private JSONObject call(String path, JSONObject body) throws Exception {
     String key = vault.get(KEY);
     if (key.isBlank()) throw new IOException(tr("Add your OpenRouter key in Dictate & Delegate's Settings first."));
+    return post(base() + path, body, key);
+  }
+
+  /** A POST with call's retries, for any address (tests use their own). */
+  static JSONObject post(String url, JSONObject body, String key) throws Exception {
+    boolean fresh = false;
+    int waited = 0;
     for (int attempt = 0; ; attempt++) {
       try {
-        return send("POST", base() + path, body, key, 20000, 120000, attempt);
+        return send("POST", url, body, key, 20000, 120000, attempt);
       } catch (Unauthorized ex) {
         throw new IOException(tr("Your OpenRouter key isn't valid anymore. Change it in Dictate & Delegate's Settings."), ex);
       } catch (Busy ex) {
@@ -216,16 +223,53 @@ final class OpenRouter {
         if (attempt >= 2) throw new IOException(busy(), ex);
         Thread.sleep(1500L * (attempt + 1));
       } catch (IOException ex) {
-        // No connection yet (a tunnel, a network switch): nothing reached OpenRouter, so nothing
-        // ran or was charged. Tried again a little later, a few times.
-        if (attempt >= NO_CONNECTION_MS.length || !unreached(ex)) throw ex;
-        Thread.sleep(NO_CONNECTION_MS[attempt]);
+        // No connection yet (a tunnel, a network switch), or one that broke off before any answer
+        // (Dropped): OpenRouter never got the whole request, so nothing ran or was charged. A
+        // dropped one is most often a kept-alive connection the network forgot while idle, so the
+        // first new try goes at once (on a new connection); then a little later, a few times.
+        boolean dropped = ex instanceof Dropped;
+        if (!dropped && !unreached(ex)) throw ex;
+        if (dropped && !fresh) {
+          fresh = true;
+          continue;
+        }
+        if (waited >= NO_CONNECTION_MS.length) throw ex;
+        Thread.sleep(NO_CONNECTION_MS[waited++]);
       }
     }
   }
 
   /** The waits before each new try when OpenRouter couldn't be reached at all. */
   static volatile long[] NO_CONNECTION_MS = {2_000, 5_000, 10_000};
+
+  /**
+   * How soon after the request was written a broken connection still counts as Dropped. A
+   * forgotten connection answers the first bytes with a reset within a round trip; later, the
+   * model may be working already and a new try could be charged twice.
+   */
+  static volatile long DROP_MS = 2_000;
+
+  /**
+   * The connection broke off (reset, broken pipe, closed) while the request was going out or at
+   * once after it, before any answer: OpenRouter didn't get or didn't start the request.
+   */
+  static final class Dropped extends IOException {
+    Dropped(Throwable cause) {
+      super(tr("The connection to OpenRouter was lost. Check your internet connection, then retry."), cause);
+    }
+  }
+
+  /** A failure that is a broken connection, not a timeout or an answer. */
+  static boolean broken(Throwable ex) {
+    String kind = NetLog.classify(ex);
+    return kind.equals("connection reset") || kind.equals("broken pipe") || kind.equals("connection aborted")
+        || kind.equals("connection closed early");
+  }
+
+  /** Dropped: broken before any answer, while writing (sentAt 0) or within DROP_MS after it. */
+  static boolean dropped(Throwable ex, int status, long sentAt, long now) {
+    return status == 0 && broken(ex) && (sentAt == 0 || now - sentAt <= DROP_MS * 1_000_000);
+  }
 
   /** The request never got to OpenRouter: no DNS, no connection, no route. */
   static boolean unreached(Throwable ex) {
@@ -271,6 +315,8 @@ final class OpenRouter {
       String method, String url, JSONObject body, String key, int connectMs, int readMs, NetLog.Call net)
       throws Exception {
     HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+    int status = 0;
+    long sentAt = 0; // System.nanoTime() once the request is written
     try {
       c.setConnectTimeout(connectMs);
       c.setReadTimeout(readMs);
@@ -288,7 +334,8 @@ final class OpenRouter {
           out.write(payload);
         }
       }
-      int status = c.getResponseCode();
+      sentAt = System.nanoTime();
+      status = c.getResponseCode();
       net.status(status);
       InputStream stream = status < 400 ? c.getInputStream() : c.getErrorStream();
       byte[] got = stream == null ? new byte[0] : stream.readNBytes(4_000_000);
@@ -311,6 +358,11 @@ final class OpenRouter {
     } catch (UnknownHostException | ConnectException ex) {
       throw new IOException(
           tr("No connection to OpenRouter. Check your internet connection, then try again."), ex);
+    } catch (IOException ex) {
+      long now = System.nanoTime();
+      if (!dropped(ex, status, sentAt, now)) throw ex;
+      net.note(sentAt == 0 ? "broke off while sending" : "broke off " + (now - sentAt) / 1_000_000 + " ms after sending");
+      throw new Dropped(ex);
     } finally {
       c.disconnect();
     }
