@@ -169,12 +169,17 @@ final class Outbox {
     return s.toString();
   }
 
-  /** The log's lines from the time from on, the last max of them (each at most 400 characters). */
+  /**
+   * The log's lines from the time from on, the last max of them (each at most 400 characters). A
+   * line is stamped when its request started, so one still running at from counts too: a request
+   * that hung for minutes before it failed was left out of the report.
+   */
   static List<String> excerpt(String log, long from, int max) {
     List<String> out = new ArrayList<>();
     for (String line : log.split("\n")) {
       long t = NetLog.time(line);
-      if (t < 0 || t < from) continue;
+      if (t < 0) continue;
+      if (t < from && t + Math.max(0, NetLog.duration(line)) < from) continue;
       out.add(line.length() > 400 ? line.substring(0, 400) + "…" : line);
     }
     return out.size() <= max ? out : new ArrayList<>(out.subList(out.size() - max, out.size()));

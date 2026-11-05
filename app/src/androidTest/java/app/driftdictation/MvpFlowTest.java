@@ -560,9 +560,9 @@ public class MvpFlowTest {
     waitFor("recording");
     Thread.sleep(1200);
     send(DictationService.STOP);
-    waitFor("error");
+    waitFor("unfinished");
     assertTrue(detail(), detail().contains("credits are used up"));
-    assertTrue(DictationService.audio(context).exists());
+    assertEquals(1, DictationService.unfinished(context).size());
   }
 
   @Test

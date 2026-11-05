@@ -42,11 +42,7 @@ public final class DictationTile extends TileService {
     tile.setSubtitle(
         recording
             ? tr("Tap to stop")
-            : working
-                ? tr("Transcribing…")
-                : DictationService.audio(this).exists()
-                    ? tr("Open recovery")
-                    : tr("Tap to record"));
+            : working ? tr("Saving recording…") : tr("Tap to record"));
     tile.setState(
         working ? Tile.STATE_UNAVAILABLE : recording ? Tile.STATE_ACTIVE : Tile.STATE_INACTIVE);
     tile.setContentDescription(recording ? tr("Stop dictation") : tr("Start dictation"));

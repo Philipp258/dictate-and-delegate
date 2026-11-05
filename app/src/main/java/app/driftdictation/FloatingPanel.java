@@ -13,8 +13,9 @@ import android.widget.*;
  * The floating panel over other apps, icon buttons named for accessibility (long press shows the
  * name). While recording: the timer with stop, Refine and Chief to choose ahead, ✕ to cancel, and
  * 📎. Afterwards: ✕, Insert, Refine (then Insert refined), Chief (then Open chat
- * ↗), and Insert from chief when the chief sent text back. Ready, error and empty show the small
- * icon instead. Its window never takes focus, so the cursor stays in the app you're in; drag it
+ * ↗), and Insert from chief when the chief sent text back. While it's written down: ✕ stops
+ * trying (the recording stays in the notes) and 🎙 records something new; when it couldn't be,
+ * ↻ tries again. Ready, error and empty show the small icon instead. Its window never takes focus, so the cursor stays in the app you're in; drag it
  * anywhere.
  */
 final class FloatingPanel extends FrameLayout {
@@ -50,6 +51,12 @@ final class FloatingPanel extends FrameLayout {
     void insertFromChief();
 
     void tapIcon();
+
+    /** 🎙 while a recording is written down or wasn't: record something new. */
+    void record();
+
+    /** ↻ on a recording that wasn't written down: try again. */
+    void retry();
   }
 
   interface Drag {
@@ -64,7 +71,7 @@ final class FloatingPanel extends FrameLayout {
 
   private final OverlayIcon icon;
   private final LinearLayout bar, extra;
-  private final TextView attach, timer, close, insert, refine, chief, fromChief, status, call;
+  private final TextView attach, timer, close, insert, refine, chief, fromChief, status, call, mic, retry;
   private final Row row;
   private final Actions actions;
   private final Drag drag;
@@ -101,6 +108,10 @@ final class FloatingPanel extends FrameLayout {
     call = pill(row, "📞", v -> actions.call());
     name(call, tr("Hands-free call with your chief"));
     close = pill(row, "✕", v -> actions.close());
+    mic = pill(row, "🎙", v -> actions.record());
+    name(mic, tr("Record something new"));
+    retry = pill(row, "↻", v -> actions.retry());
+    name(retry, tr("Try again"));
     insert = pill(row, "📥", v -> actions.insert());
     refine = pill(row, "", v -> actions.refine());
     chief = pill(row, "", v -> actions.chief());
@@ -170,7 +181,7 @@ final class FloatingPanel extends FrameLayout {
 
   /** Whether every shown button has room for its whole label (for the device tests). */
   boolean fits() {
-    for (TextView t : new TextView[] {attach, timer, close, insert, refine, chief, fromChief}) {
+    for (TextView t : new TextView[] {attach, timer, close, insert, refine, chief, fromChief, mic, retry}) {
       if (t.getVisibility() != VISIBLE || t.getLayout() == null) continue;
       float need = t.getPaint().measureText(t.getText().toString()) + t.getPaddingLeft() + t.getPaddingRight();
       if (t.getWidth() + 1 < need) return false;
@@ -238,7 +249,9 @@ final class FloatingPanel extends FrameLayout {
     boolean recording = DictationService.RECORDING.equals(m.state());
     boolean working = DictationService.STOPPING.equals(m.state()) || DictationService.UPLOADING.equals(m.state());
     boolean ready = DictationService.done(m.state());
-    small = !recording && !working && !ready;
+    boolean uploading = DictationService.UPLOADING.equals(m.state());
+    boolean unfinished = DictationService.UNFINISHED.equals(m.state());
+    small = !recording && !working && !ready && !unfinished;
     icon.setVisibility(small ? VISIBLE : GONE);
     bar.setVisibility(small ? GONE : VISIBLE);
     if (small) {
@@ -254,8 +267,8 @@ final class FloatingPanel extends FrameLayout {
       row.removeAllViews();
       for (TextView t :
           recording
-              ? new TextView[] {timer, refine, chief, call, attach, insert, close}
-              : new TextView[] {insert, refine, chief, timer, attach, call, close})
+              ? new TextView[] {timer, refine, chief, call, attach, insert, retry, mic, close}
+              : new TextView[] {retry, insert, refine, chief, mic, timer, attach, call, close})
         row.addView(t, new ViewGroup.LayoutParams(-2, dp(40)));
     }
     attach.setVisibility(recording ? VISIBLE : GONE);
@@ -264,9 +277,18 @@ final class FloatingPanel extends FrameLayout {
     timer.setVisibility(recording ? VISIBLE : GONE);
     timer.setText("● " + AudioFiles.elapsed(m.elapsed()) + "  ■");
     style(timer, 0xffe5484d, 0);
-    close.setVisibility(working ? GONE : VISIBLE);
-    name(close, recording ? tr("Cancel: nothing is transcribed or sent") : tr("Close"));
-    insert.setVisibility(recording ? GONE : VISIBLE);
+    // Only while the recording is saved (a moment) there's nothing to tap; while it's written
+    // down ✕ stops trying, and you can record something new.
+    close.setVisibility(working && !uploading ? GONE : VISIBLE);
+    name(
+        close,
+        recording
+            ? tr("Cancel: nothing is transcribed or sent")
+            : uploading ? tr("Stop trying: the recording stays in your notes to retry") : tr("Close"));
+    mic.setVisibility(uploading || unfinished ? VISIBLE : GONE);
+    retry.setVisibility(unfinished ? VISIBLE : GONE);
+    style(retry, TEAL, 0);
+    insert.setVisibility(recording || unfinished ? GONE : VISIBLE);
     insert.setText(working ? "…" : "📥");
     name(insert, working ? tr("Transcribing…") : tr("Insert"));
     insert.setEnabled(ready);
@@ -293,7 +315,8 @@ final class FloatingPanel extends FrameLayout {
         refine,
         m.refine().equals(DictationService.DONE) ? TEAL : PILL,
         m.refine().equals(DictationService.QUEUED) || m.refine().equals(DictationService.RUNNING) ? TEAL : 0);
-    chief.setVisibility(m.chiefAvailable() ? VISIBLE : GONE);
+    refine.setVisibility(unfinished ? GONE : VISIBLE);
+    chief.setVisibility(m.chiefAvailable() && !unfinished ? VISIBLE : GONE);
     chief.setText(
         switch (m.chief()) {
           case DictationService.QUEUED -> "🧑‍💼 ✓";

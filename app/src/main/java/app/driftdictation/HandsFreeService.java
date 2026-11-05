@@ -180,7 +180,8 @@ public final class HandsFreeService extends Service {
             HandsFree.words(prefs, HandsFree.SEND_WORDS, HandsFree.DEFAULT_SEND),
             HandsFree.list(HandsFree.endSetting(prefs)),
             wav -> {
-              OpenRouter.Result r = new OpenRouter(this).transcribe(wav, model, hints);
+              // In a call a turn can't wait long: tries again for 20 s, not a recording's 90.
+              OpenRouter.Result r = new OpenRouter(this).transcribe(wav, model, hints, new OpenRouter.Control(20_000));
               // Turns and words said over a reply are written down on different threads.
               synchronized (this) {
                 seconds += (wav.length - 44) / (double) AudioFiles.BYTES_PER_SECOND;

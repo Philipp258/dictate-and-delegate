@@ -102,6 +102,8 @@ sequenceDiagram
     You->>BB: tap → the thread opens in bb
 ```
 
+If the speech model can't be reached or the connection breaks off while the recording is going up (mobile data does this), the app tries again by itself for about a minute and a half, only while that can't cost twice: once OpenRouter could have the whole recording, a break isn't retried, since the model may already be working. A recording that still isn't written down stays in your notes with its audio and **Retry** / **Discard**. None of this holds you up: each recording is written down on its own, so you can record the next one at once, and ✕ on the panel stops trying.
+
 If bb can't be reached, the app tries again a few times within seconds (bb Connect's tunnel to your computer drops now and then and is back quickly). If that isn't enough, the note keeps what you said and the request ID, says why, and sends it again by itself, further apart each time (15 s up to every 15 min, for two days), also after a restart or once the network is back. A try after one whose answer got lost checks the thread first, so the chief never gets a note twice. **Retry now** and **Send report** are on the note; once bb takes messages again, the chief gets an `[app failure report]` with what failed, when, and the network log around it.
 
 ## Signing in to bb

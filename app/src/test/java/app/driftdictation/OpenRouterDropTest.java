@@ -22,19 +22,21 @@ import org.junit.Test;
  */
 public class OpenRouterDropTest {
   private long[] waits;
-  private long dropMs;
+  private long dropMs, stallMs;
 
   @Before
   public void fast() {
-    waits = OpenRouter.NO_CONNECTION_MS;
+    waits = OpenRouter.RETRY_WAITS_MS;
     dropMs = OpenRouter.DROP_MS;
-    OpenRouter.NO_CONNECTION_MS = new long[] {1, 1, 1};
+    stallMs = OpenRouter.STALL_MS;
+    OpenRouter.RETRY_WAITS_MS = new long[] {1, 1, 1};
   }
 
   @After
   public void restore() {
-    OpenRouter.NO_CONNECTION_MS = waits;
+    OpenRouter.RETRY_WAITS_MS = waits;
     OpenRouter.DROP_MS = dropMs;
+    OpenRouter.STALL_MS = stallMs;
   }
 
   /** What the fake does with each connection, by its number (0 first). */
@@ -48,15 +50,30 @@ public class OpenRouterDropTest {
     final Thread thread;
 
     Fake(Behaviour b) throws IOException {
-      server = new ServerSocket(0, 50, java.net.InetAddress.getLoopbackAddress());
+      server = new ServerSocket();
+      server.setReceiveBufferSize(8192); // a fake that stops reading holds the upload up soon
+      server.bind(new java.net.InetSocketAddress(java.net.InetAddress.getLoopbackAddress(), 0), 50);
       thread =
           new Thread(
               () -> {
                 while (!server.isClosed()) {
-                  try (Socket s = server.accept()) {
-                    b.serve(connections.getAndIncrement(), s);
+                  try {
+                    Socket s = server.accept();
+                    int n = connections.getAndIncrement();
+                    // Each connection on its own, so one that hangs doesn't hold up the next.
+                    Thread t =
+                        new Thread(
+                            () -> {
+                              try (s) {
+                                b.serve(n, s);
+                              } catch (Exception ignored) {
+                                /* next connection */
+                              }
+                            });
+                    t.setDaemon(true);
+                    t.start();
                   } catch (Exception ignored) {
-                    /* next connection */
+                    /* closed */
                   }
                 }
               });
@@ -182,6 +199,131 @@ public class OpenRouterDropTest {
               reset(s);
             })) {
       assertThrows(IOException.class, () -> OpenRouter.post(fake.url(), body(), "k"));
+      assertEquals(1, fake.connections.get());
+    }
+  }
+
+  /** Much more than the sockets' buffers hold, so an upload nobody reads hangs. */
+  private static JSONObject big() throws Exception {
+    return new JSONObject().put("model", "microsoft/mai-transcribe-2").put("input_audio", new JSONObject().put("data", "A".repeat(30_000_000)));
+  }
+
+  /**
+   * The mobile connection went dead mid-upload: the fake reads nothing for a while, then drops
+   * it. Any failure while the body is going out is tried again (OpenRouter never got all of it).
+   * Breaking the hanging write off at STALL_MS needs Android's HTTP stack, which closes the socket
+   * on disconnect; the JVM's doesn't, so here the fake's close ends it.
+   */
+  @Test
+  public void anUploadThatBreaksOffMidWayIsTriedAgain() throws Exception {
+    OpenRouter.STALL_MS = 300;
+    try (Fake fake =
+        new Fake(
+            (n, s) -> {
+              if (n == 0) {
+                s.getInputStream().readNBytes(50_000);
+                Thread.sleep(1000);
+                reset(s);
+                return;
+              }
+              readRequest(s);
+              answer(s, "{\"text\":\"hello\"}");
+            })) {
+      assertEquals("hello", OpenRouter.post(fake.url(), big(), "k").getString("text"));
+      assertEquals(2, fake.connections.get());
+    }
+  }
+
+  @Test
+  public void triesStopWhenTheTimeIsUp() throws Exception {
+    OpenRouter.RETRY_WAITS_MS = new long[] {200, 200, 200, 200, 200};
+    try (Fake fake =
+        new Fake(
+            (n, s) -> {
+              readRequest(s);
+              reset(s);
+            })) {
+      long t = System.nanoTime();
+      assertThrows(IOException.class, () -> OpenRouter.post(fake.url(), body(), "k", new OpenRouter.Control(500)));
+      long ms = (System.nanoTime() - t) / 1_000_000;
+      // The first, one at once, then two after 200 ms each: a third wait would end past 500 ms.
+      assertTrue("connections " + fake.connections.get(), fake.connections.get() >= 2 && fake.connections.get() <= 4);
+      assertTrue("took " + ms + " ms", ms < 1500);
+    }
+  }
+
+  @Test
+  public void cancelDuringAnUploadIsNeverTriedAgain() throws Exception {
+    OpenRouter.STALL_MS = 60_000;
+    try (Fake fake =
+        new Fake(
+            (n, s) -> {
+              Thread.sleep(1500);
+              reset(s);
+            })) {
+      OpenRouter.Control control = new OpenRouter.Control(90_000);
+      java.util.List<String> told = new java.util.concurrent.CopyOnWriteArrayList<>();
+      control.onRetry((attempt, wait, why) -> told.add(why));
+      new Thread(
+              () -> {
+                try {
+                  Thread.sleep(300);
+                } catch (InterruptedException ignored) {
+                }
+                control.cancel();
+              })
+          .start();
+      assertThrows(OpenRouter.Cancelled.class, () -> OpenRouter.post(fake.url(), big(), "k", control));
+      assertEquals(1, fake.connections.get());
+      assertTrue(told.isEmpty());
+    }
+  }
+
+  @Test
+  public void cancelEndsAWaitBeforeTheNextTry() throws Exception {
+    OpenRouter.RETRY_WAITS_MS = new long[] {10_000, 10_000};
+    try (Fake fake =
+        new Fake(
+            (n, s) -> {
+              readRequest(s);
+              reset(s);
+            })) {
+      OpenRouter.Control control = new OpenRouter.Control(90_000);
+      java.util.List<Long> waits = new java.util.concurrent.CopyOnWriteArrayList<>();
+      control.onRetry(
+          (attempt, wait, why) -> {
+            waits.add(wait);
+            if (wait > 0) new Thread(control::cancel).start();
+          });
+      long t = System.nanoTime();
+      assertThrows(OpenRouter.Cancelled.class, () -> OpenRouter.post(fake.url(), body(), "k", control));
+      assertTrue(System.nanoTime() - t < 3_000_000_000L);
+      assertEquals(java.util.List.of(0L, 10_000L), waits);
+    }
+  }
+
+  /** Stop trying after the request went out whole: the answer still comes (it may be charged). */
+  @Test
+  public void stopTryingAfterTheUploadKeepsTheAnswer() throws Exception {
+    try (Fake fake =
+        new Fake(
+            (n, s) -> {
+              readRequest(s);
+              Thread.sleep(600); // the model is working
+              answer(s, "{\"text\":\"kept\"}");
+            })) {
+      OpenRouter.Control control = new OpenRouter.Control(90_000);
+      new Thread(
+              () -> {
+                try {
+                  Thread.sleep(300);
+                } catch (InterruptedException ignored) {
+                }
+                control.cancel();
+              })
+          .start();
+      assertEquals("kept", OpenRouter.post(fake.url(), body(), "k", control).getString("text"));
+      assertTrue(control.cancelled());
       assertEquals(1, fake.connections.get());
     }
   }

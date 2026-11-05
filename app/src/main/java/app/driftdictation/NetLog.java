@@ -232,6 +232,17 @@ final class NetLog {
     }
   }
 
+  /** How long a line's request took (its "123 ms" field), or -1 for a line without one. */
+  static long duration(String line) {
+    for (String field : line.split(Pattern.quote(SEP))) {
+      Matcher m = DURATION.matcher(field);
+      if (m.matches()) return Long.parseLong(m.group(1));
+    }
+    return -1;
+  }
+
+  private static final Pattern DURATION = Pattern.compile("(\\d{1,10}) ms");
+
   static String line(
       long started, String what, String request, String method, String target, String result, long ms, int retry,
       String net, long sent, long received, String note) {

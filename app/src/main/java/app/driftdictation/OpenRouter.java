@@ -66,10 +66,16 @@ final class OpenRouter {
   // ------------------------------------------------------------------ calls
 
   Result transcribe(byte[] wav, String model, List<String> words) throws Exception {
+    return transcribe(wav, model, words, new Control(RETRY_BUDGET_MS));
+  }
+
+  /** The same, tried again within control's budget, and stopped by its Cancel. */
+  Result transcribe(byte[] wav, String model, List<String> words, Control control) throws Exception {
     JSONObject r =
         call(
             "/audio/transcriptions",
-            transcriptionBody(model, Base64.getEncoder().encodeToString(wav), words));
+            transcriptionBody(model, Base64.getEncoder().encodeToString(wav), words),
+            control);
     if (!(r.opt("text") instanceof String text))
       throw new IOException(
           tr("The speech model returned no transcript. The recording is kept; try again."));
@@ -204,54 +210,204 @@ final class OpenRouter {
   // ------------------------------------------------------------------ transport
 
   private JSONObject call(String path, JSONObject body) throws Exception {
+    return call(path, body, new Control(RETRY_BUDGET_MS));
+  }
+
+  private JSONObject call(String path, JSONObject body, Control control) throws Exception {
     String key = vault.get(KEY);
     if (key.isBlank()) throw new IOException(tr("Add your OpenRouter key in Dictate & Delegate's Settings first."));
-    return post(base() + path, body, key);
+    return post(base() + path, body, key, control);
   }
 
   /** A POST with call's retries, for any address (tests use their own). */
   static JSONObject post(String url, JSONObject body, String key) throws Exception {
+    return post(url, body, key, new Control(RETRY_BUDGET_MS));
+  }
+
+  /**
+   * The POST, tried again while that can't cost twice, until control's budget is spent: a new try
+   * only starts if it can within budgetMs of the first (the one under way may finish). Cancel stops
+   * it at once, also mid-upload.
+   */
+  static JSONObject post(String url, JSONObject body, String key, Control control) throws Exception {
+    long first = System.nanoTime();
     boolean fresh = false;
     int waited = 0;
     for (int attempt = 0; ; attempt++) {
+      if (control.cancelled()) throw new Cancelled(null);
+      IOException last;
+      long wait;
+      String why;
       try {
-        return send("POST", url, body, key, 20000, 120000, attempt);
+        return send("POST", url, body, key, 20000, 120000, attempt, control);
       } catch (Unauthorized ex) {
         throw new IOException(tr("Your OpenRouter key isn't valid anymore. Change it in Dictate & Delegate's Settings."), ex);
       } catch (Busy ex) {
         // Some hosts answer 429 in bursts; the same request usually passes a moment later.
-        if (attempt >= 2) throw new IOException(busy(), ex);
-        Thread.sleep(1500L * (attempt + 1));
+        last = new IOException(busy(), ex);
+        if (attempt >= 2) throw last;
+        wait = 1500L * (attempt + 1);
+        why = tr("the model is busy");
+      } catch (Cancelled ex) {
+        throw ex;
       } catch (IOException ex) {
-        // No connection yet (a tunnel, a network switch), or one that broke off before any answer
-        // (Dropped): OpenRouter never got the whole request, so nothing ran or was charged. A
-        // dropped one is most often a kept-alive connection the network forgot while idle, so the
-        // first new try goes at once (on a new connection); then a little later, a few times.
+        if (control.cancelled()) throw new Cancelled(ex);
+        // No connection yet (a tunnel, a network switch), or one that broke off before OpenRouter
+        // could have the whole request (Dropped), so nothing ran or was charged. A dropped one is
+        // often a kept-alive connection the network forgot while idle, so the first new try goes
+        // at once (on a new connection); then a little later each time.
         boolean dropped = ex instanceof Dropped;
         if (!dropped && !unreached(ex)) throw ex;
+        last = ex;
         if (dropped && !fresh) {
           fresh = true;
-          continue;
-        }
-        if (waited >= NO_CONNECTION_MS.length) throw ex;
-        Thread.sleep(NO_CONNECTION_MS[waited++]);
+          wait = 0;
+        } else if (waited >= RETRY_WAITS_MS.length) throw ex;
+        else wait = RETRY_WAITS_MS[waited++];
+        why = dropped ? tr("the connection was lost") : tr("no connection");
       }
+      long spent = (System.nanoTime() - first) / 1_000_000;
+      if (spent + wait > control.budgetMs) throw last;
+      control.retrying(attempt + 1, wait, why);
+      control.pause(wait);
     }
   }
 
-  /** The waits before each new try when OpenRouter couldn't be reached at all. */
-  static volatile long[] NO_CONNECTION_MS = {2_000, 5_000, 10_000};
+  /** The waits before each new try when OpenRouter couldn't be reached or the upload broke off. */
+  static volatile long[] RETRY_WAITS_MS = {2_000, 5_000, 10_000, 20_000, 30_000};
+
+  /** How long a recording's transcription keeps trying by itself before it's kept as failed. */
+  static volatile long RETRY_BUDGET_MS = 90_000;
 
   /**
-   * How soon after the request was written a broken connection still counts as Dropped. A
-   * forgotten connection answers the first bytes with a reset within a round trip; later, the
-   * model may be working already and a new try could be charged twice.
+   * How soon after a small request was handed over (on a kept-alive connection) a broken
+   * connection still counts as Dropped: a network that forgot the connection answers its first
+   * bytes with a reset within a round trip. Later, the model may be working already and a new try
+   * could be charged twice. Uploads have connections of their own: for them only a break while
+   * writing counts.
    */
-  static volatile long DROP_MS = 2_000;
+  static volatile long DROP_MS = 1_000;
 
   /**
-   * The connection broke off (reset, broken pipe, closed) while the request was going out or at
-   * once after it, before any answer: OpenRouter didn't get or didn't start the request.
+   * The socket's send buffer for OpenRouter. Android grows it to megabytes, so a whole recording
+   * was "written" at once while it was in fact still going out, and a reset during the upload
+   * looked like one after it. With a small buffer the write lasts as long as the upload, so a reset
+   * while writing is one OpenRouter can't have acted on yet.
+   */
+  static final int SEND_BUFFER = 64 * 1024;
+
+  /** The upload is written in pieces of this size, each one counting as progress. */
+  static final int PIECE = 16 * 1024;
+
+  /**
+   * An upload (or connecting for it) that makes no progress this long is given up and tried again:
+   * nothing else ends a write that hangs (Android's HTTP stack has no write timeout, so a dead
+   * mobile connection held a recording for minutes).
+   */
+  static volatile long STALL_MS = 25_000;
+
+  /** Tries again when an upload made no progress: a single thread for every upload's check. */
+  private static final java.util.concurrent.ScheduledExecutorService WATCH =
+      java.util.concurrent.Executors.newSingleThreadScheduledExecutor(
+          r -> {
+            Thread t = new Thread(r, "openrouter-watch");
+            t.setDaemon(true);
+            return t;
+          });
+
+  /** What one call can be told from outside, and tells: Cancel, and the next try coming. */
+  static final class Control {
+    final long budgetMs;
+    private volatile boolean cancelled, awaiting;
+    private volatile Runnable abort;
+    private volatile Retrying listener;
+
+    Control(long budgetMs) {
+      this.budgetMs = budgetMs;
+    }
+
+    Control onRetry(Retrying l) {
+      listener = l;
+      return this;
+    }
+
+    /**
+     * Stop trying: a wait ends and no new try starts; an upload under way is broken off. Once the
+     * whole request is out, its answer is still taken: OpenRouter may be working on it already and
+     * charge for it, so throwing it away would only make a retry pay twice.
+     */
+    void cancel() {
+      stop(false);
+    }
+
+    /** Stops the call at once, also while its answer is awaited (the note is gone). */
+    void kill() {
+      stop(true);
+    }
+
+    private void stop(boolean hard) {
+      cancelled = true;
+      Runnable a = abort;
+      // Closing a connection can do network I/O: never on the caller's (often the main) thread.
+      if (a != null && (hard || !awaiting))
+        WATCH.execute(
+            () -> {
+              if (hard || !awaiting) a.run(); // the upload may have finished meanwhile
+            });
+      synchronized (this) {
+        notifyAll();
+      }
+    }
+
+    boolean cancelled() {
+      return cancelled;
+    }
+
+    /** How to break off the request under way (null: none). */
+    void using(Runnable a) {
+      abort = a;
+      awaiting = false;
+      if (cancelled && a != null) WATCH.execute(a);
+    }
+
+    /** The request is out whole; from now on its answer is awaited. */
+    void awaiting() {
+      awaiting = true;
+    }
+
+    /** The request under way is out whole and its answer awaited. */
+    boolean sent() {
+      return awaiting;
+    }
+
+    void retrying(int attempt, long waitMs, String why) {
+      Retrying l = listener;
+      if (l != null) l.next(attempt, waitMs, why);
+    }
+
+    /** Waits ms, or until cancelled. */
+    synchronized void pause(long ms) throws InterruptedException, Cancelled {
+      long end = System.nanoTime() + ms * 1_000_000;
+      for (long left = ms; !cancelled && left > 0; left = (end - System.nanoTime()) / 1_000_000) wait(left);
+      if (cancelled) throw new Cancelled(null);
+    }
+  }
+
+  /** Told before each new try: its number (1 = the second), how long until it, and why. */
+  interface Retrying {
+    void next(int attempt, long waitMs, String why);
+  }
+
+  /** Stopped with Cancel. */
+  static final class Cancelled extends IOException {
+    Cancelled(Throwable cause) {
+      super(tr("Stopped. The recording is kept in your notes; retry it there."), cause);
+    }
+  }
+
+  /**
+   * The connection broke off (reset, broken pipe, closed, or an upload that stalled) before
+   * OpenRouter could have the whole request, before any answer: it didn't get or start it.
    */
   static final class Dropped extends IOException {
     Dropped(Throwable cause) {
@@ -266,7 +422,10 @@ final class OpenRouter {
         || kind.equals("connection closed early");
   }
 
-  /** Dropped: broken before any answer, while writing (sentAt 0) or within DROP_MS after it. */
+  /**
+   * Dropped: broken before any answer, while the request was still being written (sentAt 0: its
+   * end wasn't handed over, so OpenRouter can't have all of it) or within DROP_MS after.
+   */
   static boolean dropped(Throwable ex, int status, long sentAt, long now) {
     return status == 0 && broken(ex) && (sentAt == 0 || now - sentAt <= DROP_MS * 1_000_000);
   }
@@ -290,13 +449,13 @@ final class OpenRouter {
   private static JSONObject send(
       String method, String url, JSONObject body, String key, int connectMs, int readMs)
       throws Exception {
-    return send(method, url, body, key, connectMs, readMs, 0);
+    return send(method, url, body, key, connectMs, readMs, 0, new Control(0));
   }
 
   private static JSONObject send(
-      String method, String url, JSONObject body, String key, int connectMs, int readMs, int retry)
+      String method, String url, JSONObject body, String key, int connectMs, int readMs, int retry, Control control)
       throws Exception {
-    return NetLog.request(what(url, body), method, url, retry, net -> exchange(method, url, body, key, connectMs, readMs, net));
+    return NetLog.request(what(url, body), method, url, retry, net -> exchange(method, url, body, key, connectMs, readMs, net, control));
   }
 
   /** What a call is for, in the network log: "OpenRouter transcribe <model>", "Jev <model>"… */
@@ -311,12 +470,111 @@ final class OpenRouter {
     return "OpenRouter";
   }
 
+  /**
+   * TLS sockets with a small send buffer (SEND_BUFFER), so writing lasts as long as the upload.
+   * One per upload: the upload gets a connection of its own (never one the network may have
+   * forgotten while it was idle), and close() breaks it off even in the middle of a write.
+   */
+  private static final class SmallSendBuffer extends javax.net.ssl.SSLSocketFactory {
+    private final javax.net.ssl.SSLSocketFactory d = javax.net.ssl.HttpsURLConnection.getDefaultSSLSocketFactory();
+    /** The plain sockets under the TLS ones: closing them ends a write without TLS I/O. */
+    private final java.util.List<Socket> sockets = new java.util.concurrent.CopyOnWriteArrayList<>();
+    private final Control control;
+
+    SmallSendBuffer(Control control) {
+      this.control = control;
+    }
+
+    private static <S extends Socket> S small(S s) {
+      try {
+        s.setSendBufferSize(SEND_BUFFER);
+      } catch (IOException ignored) {
+        /* Then only the stall check and the time after writing tell. */
+      }
+      return s;
+    }
+
+    void close() {
+      for (Socket s : sockets)
+        try {
+          s.close();
+        } catch (IOException ignored) {
+          /* Closed already. */
+        }
+    }
+
+    @Override
+    public Socket createSocket(Socket s, String host, int port, boolean autoClose) throws IOException {
+      sockets.add(s);
+      if (control.cancelled()) {
+        s.close();
+        throw new SocketException("Socket closed");
+      }
+      small(s);
+      return small(d.createSocket(s, host, port, autoClose));
+    }
+
+    @Override
+    public Socket createSocket(String host, int port) throws IOException {
+      return small(d.createSocket(host, port));
+    }
+
+    @Override
+    public Socket createSocket(String host, int port, InetAddress local, int localPort) throws IOException {
+      return small(d.createSocket(host, port, local, localPort));
+    }
+
+    @Override
+    public Socket createSocket(InetAddress host, int port) throws IOException {
+      return small(d.createSocket(host, port));
+    }
+
+    @Override
+    public Socket createSocket(InetAddress host, int port, InetAddress local, int localPort) throws IOException {
+      return small(d.createSocket(host, port, local, localPort));
+    }
+
+    @Override
+    public String[] getDefaultCipherSuites() {
+      return d.getDefaultCipherSuites();
+    }
+
+    @Override
+    public String[] getSupportedCipherSuites() {
+      return d.getSupportedCipherSuites();
+    }
+  }
+
   private static JSONObject exchange(
-      String method, String url, JSONObject body, String key, int connectMs, int readMs, NetLog.Call net)
+      String method, String url, JSONObject body, String key, int connectMs, int readMs, NetLog.Call net, Control control)
       throws Exception {
     HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+    byte[] payload = body == null ? null : body.toString().getBytes(StandardCharsets.UTF_8);
+    // An upload (a recording, a file) gets a connection of its own, see SmallSendBuffer; small
+    // requests (Jev, a text) keep sharing kept-alive ones, which saves a round trip.
+    boolean own = c instanceof javax.net.ssl.HttpsURLConnection && payload != null && payload.length > SEND_BUFFER;
+    SmallSendBuffer sockets = own ? new SmallSendBuffer(control) : null;
+    if (own) {
+      ((javax.net.ssl.HttpsURLConnection) c).setSSLSocketFactory(sockets);
+      c.setRequestProperty("Connection", "close");
+    }
+    Runnable abort =
+        () -> {
+          try {
+            c.disconnect(); // Android's HTTP stack closes the socket, also mid-write
+          } catch (RuntimeException ignored) {
+            /* It's closing anyway. */
+          }
+          if (sockets != null) sockets.close();
+        };
+    control.using(abort);
     int status = 0;
     long sentAt = 0; // System.nanoTime() once the request is written
+    long[] written = {0};
+    long total = 0;
+    boolean[] stalled = {false};
+    boolean writing = false; // connected, the body going out: OpenRouter can't have all of it yet
+    java.util.concurrent.ScheduledFuture<?> watch = null;
     try {
       c.setConnectTimeout(connectMs);
       c.setReadTimeout(readMs);
@@ -324,16 +582,42 @@ final class OpenRouter {
       c.setRequestMethod(method);
       if (!key.isEmpty()) c.setRequestProperty("Authorization", "Bearer " + key);
       c.setRequestProperty("X-Title", "Dictate & Delegate"); // OpenRouter's app attribution
-      if (body != null) {
-        byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
+      if (payload != null) {
+        total = payload.length;
         c.setDoOutput(true);
         c.setRequestProperty("Content-Type", "application/json");
         c.setFixedLengthStreamingMode(payload.length);
         net.sent(payload.length);
+        long[] progressAt = {System.nanoTime()};
+        watch =
+            WATCH.scheduleWithFixedDelay(
+                () -> {
+                  if (System.nanoTime() - progressAt[0] < STALL_MS * 1_000_000) return;
+                  stalled[0] = true;
+                  abort.run(); // the write that hangs fails now
+                },
+                Math.min(1000, STALL_MS),
+                Math.min(1000, STALL_MS),
+                java.util.concurrent.TimeUnit.MILLISECONDS);
         try (OutputStream out = c.getOutputStream()) {
-          out.write(payload);
+          writing = true;
+          for (int at = 0; at < payload.length; at += PIECE) {
+            if (control.cancelled()) throw new Cancelled(null);
+            int n = Math.min(PIECE, payload.length - at);
+            out.write(payload, at, n);
+            written[0] = at + n;
+            progressAt[0] = System.nanoTime();
+          }
+          // The HTTP stack keeps the last bytes in its buffer: out to the socket while the
+          // watchdog still looks, or a dead connection would hang right here.
+          out.flush();
+          progressAt[0] = System.nanoTime();
         }
+        watch.cancel(false);
       }
+      writing = false;
+      control.awaiting(); // Stop trying from now on lets the answer come
+
       sentAt = System.nanoTime();
       status = c.getResponseCode();
       net.status(status);
@@ -354,16 +638,50 @@ final class OpenRouter {
       if (status >= 200 && status < 300 && error == null) return json;
       throw new IOException(error(status, error == null ? "" : error.optString("message")));
     } catch (SocketTimeoutException ex) {
+      if (control.cancelled()) throw new Cancelled(ex);
+      if (NetLog.classify(ex).equals("connect timeout"))
+        throw new IOException(
+            tr("No connection to OpenRouter. Check your internet connection, then try again."), ex);
+      if (sentAt == 0 && status == 0) {
+        // Timed out connecting or writing: OpenRouter hasn't got the whole request.
+        net.note("timed out while sending (" + NetLog.size(written[0]) + " of " + NetLog.size(total) + ")");
+        throw new Dropped(ex);
+      }
       throw new IOException(tr("The model took too long. The recording is kept; try again."), ex);
     } catch (UnknownHostException | ConnectException ex) {
+      if (control.cancelled()) throw new Cancelled(ex);
       throw new IOException(
           tr("No connection to OpenRouter. Check your internet connection, then try again."), ex);
     } catch (IOException ex) {
+      if (ex instanceof Unauthorized || ex instanceof Busy || ex.getClass() == IOException.class && status > 0) throw ex;
+      if (control.cancelled()) {
+        net.note("stopped (" + NetLog.size(written[0]) + " of " + NetLog.size(total) + " sent)");
+        throw new Cancelled(ex);
+      }
       long now = System.nanoTime();
-      if (!dropped(ex, status, sentAt, now)) throw ex;
-      net.note(sentAt == 0 ? "broke off while sending" : "broke off " + (now - sentAt) / 1_000_000 + " ms after sending");
+      if (stalled[0] && sentAt == 0) {
+        net.note("upload stalled " + STALL_MS / 1000 + " s (" + NetLog.size(written[0]) + " of " + NetLog.size(total) + " sent)");
+        throw new Dropped(ex);
+      }
+      if (writing && sentAt == 0 && status == 0) {
+        // Any failure while the body was going out: the request never arrived whole.
+        net.note("broke off while sending (" + NetLog.size(written[0]) + " of " + NetLog.size(total) + " sent)");
+        throw new Dropped(ex);
+      }
+      // On an upload's own connection a break after it was written can't be a connection the
+      // network forgot while idle: OpenRouter may have it all, so it's never tried again.
+      if ((own && sentAt != 0) || !dropped(ex, status, sentAt, now)) {
+        if (status == 0 && sentAt != 0 && broken(ex))
+          net.note("broke off " + (now - sentAt) / 1_000_000 + " ms after sending; not tried again, OpenRouter may have started");
+        throw ex;
+      }
+      net.note(sentAt == 0
+          ? "broke off while sending (" + NetLog.size(written[0]) + " of " + NetLog.size(total) + " sent)"
+          : "broke off " + (now - sentAt) / 1_000_000 + " ms after sending");
       throw new Dropped(ex);
     } finally {
+      if (watch != null) watch.cancel(false);
+      control.using(null);
       c.disconnect();
     }
   }

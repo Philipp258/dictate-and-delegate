@@ -136,4 +136,24 @@ public class OutboxTest {
     assertTrue(lines.get(0).endsWith("x5"));
     assertTrue(lines.get(4).endsWith("x9"));
   }
+
+  @Test
+  public void aRequestStillRunningWhenTheExcerptStartsIsIn() {
+    java.time.ZoneId berlin = java.time.ZoneId.of("Europe/Berlin");
+    java.time.ZoneId zone = NetLog.zone;
+    NetLog.zone = berlin;
+    try {
+      long t = 1_700_000_000_000L;
+      // Started 15 minutes before the failure, and hung until it.
+      String hung = NetLog.line(t, "OpenRouter transcribe m", "", "POST", "openrouter.ai/api/v1/audio/transcriptions", "connection reset", 900_000, 0, "mobile", 1000, -1, "");
+      String done = NetLog.line(t + 1000, "Jev j", "", "POST", "openrouter.ai/api/alpha/decisions", "HTTP 200", 300, 0, "mobile", 10, 10, "");
+      String event = NetLog.stamp(t + 2000) + NetLog.SEP + "network now" + NetLog.SEP + "mobile";
+      java.util.List<String> lines = Outbox.excerpt(hung + "\n" + done + "\n" + event + "\n", t + 900_000 - 120_000, 10);
+      assertEquals(java.util.List.of(hung), lines);
+      assertEquals(900_000, NetLog.duration(hung));
+      assertEquals(-1, NetLog.duration(event));
+    } finally {
+      NetLog.zone = zone;
+    }
+  }
 }

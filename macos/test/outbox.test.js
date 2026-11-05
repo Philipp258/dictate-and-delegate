@@ -126,6 +126,14 @@ test('theExcerptKeepsTheLastLinesFromItsStart', () => {
   assert.ok(lines[4].endsWith('x9'));
 });
 
+test('aRequestStillRunningWhenTheExcerptStartsIsIn', () => {
+  // Started 15 minutes before the failure, and hung until it.
+  const hung = netLog.stamp(T) + ' | OpenRouter transcribe m | POST openrouter.ai/api/v1/audio/transcriptions | connection reset | 900000 ms | ↑1.0 kB';
+  const done = netLog.stamp(T + 1000) + ' | Jev j | POST openrouter.ai/api/alpha/decisions | HTTP 200 | 300 ms';
+  const event = netLog.stamp(T + 2000) + ' | network now | wifi';
+  assert.deepEqual(ob.excerpt([hung, done, event].join('\n'), T + 900_000 - 120_000, 10), [hung]);
+});
+
 // ------------------------------------------------------------------ the runner (Mac)
 
 function runner({ notes = [], bbUp = true, inCall = false } = {}) {

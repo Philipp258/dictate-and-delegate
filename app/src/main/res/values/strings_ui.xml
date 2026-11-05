@@ -5,6 +5,10 @@
     <string name="t_009d9bd2" formatted="false">Start hands-free</string>
     <string name="t_00a11af1" formatted="false">On GitHub</string>
     <string name="t_00f987b3" formatted="false">Your chief\'s text isn\'t on your ntfy topic anymore.</string>
+    <string name="t_01380324_few" formatted="false">%1$d recordings weren\'t written down. Their audio is kept: retry them here or open them in Recent.</string>
+    <string name="t_01380324_many" formatted="false">%1$d recordings weren\'t written down. Their audio is kept: retry them here or open them in Recent.</string>
+    <string name="t_01380324_one" formatted="false">%1$d recording wasn\'t written down. Its audio is kept: retry it here or open it in Recent.</string>
+    <string name="t_01380324_other" formatted="false">%1$d recordings weren\'t written down. Their audio is kept: retry them here or open them in Recent.</string>
     <string name="t_0174ec90" formatted="false">Anyone who knows the topic can read these notifications, so it\'s long and random. Keep it to yourself.</string>
     <string name="t_01e4f1a8" formatted="false">Delete everything</string>
     <string name="t_01f8e246" formatted="false">Tile or hold volume up</string>
@@ -16,10 +20,12 @@
     <string name="t_04577256" formatted="false">The speech model heard no words: your turn ends</string>
     <string name="t_04bb15b6" formatted="false">Saved audio deleted</string>
     <string name="t_04fc2b5b" formatted="false">Image</string>
+    <string name="t_0516fab1" formatted="false">The audio of this recording is gone. Its text so far is in your notes.</string>
     <string name="t_05db04e6" formatted="false">Price unavailable · see source</string>
     <string name="t_05ff3c07" formatted="false">Nothing to paste: copy some text first.</string>
     <string name="t_064b8a10" formatted="false">Couldn\'t refine this note: %1$s Below is what you said.</string>
     <string name="t_0656ff35" formatted="false">Dictate &amp; Delegate</string>
+    <string name="t_066ab8b4" formatted="false">This recording didn\'t finish (%1$s).</string>
     <string name="t_067329ed" formatted="false">this app only takes pastes, so it\'s on the clipboard too</string>
     <string name="t_068966f6" formatted="false">Refine: Anthropic credits ≈%1$s</string>
     <string name="t_07ee7593" formatted="false">Talking about something? Add it, like an offer you reply to.</string>
@@ -37,6 +43,7 @@
     <string name="t_0b61da7d" formatted="false">Send words and timing</string>
     <string name="t_0b870de2" formatted="false">Local data deleted</string>
     <string name="t_0bf045a7" formatted="false">Remove your Anthropic key?</string>
+    <string name="t_0c1dae16" formatted="false">Try again</string>
     <string name="t_0c32355a" formatted="false">Writing… %1$d s</string>
     <string name="t_0c39377e" formatted="false">🧑‍💼 Chief ✓</string>
     <string name="t_0c4ebb56" formatted="false">Prices per million tokens in / out, Anthropic\'s list prices.</string>
@@ -50,7 +57,6 @@
     <string name="t_0de44d68" formatted="false">1 message</string>
     <string name="t_0e1c0935" formatted="false">bb answers, but it doesn\'t offer the run tool. Update bb and check that the MCP plugin is on.</string>
     <string name="t_0ea7c5dd" formatted="false">Reading</string>
-    <string name="t_0f756679" formatted="false">Retry saved recording</string>
     <string name="t_0fe6675c" formatted="false">Pause after which it checks whether you\'re done (seconds)</string>
     <string name="t_1058bd61" formatted="false">Call ended after %1$d s of silence; nothing was sent</string>
     <string name="t_10aef2d8" formatted="false">Chief of staff</string>
@@ -58,6 +64,7 @@
     <string name="t_115acf0a" formatted="false">Allow the microphone first</string>
     <string name="t_115f8e33" formatted="false">No words yet.</string>
     <string name="t_12e4c8a9" formatted="false">Voice failed · %1$s</string>
+    <string name="t_13a0d58b" formatted="false">the model is busy</string>
     <string name="t_13f11ba3" formatted="false">Off</string>
     <string name="t_14f38eda" formatted="false">Installing the skills and creating the thread in bb…</string>
     <string name="t_1515cfb6" formatted="false">Nothing matches.</string>
@@ -75,7 +82,6 @@
     <string name="t_1959e611" formatted="false">Open source, MIT License · github.com/Philipp258/dictate-and-delegate</string>
     <string name="t_1964b988" formatted="false">Stop</string>
     <string name="t_1a0dd3f6" formatted="false">Request check · %1$s</string>
-    <string name="t_1a2e2aa9" formatted="false">A saved recording needs retry or discard first.</string>
     <string name="t_1b0932d1" formatted="false">Text-to-speech</string>
     <string name="t_1b81f4cf" formatted="false">Later ›</string>
     <string name="t_1beba025" formatted="false">Custom address · %1$s</string>
@@ -92,6 +98,7 @@
     <string name="t_1ea4a265" formatted="false">Mic paused</string>
     <string name="t_1f0e3297" formatted="false">Speech model</string>
     <string name="t_1f3603cf" formatted="false">Start from any app</string>
+    <string name="t_1f89d608" formatted="false">Not written down: %1$s It\'s kept in your notes; ↻ tries again.</string>
     <string name="t_1f8d5f9c" formatted="false">Optional. With your own Anthropic key, ✨ Refine goes to Claude directly and is paid from your Anthropic credits. Speech and Jev stay on OpenRouter. If Anthropic fails, Refine goes through OpenRouter instead.</string>
     <string name="t_1fde91b3" formatted="false">Your Anthropic credits are used up.</string>
     <string name="t_200afc5b" formatted="false">Edit template</string>
@@ -106,7 +113,6 @@
     <string name="t_236a5def" formatted="false">What you said</string>
     <string name="t_2427c428" formatted="false">All notes</string>
     <string name="t_244d0dc6" formatted="false">“Use my apartment application for the two-room flat on Hauptstraße 5, the viewing is on Saturday, and mention that I work from home.”</string>
-    <string name="t_248af959" formatted="false">A recording was saved but not transcribed.</string>
     <string name="t_24c47eae" formatted="false">No MCP server at this address (HTTP 404). Check the address, and that bb\'s MCP plugin is on.</string>
     <string name="t_24c7367a" formatted="false">Paste what you copied</string>
     <string name="t_252c6bbe" formatted="false">neither the chief nor the talker got it: %1$s</string>
@@ -142,6 +148,7 @@
     <string name="t_2dc29d4d" formatted="false">Later</string>
     <string name="t_2dd159ed" formatted="false">No browser available</string>
     <string name="t_2e5c65fd" formatted="false">via OpenRouter: %1$s</string>
+    <string name="t_2e975560" formatted="false">This recording wasn\'t written down: %1$s Its audio is kept.</string>
     <string name="t_2ef3166c" formatted="false">ntfy server</string>
     <string name="t_2f79a315" formatted="false">Dear Mr. Weber,\n\nI would like to let you know that the bathroom tap has been dripping since Monday.</string>
     <string name="t_2fa2161a" formatted="false">Allow Dictate &amp; Delegate to install updates, then tap Update again.</string>
@@ -149,6 +156,7 @@
     <string name="t_3017cfb9" formatted="false">not passed on: %1$s</string>
     <string name="t_30a4185d" formatted="false">Spent</string>
     <string name="t_30a98a26" formatted="false">Could not update history.</string>
+    <string name="t_315f471d" formatted="false">Writing it down… You can record something new meanwhile.</string>
     <string name="t_315f5fe4" formatted="false">Refined</string>
     <string name="t_320126db" formatted="false">bb isn\'t reachable right now. Is your computer on and bb running?</string>
     <string name="t_322dcd94" formatted="false">Your words come first, always. Then ✨ Refine turns them into the text you need: it works out what it\'s for (a message, an email, a note), follows what you asked for and fills in your templates.</string>
@@ -162,8 +170,10 @@
     <string name="t_345d171c" formatted="false">bb\'s sign-in server answered with HTTP %1$d.</string>
     <string name="t_34f63f9b" formatted="false">Report sent</string>
     <string name="t_3575eb12" formatted="false">Send report to your chief</string>
+    <string name="t_35b07608" formatted="false">This recording wasn\'t written down yet. Its audio is kept.</string>
     <string name="t_35c96237" formatted="false">Refine instructions</string>
     <string name="t_35dab0c1" formatted="false">Reply couldn\'t be played: %1$s. Your next message tells the chief</string>
+    <string name="t_36138497" formatted="false">Stop trying: the recording stays in your notes to retry</string>
     <string name="t_36633739" formatted="false">Writes down what you say while you speak, so a send word sends at once. It runs with your own key for the provider, billed by them for the time it\'s listening (closed after a minute without speech).</string>
     <string name="t_36ab8c14" formatted="false">Send ignored: a reply is playing and you have nothing unsent</string>
     <string name="t_370bef97" formatted="false">Token (optional)</string>
@@ -200,7 +210,6 @@
     <string name="t_3eef8148_other" formatted="false">%1$d versions</string>
     <string name="t_3f582d5c" formatted="false">bb can\'t be reached right now. The report goes by itself once it can.</string>
     <string name="t_3f77ee75" formatted="false">Saving…</string>
-    <string name="t_3f983199" formatted="false">%1$s The recording is saved.</string>
     <string name="t_400b4b63" formatted="false">You say</string>
     <string name="t_40de4e2a" formatted="false">Copied. Paste it where you report the problem.</string>
     <string name="t_41265b45" formatted="false">Hold for</string>
@@ -231,7 +240,6 @@
     <string name="t_4ae2821e" formatted="false">in progress</string>
     <string name="t_4b2ded64" formatted="false">Emails</string>
     <string name="t_4b8a0a2e" formatted="false">sending again</string>
-    <string name="t_4bfe4352" formatted="false">Open recovery</string>
     <string name="t_4c0014e2" formatted="false">Refine goes through OpenRouter again.</string>
     <string name="t_4c2540de" formatted="false">Anthropic couldn\'t run this request (HTTP %1$d): %2$s</string>
     <string name="t_4c8985b5" formatted="false">What each month cost</string>
@@ -240,7 +248,6 @@
     <string name="t_4da08f61" formatted="false">Which model did what, how long it took, what it cost</string>
     <string name="t_4dd7bb82" formatted="false">Live transcription failed (%1$s): your words are written down instead</string>
     <string name="t_4e3aca8c" formatted="false">Paste your key</string>
-    <string name="t_4ef77ff2" formatted="false">Recording interrupted. Saved audio can be retried.</string>
     <string name="t_4f3f4751" formatted="false">Anthropic couldn\'t run this request (HTTP %1$d).</string>
     <string name="t_4f723805" formatted="false">2 · Or hold a volume key</string>
     <string name="t_4f95835a" formatted="false">The web address starts with https://</string>
@@ -305,6 +312,7 @@
     <string name="t_5e84bb28" formatted="false">%1$s/min</string>
     <string name="t_5eb87a8b" formatted="false">Start</string>
     <string name="t_5f1cb221" formatted="false">What you usually dictate</string>
+    <string name="t_608acc86" formatted="false">Recording interrupted.</string>
     <string name="t_60a70b6d" formatted="false">Refine automatically</string>
     <string name="t_61710ff3" formatted="false">By model</string>
     <string name="t_6183a1b8" formatted="false">it isn\'t newer than this version</string>
@@ -317,6 +325,7 @@
     <string name="t_6361c341" formatted="false">the connection broke off; is it an MCP server (Streamable HTTP)?</string>
     <string name="t_6408cdf0" formatted="false">Reply paused: you\'re talking. It\'s dropped once your message goes</string>
     <string name="t_6418f0e2" formatted="false">Enter your bb Connect handle</string>
+    <string name="t_64608f3a" formatted="false">Transcribing… %1$s, trying again in %2$d s (try %3$d).</string>
     <string name="t_65211030" formatted="false">The server address starts with https://</string>
     <string name="t_653174a7" formatted="false">Redone with a smarter model</string>
     <string name="t_6542df76" formatted="false">When you stop, your words are written down and a small panel floats over the app you\'re in.</string>
@@ -360,10 +369,12 @@
     <string name="t_772f8ccc" formatted="false">Your name</string>
     <string name="t_77a2a807" formatted="false">Delete note</string>
     <string name="t_77e5aff2" formatted="false">Sent to chief of staff ↗</string>
+    <string name="t_77f722e3" formatted="false">Transcribing… %1$s, trying again now (try %2$d).</string>
     <string name="t_783d9fbc" formatted="false">Could not read this image.</string>
     <string name="t_78e66b38" formatted="false">Delete local data?</string>
     <string name="t_791246e5" formatted="false">Your chief\'s name</string>
     <string name="t_7a213062" formatted="false">That\'s your chief of staff. The talker must be another thread.</string>
+    <string name="t_7a8fe19e" formatted="false">An earlier recording wasn\'t written down: %1$s It\'s kept in your notes to retry.</string>
     <string name="t_7a933498" formatted="false">Could not delete all audio</string>
     <string name="t_7abc2e98" formatted="false">Send: writing down your turn, then it goes</string>
     <string name="t_7b65d791" formatted="false">Dictate &amp; Delegate calls the speech and text models through OpenRouter with this key.</string>
@@ -391,7 +402,6 @@
     <string name="t_81e2a271" formatted="false">Transcription</string>
     <string name="t_821e233c" formatted="false">With one permission, Insert puts your text right at the cursor, and holding a volume key starts a dictation. Without it, Dictate &amp; Delegate copies the text and you paste it.</string>
     <string name="t_8250ae9b" formatted="false">Signing in to bb…</string>
-    <string name="t_82527957" formatted="false">Transcript saved in history. Open Dictate &amp; Delegate to copy it.</string>
     <string name="t_8265f0ba" formatted="false">Jev · refines and sends to your chief by itself</string>
     <string name="t_826621ab" formatted="false">When you speak to your chief by name (Settings → Chief of staff); otherwise tap 🧑‍💼</string>
     <string name="t_82a7b056" formatted="false">The text model returned nothing. Try again.</string>
@@ -417,7 +427,6 @@
     <string name="t_883b0385" formatted="false">Reply stopped part-way (%1$s): your next message tells the chief how far you heard</string>
     <string name="t_886029f0" formatted="false">Your chief\'s skills</string>
     <string name="t_8860ef62" formatted="false">Could not reach %1$s. Check the address and your connection.</string>
-    <string name="t_88ea76d0" formatted="false">Finish or discard the pending recording first.</string>
     <string name="t_894a8c42" formatted="false">Reply coming</string>
     <string name="t_89b3b099" formatted="false">Approve Dictate &amp; Delegate in your browser, then come back.</string>
     <string name="t_8ab1eddb" formatted="false">✓  Signed in to %1$s.getbb.app</string>
@@ -428,6 +437,7 @@
     <string name="t_8bf10d56" formatted="false">Discard</string>
     <string name="t_8cb43c6e" formatted="false">Voice failed: %1$s</string>
     <string name="t_8cc9e4c3" formatted="false">📎 Add</string>
+    <string name="t_8d448705" formatted="false">An earlier recording is written down. It\'s in your notes.</string>
     <string name="t_8d8041f9" formatted="false">Your voice must be this many times louder than the background</string>
     <string name="t_8edfe30e" formatted="false">needs attention</string>
     <string name="t_8f13ebdb" formatted="false">Dictate &amp; Delegate writes</string>
@@ -440,6 +450,7 @@
     <string name="t_918020d9" formatted="false">handle</string>
     <string name="t_918ca436" formatted="false">bb couldn\'t take the attachment (HTTP %1$d).</string>
     <string name="t_91d100de" formatted="false">Attached</string>
+    <string name="t_92773fbb" formatted="false">%1$s It\'s kept in your notes; ↻ writes it down.</string>
     <string name="t_92824f24" formatted="false">the voice failed (%1$s)</string>
     <string name="t_93fe9d61" formatted="false">Use the bubble or open Dictate &amp; Delegate to control dictation.</string>
     <string name="t_942b3beb" formatted="false">• Your notes, audio, words and templates stay on this phone.\n• To write down what you said, your recording goes straight to OpenRouter with your key, and on to the speech model\'s provider. The text goes the same way to Jev, a fast model that decides whether to refine it, with your template names. When it\'s refined, it goes to the text model, with what you told Dictate &amp; Delegate about you, your words, the template you named and what you attached.\n• If you connect bb, a task you hand to your chief of staff goes to your bb, with the text you pasted.\n• Dictate &amp; Delegate has no server and collects nothing. OpenRouter and the model providers handle the data under their own policies.</string>
@@ -456,6 +467,7 @@
     <string name="t_980cb9e2" formatted="false">Anthropic took too long.</string>
     <string name="t_9931e57c" formatted="false">Could not start. Check permissions and try again.</string>
     <string name="t_998a8ce0" formatted="false">Copied instead, paste with a long press</string>
+    <string name="t_99cccfe5" formatted="false">Discard audio</string>
     <string name="t_9a6bdb3b" formatted="false">Jev · refines by itself</string>
     <string name="t_9ae57457" formatted="false">Check for updates</string>
     <string name="t_9aefa862" formatted="false">Get a key on openrouter.ai</string>
@@ -496,7 +508,6 @@
     <string name="t_a3c82a2d" formatted="false">offline, free</string>
     <string name="t_a42608c9" formatted="false">unfinished</string>
     <string name="t_a43d1375" formatted="false">Keep texts you write again and again, like an application for an apartment. Then dictate which one you want and what\'s different this time.</string>
-    <string name="t_a475c571" formatted="false">This recording didn\'t finish (%1$s). Retry it from Home.</string>
     <string name="t_a47dbae1" formatted="false">This note already used the most accurate model.</string>
     <string name="t_a4af23b6" formatted="false">A reply wasn\'t played: your new message went. It tells the chief</string>
     <string name="t_a4f48b05" formatted="false">Sent: you said you\'re done (%1$d%%)</string>
@@ -589,6 +600,7 @@
     <string name="t_be7f9242" formatted="false">Could not save transcript history.</string>
     <string name="t_bed11d96" formatted="false">Copied your chief\'s text</string>
     <string name="t_bf062440" formatted="false">Jev · sends to your chief by itself</string>
+    <string name="t_c002f56c" formatted="false">Discard this recording\'s audio?</string>
     <string name="t_c0d15569" formatted="false">Voice failed (%1$s): this phone has no other voice</string>
     <string name="t_c0da8988" formatted="false">Notes</string>
     <string name="t_c0ee3e71" formatted="false">✨ Refining…</string>
@@ -621,7 +633,6 @@
     <string name="t_c6f0a2dc" formatted="false">Not sent to chief of staff</string>
     <string name="t_c705b630" formatted="false">This key isn\'t valid. Check that you copied all of it.</string>
     <string name="t_c73cbcb8" formatted="false">Save and test</string>
-    <string name="t_c7a54a7c" formatted="false">Transcribing… You can keep using other apps.</string>
     <string name="t_c7ad7feb" formatted="false">No connection to OpenRouter. Check your internet connection, then try again.</string>
     <string name="t_c7b2a2f8" formatted="false">no key yet</string>
     <string name="t_c8210626" formatted="false">Text-to-speech model</string>
@@ -637,8 +648,10 @@
     <string name="t_caf67b49" formatted="false">Claude declined to refine this text.</string>
     <string name="t_cba5c7dd" formatted="false">Volume down</string>
     <string name="t_cc1ec5e4" formatted="false">ntfy is free and open source. Install it, then tap Open in ntfy again.</string>
+    <string name="t_cc8c6eb8" formatted="false">Record something new</string>
     <string name="t_cc9b594b" formatted="false">Could not save your changes</string>
     <string name="t_ccd1bf1c" formatted="false">the download is damaged (checksum)</string>
+    <string name="t_cd0cedae" formatted="false">Discard the audio of the recordings not written down?</string>
     <string name="t_cd782109" formatted="false">Paste your key first</string>
     <string name="t_cd7cb0fd" formatted="false">One bb thread gets every task you hand over by voice. It does small things itself, starts child threads for bigger work, and notifies you through ntfy when it\'s done or needs you.</string>
     <string name="t_cd8737fa" formatted="false">Article</string>
@@ -659,6 +672,7 @@
     <string name="t_d27e302d" formatted="false">Your chief of staff gets all of it: pasted text in the message, images and PDFs as attachments.</string>
     <string name="t_d2be46f0" formatted="false">This note cost %1$s.</string>
     <string name="t_d2c0aec0" formatted="false">Close</string>
+    <string name="t_d2e26bc1" formatted="false">Transcribing… You can keep using other apps, or record something new.</string>
     <string name="t_d37efb26" formatted="false">Notifications</string>
     <string name="t_d3c7fe72" formatted="false">🧑‍💼 Sending…</string>
     <string name="t_d3d608f4" formatted="false">Checking whether you\'re done…</string>
@@ -696,6 +710,7 @@
     <string name="t_def9cb9f" formatted="false">Get started</string>
     <string name="t_defee3bf" formatted="false">Live transcription</string>
     <string name="t_df336a1d" formatted="false">Thread link or id (thr_…)</string>
+    <string name="t_df7835dc" formatted="false">Stopped. The recording is kept in your notes; retry it there.</string>
     <string name="t_dfcb5ec6" formatted="false">1. Tap Start and say a sentence.\n2. Tap Stop. Dictate &amp; Delegate writes it down.\n3. Tap the box below, then 📥 Insert on the floating panel. Your clipboard stays as it was.</string>
     <string name="t_dff4964d" formatted="false">Your OpenRouter credits are used up. Add credits on openrouter.ai, then try again.</string>
     <string name="t_dff686d8" formatted="false">Raise these if noise or other people take your turn; lower them if your quieter words are missed. The recent events below show each decision with its levels.</string>
@@ -706,7 +721,6 @@
     <string name="t_e17493b2" formatted="false">nothing answers at this address</string>
     <string name="t_e17c28b4" formatted="false">Decisions</string>
     <string name="t_e1a911fe" formatted="false">key saved</string>
-    <string name="t_e244f6df" formatted="false">Discard the saved audio?</string>
     <string name="t_e24b4cba" formatted="false">Sign-in failed: %1$s</string>
     <string name="t_e2530adf" formatted="false">Insert here</string>
     <string name="t_e2774654" formatted="false">Open in ntfy</string>
@@ -722,6 +736,7 @@
     <string name="t_e5523fab" formatted="false">Could not delete everything</string>
     <string name="t_e587893b" formatted="false">The ✨ and 🧑‍💼 buttons always work, whatever is set here.</string>
     <string name="t_e5a8e366" formatted="false">Talked</string>
+    <string name="t_e5bbe918" formatted="false">Stopped trying. It had already gone out, so its text is still saved when it arrives.</string>
     <string name="t_e6a56db0" formatted="false">Use this thread</string>
     <string name="t_e6b9caa8" formatted="false">The model is busy right now. Wait a moment, then try again.</string>
     <string name="t_e6d8f947" formatted="false">Your topic</string>
@@ -729,6 +744,10 @@
     <string name="t_e70fcc33" formatted="false">Sent ✓</string>
     <string name="t_e7224453" formatted="false">New template</string>
     <string name="t_e75c6468" formatted="false">Add your OpenRouter key to start dictating</string>
+    <string name="t_e7be8f8e_few" formatted="false">Writing down %1$d recordings… You can record something new meanwhile.</string>
+    <string name="t_e7be8f8e_many" formatted="false">Writing down %1$d recordings… You can record something new meanwhile.</string>
+    <string name="t_e7be8f8e_one" formatted="false">Writing down %1$d recording… You can record something new meanwhile.</string>
+    <string name="t_e7be8f8e_other" formatted="false">Writing down %1$d recordings… You can record something new meanwhile.</string>
     <string name="t_e7dda7bb" formatted="false">Couldn\'t write down %1$.1f s of what you said: %2$s</string>
     <string name="t_e8683fe0" formatted="false">Studying</string>
     <string name="t_e8ef0352" formatted="false">Refine again</string>
@@ -742,7 +761,6 @@
     <string name="t_ec054ecf" formatted="false">Send ignored: already sending</string>
     <string name="t_ec8fbe93" formatted="false">Its text, versions, costs and audio are removed. This can\'t be undone.</string>
     <string name="t_ecb6c206" formatted="false">Copy last call</string>
-    <string name="t_ed4646d0" formatted="false">Finish or discard the pending recording first</string>
     <string name="t_ed46f7d2" formatted="false">no connection</string>
     <string name="t_ed783112" formatted="false">✓  Using %1$s (%2$s). It was told to use the skills.</string>
     <string name="t_ed8814bc" formatted="false">Copy</string>
@@ -751,7 +769,9 @@
     <string name="t_ee5fc561" formatted="false">Checking the chief\'s skills in bb…</string>
     <string name="t_eea7466f" formatted="false">Puts the text at the cursor, where you\'re typing.</string>
     <string name="t_eec8ea51" formatted="false">Delete local data</string>
+    <string name="t_ef217ee7" formatted="false">Retry</string>
     <string name="t_efc1065a" formatted="false">Not connected</string>
+    <string name="t_efcb8ba3" formatted="false">the connection was lost</string>
     <string name="t_f01551fb" formatted="false">Recording contains no readable audio.</string>
     <string name="t_f01db452" formatted="false">Create a key there and copy it, then paste it above. Add a few dollars of credits on OpenRouter too: a one-minute note usually costs well under one cent.</string>
     <string name="t_f032e365" formatted="false">Get a key on console.anthropic.com</string>
@@ -783,7 +803,6 @@
     <string name="t_f703e6b3" formatted="false">OpenRouter reported no cost for this note yet.</string>
     <string name="t_f7362d4a" formatted="false">Send now</string>
     <string name="t_f7503f59" formatted="false">Wait until this note finishes</string>
-    <string name="t_f7508945" formatted="false">Saved recording found. Open Dictate &amp; Delegate to retry or discard.</string>
     <string name="t_f791ca6c" formatted="false">Notes, audio, templates, keys, bb sign-in and settings</string>
     <string name="t_f8964565" formatted="false">Closes the panel. The note stays in Dictate &amp; Delegate.</string>
     <string name="t_f8a28f83" formatted="false">Quick Settings tile</string>
@@ -808,6 +827,7 @@
     <string name="t_feccbddf" formatted="false">Refined. The text is in Dictate &amp; Delegate.</string>
     <string name="t_ff1ae3ef" formatted="false">Not needed: screen recording, notifications, contacts, location.</string>
     <string name="t_ff38152f" formatted="false">Storage is nearly full. Recording stopped; saved audio can be retried.</string>
+    <string name="t_ff769841" formatted="false">Stop trying</string>
     <string name="t_ff770e18" formatted="false">Costs and activity</string>
     <string name="t_ffd9a681" formatted="false">Redoing with a smarter model… You can leave this screen.</string>
 </resources>

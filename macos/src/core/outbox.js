@@ -152,15 +152,29 @@ function report(app, failures, log, now, zone, id) {
   return s;
 }
 
-/** The log's lines from the time from on, the last max of them (each at most 400 characters). */
+/**
+ * The log's lines from the time from on, the last max of them (each at most 400 characters). A
+ * line is stamped when its request started, so one still running at from counts too: a request
+ * that hung for minutes before it failed was left out of the report.
+ */
 function excerpt(log, from, max) {
   const out = [];
   for (const line of String(log || '').split('\n')) {
     const t = netLog.time(line);
-    if (t < 0 || t < from) continue;
+    if (t < 0) continue;
+    if (t < from && t + Math.max(0, duration(line)) < from) continue;
     out.push(line.length > 400 ? line.substring(0, 400) + '…' : line);
   }
   return out.length <= max ? out : out.slice(out.length - max);
+}
+
+/** How long a line's request took (its "123 ms" field), or -1 for a line without one. */
+function duration(line) {
+  for (const field of String(line).split(' | ')) {
+    const m = /^(\d{1,10}) ms$/.exec(field);
+    if (m) return Number(m[1]);
+  }
+  return -1;
 }
 
 // ------------------------------------------------------------------ on the Mac

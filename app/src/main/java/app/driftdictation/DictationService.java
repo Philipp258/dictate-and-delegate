@@ -38,7 +38,9 @@ public final class DictationService extends Service {
       UPLOADING = "uploading",
       COPIED = "copied",
       ERROR = "error",
-      EMPTY = "empty";
+      EMPTY = "empty",
+      /** The panel's recording wasn't written down: kept in the notes, ↻ tries again. */
+      UNFINISHED = "unfinished";
 
   /** Where Refine and Chief are for this dictation. */
   static final String IDLE = "idle", QUEUED = "queued", RUNNING = "running", DONE = "done", FAILED = "failed";
@@ -62,6 +64,8 @@ public final class DictationService extends Service {
     volatile boolean autoRefine;
     /** Counts Refine runs; a run whose number is no longer current is ignored when it ends. */
     volatile int refineRun;
+    /** The transcript is there: queued choices can run (also once it's no longer the panel's). */
+    volatile boolean ready;
   }
 
   static volatile DictationService instance;
@@ -69,6 +73,10 @@ public final class DictationService extends Service {
   private final ExecutorService worker = Executors.newSingleThreadExecutor();
   private final ExecutorService actions = Executors.newFixedThreadPool(3);
   private final ExecutorService inserter = Executors.newSingleThreadExecutor();
+  /** Recordings being written down, each on its own thread: none waits for another. */
+  private final ExecutorService transcribers = Executors.newCachedThreadPool();
+  /** Jobs done whose result the main thread hasn't taken yet: the service waits for them too. */
+  private final java.util.concurrent.atomic.AtomicInteger reporting = new java.util.concurrent.atomic.AtomicInteger();
   private String state = READY, detail = tr("Tap the bubble to record");
   private volatile boolean alive;
   private long started;
@@ -104,8 +112,12 @@ public final class DictationService extends Service {
     return state;
   }
 
+  /**
+   * The microphone is in use (recording, or saving what was recorded). Writing a recording down
+   * isn't busy: it runs in the background, and a new recording can start meanwhile.
+   */
   private boolean isBusy() {
-    return RECORDING.equals(state) || STOPPING.equals(state) || UPLOADING.equals(state);
+    return RECORDING.equals(state) || STOPPING.equals(state);
   }
 
   static void send(Context c, String action) {
@@ -123,11 +135,10 @@ public final class DictationService extends Service {
     vault = new Vault(this);
     prefs = getSharedPreferences("settings", MODE_PRIVATE);
     QuietNotifications.initialize(this);
-    if (audio(this).exists()) {
-      state = ERROR;
-      detail = tr("Saved recording found. Open Dictate & Delegate to retry or discard.");
-      main.postDelayed(finishFeedback, 3500);
-    }
+    // Left from before: a recording the app stopped during (or an older version kept after a
+    // failure) and ones whose writing down was cut off become notes to retry; none blocks.
+    adoptLeftover();
+    markOrphans(this);
     windows = getSystemService(WindowManager.class);
     wake =
         getSystemService(PowerManager.class)
@@ -146,43 +157,45 @@ public final class DictationService extends Service {
       } else if (RECORD.equals(action)) startRecording();
       else if (STOP.equals(action)) stopRecording(true);
       else if (CANCEL.equals(action)) cancelRecording();
-      else if (COMPARE.equals(action) && !isBusy()) {
-        if (audio(this).exists())
-          throw new IOException(tr("Finish or discard the pending recording first."));
+      else if (COMPARE.equals(action)) {
         String id = intent.getStringExtra("recordingId"), model = intent.getStringExtra("model");
         if (model == null || model.isBlank()) throw new IOException(tr("Choose a model first."));
         requireKey(this);
         File saved = new AudioArchive(this).get(id);
         if (saved == null)
           throw new IOException(tr("Audio has expired or was deleted. Text is still saved."));
-        java.nio.file.Files.copy(saved.toPath(), audio(this).toPath());
         String session = intent.getStringExtra("sessionId");
-        prefs
-            .edit()
-            .putString("recordingId", id)
-            .putString("sessionModel", model)
-            .putString(
-                "sessionId",
-                session == null || session.isBlank()
-                    ? java.util.UUID.randomUUID().toString()
-                    : session)
-            .putLong("sessionCreated", System.currentTimeMillis())
-            .commit();
-        newSession();
-        upload();
-      } else if (RETRY.equals(action) && !isBusy()) {
-        newSession();
-        upload();
-      } else if (DISCARD.equals(action) && !isBusy()) {
-        clearPending();
-        transition(READY, tr("Tap the bubble to record"));
+        if (session == null || session.isBlank()) session = java.util.UUID.randomUUID().toString();
+        recordings(this).mkdirs();
+        java.nio.file.Files.copy(saved.toPath(), recording(this, session).toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        synchronized (NOTES) {
+          try (HistoryStore history = new HistoryStore(this)) {
+            HistoryEntry entry = HistoryEntry.create(session, model, saved.length() / (double) AudioFiles.BYTES_PER_SECOND);
+            entry.json.put("recordingId", id);
+            history.save(entry);
+          }
+        }
+        retryNote(session);
+      } else if (RETRY.equals(action)) {
+        adoptLeftover();
+        String id = intent.getStringExtra("noteId");
+        java.util.List<String> ids = id == null || id.isEmpty() ? unfinished(this) : java.util.List.of(id);
+        requireKey(this);
+        for (String i : ids) retryNote(i);
+      } else if (DISCARD.equals(action)) {
+        String id = intent.getStringExtra("noteId");
+        boolean all = id == null || id.isEmpty();
+        if (all && !isBusy()) clearPending(); // also a recording left from before
+        for (String i : all ? unfinished(this) : java.util.List.of(id)) discard(this, i);
+        if (UNFINISHED.equals(state) && (id == null || id.isEmpty() || id.equals(session.noteId))) closePanel();
       } else if (HIDE.equals(action)) {
         prefs.edit().putString("bubbleMode", "never").apply();
         update();
         if (!isBusy()) finishIdle();
       } else if (CONFIGURE.equals(action)) {
         update();
-        if (!isBusy() && !"always".equals(mode()) && !done(state)) finishIdle();
+        if (!isBusy() && !"always".equals(mode()) && !done(state) && !UPLOADING.equals(state) && !UNFINISHED.equals(state))
+          finishIdle();
       }
     } catch (Exception ex) {
       transition(ERROR, friendly(ex));
@@ -235,6 +248,7 @@ public final class DictationService extends Service {
         && (done(next) || ERROR.equals(next) || EMPTY.equals(next)))
       Toast.makeText(this, message, Toast.LENGTH_LONG).show();
     if (done(next)) touch();
+    else if (UNFINISHED.equals(next)) main.postDelayed(finishFeedback, PANEL_IDLE_MS);
     else if (ERROR.equals(next) || EMPTY.equals(next)) main.postDelayed(finishFeedback, 3500);
     else if (READY.equals(next) && !"always".equals(mode())) finishIdle();
   }
@@ -261,7 +275,7 @@ public final class DictationService extends Service {
           finishIdle();
           return;
         }
-        if (done(state) || EMPTY.equals(state)) {
+        if (done(state) || EMPTY.equals(state) || UNFINISHED.equals(state)) {
           if ("always".equals(mode())) transition(READY, tr("Tap the microphone to record"));
           else finishIdle();
         }
@@ -284,8 +298,8 @@ public final class DictationService extends Service {
   private void finishIdle() {
     if (isBusy()) return;
     removeBubble();
-    if (working > 0) {
-      closing = true; // Refine or the chief are still running; their results are saved.
+    if (working > 0 || !JOBS.isEmpty() || reporting.get() > 0) {
+      closing = true; // Refine, the chief or a transcription are still running; their results are saved.
       return;
     }
     stopListening();
@@ -342,7 +356,25 @@ public final class DictationService extends Service {
             new FloatingPanel.Actions() {
               public void close() {
                 if (RECORDING.equals(state)) cancelRecording();
+                else if (UPLOADING.equals(state)) stopTrying(session);
                 else closePanel();
+              }
+
+              public void record() {
+                if (isBusy()) return;
+                startActivity(
+                    new Intent(DictationService.this, RecordActivity.class)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+              }
+
+              public void retry() {
+                if (!UNFINISHED.equals(state)) return;
+                try {
+                  requireKey(DictationService.this);
+                  retryNote(session.noteId);
+                } catch (Exception ex) {
+                  say(friendly(ex));
+                }
               }
 
               public void stop() {
@@ -378,7 +410,7 @@ public final class DictationService extends Service {
 
               public void tapIcon() {
                 if (isBusy()) return;
-                if (audio(DictationService.this).exists() || ERROR.equals(state)) {
+                if (ERROR.equals(state)) {
                   finishIdle();
                   startActivity(
                       new Intent(DictationService.this, MainActivity.class)
@@ -519,7 +551,7 @@ public final class DictationService extends Service {
       default -> {
         s.refine = QUEUED;
         s.autoRefine = false;
-        startQueued();
+        startQueued(s);
       }
     }
     renderBubble();
@@ -549,7 +581,7 @@ public final class DictationService extends Service {
         }
         s.chief = QUEUED;
         dropAutoRefine(s);
-        startQueued();
+        startQueued(s);
       }
     }
     renderBubble();
@@ -566,10 +598,12 @@ public final class DictationService extends Service {
     s.autoRefine = false;
   }
 
-  /** Runs what's queued, once the transcript is there and Jev has answered (or isn't asked). */
-  private void startQueued() {
-    Session s = session;
-    if (!done(state) || !s.decided || s.noteId.isEmpty()) return;
+  /**
+   * Runs what's queued, once the transcript is there and Jev has answered (or isn't asked); also
+   * for a dictation the panel has moved on from (a recording written down after the next began).
+   */
+  private void startQueued(Session s) {
+    if (!s.ready || !s.decided || s.noteId.isEmpty()) return;
     if (s.refine.equals(QUEUED)) {
       s.refine = RUNNING;
       String template = s.template;
@@ -580,6 +614,7 @@ public final class DictationService extends Service {
       s.chief = RUNNING;
       work(() -> sent(s, sendNote(this, s.noteId)));
     }
+    if (session != s) return;
     renderBubble();
     touch();
   }
@@ -601,8 +636,7 @@ public final class DictationService extends Service {
   }
 
   /** Jev, right after the transcript: what starts by itself, the template, the chief hint. */
-  private void decide() {
-    Session s = session;
+  private void decide(Session s) {
     Profile profile = new Profile(prefs);
     boolean chiefReady = BbBridge.ready(this);
     java.util.List<String> templates = new Templates(this).names();
@@ -611,7 +645,7 @@ public final class DictationService extends Service {
     boolean named = chiefReady && Jev.mentions(said, profile.chiefName());
     if (s.redo || (!profile.autoRefine() && !named && templates.isEmpty())) {
       s.decided = true;
-      startQueued();
+      startQueued(s);
       return;
     }
     String id = s.noteId;
@@ -647,7 +681,6 @@ public final class DictationService extends Service {
               Jev.decide(answers, profile.autoRefine(), profile.autoChief(), chiefReady, named);
           main.post(
               () -> {
-                if (session != s) return;
                 s.decided = true;
                 s.template = d.template();
                 s.hint = d.hint();
@@ -657,8 +690,8 @@ public final class DictationService extends Service {
                   s.refine = QUEUED;
                   s.autoRefine = true;
                 }
-                startQueued();
-                renderBubble();
+                startQueued(s);
+                if (session == s) renderBubble();
               });
         });
   }
@@ -1067,10 +1100,8 @@ public final class DictationService extends Service {
 
   private void startRecording() throws Exception {
     if (isBusy()) return;
-    if (audio(this).exists()) {
-      transition(ERROR, tr("A saved recording needs retry or discard first."));
-      return;
-    }
+    adoptLeftover(); // never blocks: an old recording becomes a note to retry
+    if (audio(this).exists()) throw new IOException(tr("Could not delete saved audio. Try again after restarting Dictate & Delegate."));
     if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
       throw new IOException(tr("Allow microphone access in Dictate & Delegate first."));
     requireKey(this);
@@ -1114,18 +1145,44 @@ public final class DictationService extends Service {
     worker.execute(
         () -> {
           Exception failure = current.stop();
+          // The recording becomes a note of its own at once, so the next one can start.
+          String id = "";
+          Exception kept = null;
+          try {
+            boolean go = failure == null && transcribe;
+            if (audio(this).length() >= 2) id = go ? handOver("pending", session) : handOver("needs attention");
+          } catch (Exception ex) {
+            kept = ex;
+          }
+          String note = id;
+          Exception handOverFailed = kept;
           main.post(
               () -> {
-                if (!alive) return;
+                if (!alive) {
+                  if (!note.isEmpty()) JOBS.remove(note); // never started: it stays to retry
+                  return;
+                }
                 if (wake.isHeld()) wake.release();
                 foreground(false);
+                if (handOverFailed != null) {
+                  transition(ERROR, friendly(handOverFailed));
+                  return;
+                }
+                if (note.isEmpty()) {
+                  try {
+                    clearPending();
+                    transition(EMPTY, tr("No audio captured. Ready to try again."));
+                  } catch (IOException ex) {
+                    transition(ERROR, friendly(ex));
+                  }
+                  return;
+                }
+                session.noteId = note;
                 if (failure != null || !transcribe) {
-                  transition(
-                      ERROR,
-                      failure == null
-                          ? tr("Recording interrupted. Saved audio can be retried.")
-                          : friendly(failure));
-                } else upload();
+                  String why = failure == null ? tr("Recording interrupted.") : friendly(failure);
+                  session.message = tr("%1$s It's kept in your notes; ↻ writes it down.", why);
+                  transition(UNFINISHED, why);
+                } else startJob(JOBS.get(note), true);
               });
         });
   }
@@ -1202,161 +1259,400 @@ public final class DictationService extends Service {
         });
   }
 
-  private void upload() {
-    File pcm = audio(this);
-    if (pcm.length() < 2) {
-      try {
-        clearPending();
-        transition(EMPTY, tr("No audio captured. Ready to try again."));
-      } catch (IOException ex) {
-        transition(ERROR, friendly(ex));
-      }
-      return;
+  // ------------------------------------------------------------------ writing it down
+
+  /**
+   * A recording being written down, on its own thread (transcribers), so a new recording never
+   * waits for one that is trying again. Its control stops it (Stop trying), also mid-upload.
+   */
+  static final class Job {
+    final String id, recordingId;
+    final OpenRouter.Control control = new OpenRouter.Control(OpenRouter.RETRY_BUDGET_MS);
+    /** The dictation it belongs to; the panel shows it while that is the panel's. */
+    final Session session;
+    /** Discard while it ran: the audio goes once it stopped. */
+    volatile boolean discard;
+    /** Stop trying was tapped: an answer that still comes is kept, but nothing more is started. */
+    volatile boolean stopped;
+    /** Its thread runs (a job only registered isn't yet). */
+    volatile boolean started;
+
+    Job(String id, String recordingId, Session session) {
+      this.id = id;
+      this.recordingId = recordingId;
+      this.session = session;
     }
-    transition(UPLOADING, tr("Transcribing… You can keep using other apps."));
-    wake.acquire(30 * 60 * 1000L);
-    String existingId = prefs.getString("sessionId", "");
-    final String sessionId =
-        existingId.isEmpty() ? java.util.UUID.randomUUID().toString() : existingId;
+  }
+
+  /** The recordings being written down now, by note ID. */
+  static final java.util.Map<String, Job> JOBS = new ConcurrentHashMap<>();
+
+  /**
+   * Where a recording's audio waits until it's written down (then it moves to AudioArchive, whose
+   * folder is "recordings" and is pruned: never the same).
+   */
+  static File recordings(Context context) {
+    return new File(context.getNoBackupFilesDir(), "unsent");
+  }
+
+  static File recording(Context context, String id) {
+    return new File(recordings(context), id + ".pcm");
+  }
+
+  /** The note (or a redo of it) is being written down right now. */
+  static boolean transcribing(String noteId) {
+    for (Job j : JOBS.values()) if (j.id.equals(noteId) || j.recordingId.equals(noteId)) return true;
+    return false;
+  }
+
+  /** The recordings kept to retry: audio waiting, nothing writing it down. Newest first. */
+  static java.util.List<String> unfinished(Context context) {
+    File[] files = recordings(context).listFiles();
+    java.util.List<File> kept = new java.util.ArrayList<>();
+    if (files != null)
+      for (File f : files)
+        if (f.getName().endsWith(".pcm") && !JOBS.containsKey(f.getName().substring(0, f.getName().length() - 4))) kept.add(f);
+    kept.sort((a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+    java.util.List<String> ids = new java.util.ArrayList<>();
+    for (File f : kept) ids.add(f.getName().substring(0, f.getName().length() - 4));
+    return ids;
+  }
+
+  /**
+   * The recording in pending.pcm becomes a note with its own audio file, with status: pending.pcm
+   * is free for the next recording at once. What was attached while recording belongs to it.
+   */
+  private String handOver(String status) throws Exception {
+    return handOver(status, null);
+  }
+
+  /** The same; with a session, its job is registered before the file moves (nothing else takes it). */
+  private String handOver(String status, Session s) throws Exception {
+    File pcm = audio(this);
+    String id = prefs.getString("sessionId", "");
+    if (id.isEmpty()) id = java.util.UUID.randomUUID().toString();
+    String recordingId = prefs.getString("recordingId", "");
+    if (recordingId.isEmpty()) recordingId = id;
+    if (s != null) JOBS.put(id, new Job(id, recordingId, s));
+    try {
+      return handOver(status, id, recordingId);
+    } catch (Exception ex) {
+      if (s != null) JOBS.remove(id);
+      throw ex;
+    }
+  }
+
+  private String handOver(String status, String id, String recordingId) throws Exception {
+    File pcm = audio(this);
+    String model = prefs.getString("sessionModel", new Profile(prefs).fixedModel());
+    if (model.isEmpty()) model = new Profile(prefs).fixedModel();
+    File to = recording(this, id);
+    recordings(this).mkdirs();
+    java.nio.file.Files.move(pcm.toPath(), to.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+    synchronized (NOTES) {
+      try (HistoryStore history = new HistoryStore(this)) {
+        HistoryEntry entry = history.get(id);
+        if (entry == null) {
+          entry = HistoryEntry.create(id, model, to.length() / (double) AudioFiles.BYTES_PER_SECOND);
+          entry.json.put("recordingId", recordingId);
+          entry.json.put("created", prefs.getLong("sessionCreated", System.currentTimeMillis()));
+          // Carry forward a version 1.0 checkpoint, whose billing metadata was not recorded.
+          String legacy = vault.get("progress");
+          if (!legacy.isEmpty()) {
+            JSONObject old = new JSONObject(legacy);
+            entry
+                .json
+                .put("offset", old.optLong("offset"))
+                .put("text", old.optString("text"))
+                .put("unpriced", old.optLong("offset") > 0 ? 1 : 0);
+          }
+        }
+        entry.json.put("status", status);
+        if (recordingId.equals(id)) {
+          Attachments attachments = new Attachments(this);
+          attachments.claimPending(id);
+          int attached = attachments.of(id).size();
+          if (attached > 0) entry.json.put("attached", attached);
+        }
+        history.save(entry);
+      }
+    }
+    vault.remove("progress");
     prefs
         .edit()
-        .putString("sessionId", sessionId)
-        .putString("recordingId", prefs.getString("recordingId", sessionId))
+        .remove("sessionModel")
+        .remove("sessionId")
+        .remove("sessionCreated")
+        .remove("recordingId")
+        .putLong("historyRevision", System.nanoTime())
         .commit();
-    worker.execute(
-        () -> {
-          long uploadStarted = SystemClock.elapsedRealtime();
-          try (HistoryStore history = new HistoryStore(this)) {
-            String model = prefs.getString("sessionModel", new Profile(prefs).fixedModel());
-            HistoryEntry entry = history.get(sessionId);
-            if (entry == null) {
-              entry =
-                  HistoryEntry.create(
-                      sessionId, model, pcm.length() / (double) AudioFiles.BYTES_PER_SECOND);
-              entry.json.put("recordingId", prefs.getString("recordingId", sessionId));
-              entry.json.put(
-                  "created", prefs.getLong("sessionCreated", System.currentTimeMillis()));
-              // Carry forward a version 1.0 checkpoint, whose billing metadata was not recorded.
-              String legacy = vault.get("progress");
-              if (!legacy.isEmpty()) {
-                JSONObject old = new JSONObject(legacy);
-                entry
-                    .json
-                    .put("offset", old.optLong("offset"))
-                    .put("text", old.optString("text"))
-                    .put("unpriced", old.optLong("offset") > 0 ? 1 : 0);
-              }
-              history.save(entry);
-              vault.remove("progress");
-            }
-            OpenRouter openRouter = new OpenRouter(this);
-            Profile profile = new Profile(prefs);
-            // No language: the speech models detect it, also when you switch mid-note.
-            java.util.List<String> words = profile.hintWords();
-            while (entry.offset() < (pcm.length() & ~1L)) {
-              if (Thread.currentThread().isInterrupted() || !alive) return;
-              AudioFiles.Chunk chunk = AudioFiles.readChunk(pcm, entry.offset());
-              entry.beginRequest();
-              history.save(entry); // A lost response leaves an explicit unknown charge.
-              long asked = SystemClock.elapsedRealtime();
-              OpenRouter.Result result;
-              try {
-                result = openRouter.transcribe(chunk.wav(), model, words);
-              } catch (Exception failed) {
-                entry.step(
-                    "speech", model, SystemClock.elapsedRealtime() - asked, null, friendly(failed));
-                history.save(entry);
-                throw failed;
-              }
-              entry.accept(result, chunk.nextOffset());
-              entry.step(
-                  "speech", model, SystemClock.elapsedRealtime() - asked, result.cost(), null);
-              history.save(entry); // Text, cost, and resume offset commit together, including after
-              // interruption.
-              if (Thread.currentThread().isInterrupted() || !alive) return;
-            }
-            boolean empty = entry.text().isBlank();
-            if (!empty && !entry.json.has("raw")) {
-              // "raw" stays what the speech model wrote; "original" and "processed" are the two
-              // versions you can switch between and edit.
-              entry.json.put("raw", entry.text()).put("original", entry.text());
-              // What was attached while recording belongs to this note (not to a redo of another).
-              if (entry.recordingId().equals(entry.id())) {
-                Attachments attachments = new Attachments(this);
-                attachments.claimPending(entry.recordingId());
-                int attached = attachments.of(entry.recordingId()).size();
-                if (attached > 0) entry.json.put("attached", attached);
-              }
-            }
-            entry.json.put("status", empty ? "no speech" : "complete");
-            entry.json.put(
-                "processingMs",
-                entry.json.optLong("processingMs") + SystemClock.elapsedRealtime() - uploadStarted);
-            synchronized (NOTES) {
-              history.save(entry);
-            }
-            Outbox.resolved(this, "recording:" + sessionId);
-            boolean redo = !entry.recordingId().equals(entry.id());
-            if (!empty && redo) history.prefer(entry);
-            new AudioArchive(this).retain(entry.recordingId(), pcm);
-            if (empty) {
-              main.post(
-                  () -> {
-                    if (!alive) return;
-                    try {
-                      clearPending();
-                      transition(EMPTY, tr("No speech recognized. Ready to record again."));
-                    } catch (IOException ex) {
-                      transition(ERROR, friendly(ex));
-                    } finally {
-                      if (wake.isHeld()) wake.release();
-                    }
-                  });
-              return;
-            }
-            prefs.edit().putLong("historyRevision", System.nanoTime()).apply();
-            vault.put("transcript", entry.text());
-            String transcript = entry.text();
-            main.post(
-                () -> {
-                  if (!alive) return;
-                  try {
-                    // The transcript comes first, on the panel to insert; never on the clipboard by itself.
-                    clearPending();
-                    session.noteId = sessionId;
-                    session.transcript = transcript;
-                    session.redo = redo;
-                    transition(COPIED, tr("Your text is ready to insert"));
-                    decide();
-                  } catch (Exception ex) {
-                    transition(ERROR, tr("Transcript saved in history. Open Dictate & Delegate to copy it."));
-                  } finally {
-                    if (wake.isHeld()) wake.release();
-                  }
-                });
-          } catch (Exception ex) {
-            try (HistoryStore history = new HistoryStore(this)) {
-              HistoryEntry entry = history.get(sessionId);
-              if (entry != null
-                  && !entry.json.optString("status").equals("complete")
-                  && !entry.json.optString("status").equals("no speech")) {
-                entry.json.put("status", "needs attention");
-                history.save(entry);
-              }
-            } catch (Exception ignored) {
-              /* Keep the original error and recoverable audio. */
-            }
-            prefs.edit().putLong("historyRevision", System.nanoTime()).apply();
-            // For the next failure report: the recording is kept for Retry.
-            Outbox.failure(this, "recording:" + sessionId, "recording", "Recording (writing it down)", friendly(ex));
-            main.post(
-                () -> {
-                  if (!alive) return;
-                  if (wake.isHeld()) wake.release();
-                  transition(ERROR, friendly(ex));
-                });
+    return id;
+  }
+
+  /** A recording left in pending.pcm while nothing records becomes a note to retry. */
+  private void adoptLeftover() {
+    if (recorder != null || isBusy()) return;
+    File pcm = audio(this);
+    if (!pcm.exists()) return;
+    try {
+      if (pcm.length() < 2) clearPending();
+      else handOver("needs attention");
+    } catch (Exception ignored) {
+      /* It stays where it is; the next start tries again. */
+    }
+  }
+
+  /** Notes whose writing down was cut off (the app stopped) say so, and can be retried. */
+  static void markOrphans(Context context) {
+    java.util.List<String> ids = unfinished(context);
+    if (ids.isEmpty()) return;
+    synchronized (NOTES) {
+      try (HistoryStore history = new HistoryStore(context)) {
+        for (String id : ids) {
+          HistoryEntry e = history.get(id);
+          if (e != null && e.json.optString("status").equals("pending")) {
+            e.json.put("status", "needs attention");
+            history.save(e);
           }
-        });
+        }
+      } catch (Exception ignored) {
+        /* They still show as unfinished. */
+      }
+    }
+  }
+
+  /** Retry: writes a kept recording down again, on the panel unless you're recording. */
+  private void retryNote(String id) throws IOException {
+    if (JOBS.containsKey(id)) return;
+    if (!recording(this, id).exists()) throw new IOException(tr("The audio of this recording is gone. Its text so far is in your notes."));
+    HistoryEntry e = load(this, id);
+    if (e == null) throw new IOException(tr("This note was deleted."));
+    Session s;
+    boolean show = !isBusy();
+    if (show && UNFINISHED.equals(state) && id.equals(session.noteId)) s = session; // ↻: choices made stay
+    else if (show) {
+      newSession();
+      s = session;
+      s.noteId = id;
+    } else {
+      s = new Session();
+      s.noteId = id;
+    }
+    Job job = new Job(id, e.recordingId(), s);
+    if (JOBS.putIfAbsent(id, job) != null) return;
+    startJob(job, show);
+  }
+
+  /**
+   * Stop trying: the panel is free at once and the recording stays in the notes, to retry. If it
+   * went out whole already, its answer is still taken when it comes (the model may be charging).
+   */
+  private void stopTrying(Session s) {
+    Job j = JOBS.get(s.noteId);
+    if (j != null) {
+      j.stopped = true;
+      j.control.cancel();
+    }
+    Toast.makeText(this, tr("Stopped. The recording is kept in your notes; retry it there."), Toast.LENGTH_LONG).show();
+    newSession();
+    transition(READY, tr("Tap the bubble to record"));
+  }
+
+  /** Throws a kept recording's audio away (once it stopped, if it's being written down). */
+  static void discard(Context context, String id) {
+    Job j = JOBS.get(id);
+    if (j != null) {
+      j.discard = true;
+      j.control.kill();
+      return;
+    }
+    recording(context, id).delete();
+    synchronized (NOTES) {
+      try (HistoryStore history = new HistoryStore(context)) {
+        HistoryEntry e = history.get(id);
+        if (e != null && !e.json.optString("status").equals("complete") && !e.json.optString("status").equals("no speech")) {
+          e.json.put("status", "audio discarded");
+          history.save(e);
+        }
+      } catch (Exception ignored) {
+        /* The audio is gone; the note may still say unfinished. */
+      }
+    }
+    context.getSharedPreferences("settings", MODE_PRIVATE).edit().putLong("historyRevision", System.nanoTime()).apply();
+  }
+
+  /** What the panel says while it tries again. */
+  static String retryLine(int attempt, long waitMs, String why) {
+    long seconds = (waitMs + 999) / 1000;
+    return seconds <= 0
+        ? tr("Transcribing… %1$s, trying again now (try %2$d).", why, attempt + 1)
+        : tr("Transcribing… %1$s, trying again in %2$d s (try %3$d).", why, seconds, attempt + 1);
+  }
+
+  /** Starts a job registered in JOBS; show: the panel shows it. */
+  private void startJob(Job job, boolean show) {
+    if (job == null) {
+      // Never registered (the service went away meanwhile): kept in the notes to retry.
+      session.message = tr("Not written down: %1$s It's kept in your notes; ↻ tries again.", tr("Recording interrupted."));
+      transition(UNFINISHED, tr("Recording interrupted."));
+      return;
+    }
+    job.started = true;
+    String id = job.id;
+    Session s = job.session;
+    job.control.onRetry(
+        (attempt, waitMs, why) ->
+            main.post(
+                () -> {
+                  if (session != s || !UPLOADING.equals(state)) return;
+                  s.message = retryLine(attempt, waitMs, why);
+                  renderBubble();
+                }));
+    if (show) {
+      s.message = "";
+      transition(UPLOADING, tr("Transcribing… You can keep using other apps, or record something new."));
+    }
+    prefs.edit().putLong("historyRevision", System.nanoTime()).apply();
+    try {
+      transcribers.execute(() -> transcribe(job));
+    } catch (RejectedExecutionException ex) {
+      JOBS.remove(id); // The service is going away; the note stays to retry.
+    }
+  }
+
+  /** Writes one recording down, chunk by chunk, resuming where an earlier try stopped. */
+  private void transcribe(Job job) {
+    String id = job.id;
+    File pcm = recording(this, id);
+    PowerManager.WakeLock lock =
+        getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Dictate & Delegate:transcribe");
+    lock.setReferenceCounted(false);
+    lock.acquire(15 * 60_000L);
+    long uploadStarted = SystemClock.elapsedRealtime();
+    String failed = null, transcript = "";
+    boolean cancelled = false, empty = false, redo = false;
+    try (HistoryStore history = new HistoryStore(this)) {
+      HistoryEntry entry;
+      synchronized (NOTES) {
+        entry = history.get(id);
+      }
+      if (entry == null) throw new IOException(tr("This note was deleted."));
+      if (job.control.cancelled()) throw new OpenRouter.Cancelled(null);
+      if (!pcm.exists()) throw new IOException(tr("The audio of this recording is gone. Its text so far is in your notes."));
+      if (entry.json.optString("status").equals("needs attention")) entry.json.put("status", "pending");
+      entry.json.remove("transcribeFailed");
+      String model = entry.model();
+      OpenRouter openRouter = new OpenRouter(this);
+      // No language: the speech models detect it, also when you switch mid-note.
+      java.util.List<String> words = new Profile(prefs).hintWords();
+      while (entry.offset() < (pcm.length() & ~1L)) {
+        if (job.control.cancelled() || !alive) throw new OpenRouter.Cancelled(null);
+        AudioFiles.Chunk chunk = AudioFiles.readChunk(pcm, entry.offset());
+        entry.beginRequest();
+        save(history, entry); // A lost response leaves an explicit unknown charge.
+        long asked = SystemClock.elapsedRealtime();
+        OpenRouter.Result result;
+        try {
+          result = openRouter.transcribe(chunk.wav(), model, words, job.control);
+        } catch (Exception failure) {
+          entry.step("speech", model, SystemClock.elapsedRealtime() - asked, null, friendly(failure));
+          save(history, entry);
+          throw failure;
+        }
+        entry.accept(result, chunk.nextOffset());
+        entry.step("speech", model, SystemClock.elapsedRealtime() - asked, result.cost(), null);
+        save(history, entry); // Text, cost, and resume offset commit together.
+      }
+      empty = entry.text().isBlank();
+      if (!empty && !entry.json.has("raw")) {
+        // "raw" stays what the speech model wrote; "original" and "processed" are the two
+        // versions you can switch between and edit.
+        entry.json.put("raw", entry.text()).put("original", entry.text());
+      }
+      entry.json.put("status", empty ? "no speech" : "complete");
+      entry.json.put("processingMs", entry.json.optLong("processingMs") + SystemClock.elapsedRealtime() - uploadStarted);
+      save(history, entry);
+      Outbox.resolved(this, "recording:" + id);
+      redo = !entry.recordingId().equals(entry.id());
+      synchronized (NOTES) {
+        // Deleted right after the last save: nothing of it is kept.
+        if (history.get(id) == null) throw new IOException(tr("This note was deleted."));
+        if (!empty && redo) history.prefer(entry);
+        new AudioArchive(this).retain(entry.recordingId(), pcm);
+      }
+      pcm.delete();
+      transcript = entry.text();
+      if (!empty) vault.put("transcript", transcript);
+    } catch (Exception ex) {
+      cancelled = ex instanceof OpenRouter.Cancelled || job.control.cancelled() || job.discard;
+      failed = friendly(ex);
+      synchronized (NOTES) {
+        try (HistoryStore history = new HistoryStore(this)) {
+          HistoryEntry entry = history.get(id);
+          if (entry != null
+              && !entry.json.optString("status").equals("complete")
+              && !entry.json.optString("status").equals("no speech")) {
+            entry.json.put("status", "needs attention").put("transcribeFailed", failed);
+            history.save(entry);
+          }
+        } catch (Exception ignored) {
+          /* Keep the original error and recoverable audio. */
+        }
+      }
+      // For the next failure report: the recording is kept for Retry. Stop trying is yours.
+      if (!cancelled)
+        Outbox.failure(this, "recording:" + id, "recording", "Recording (writing it down)", failed);
+    } finally {
+      reporting.incrementAndGet(); // the service stays until finished() took the result
+      JOBS.remove(id);
+      if (job.discard) discard(this, id);
+      if (lock.isHeld()) lock.release();
+      prefs.edit().putLong("historyRevision", System.nanoTime()).apply();
+      String why = failed, text = transcript;
+      boolean stopped = cancelled, nothing = empty, again = redo;
+      main.post(() -> finished(job, why, stopped, nothing, text, again));
+    }
+  }
+
+  /** Saves the job's copy of its note, unless the note was deleted meanwhile (then it stops). */
+  private static void save(HistoryStore history, HistoryEntry entry) throws Exception {
+    synchronized (NOTES) {
+      if (history.get(entry.id()) == null) throw new IOException(tr("This note was deleted."));
+      history.save(entry);
+    }
+  }
+
+  /** A recording is written down (or not): on the panel if it's still the panel's, else a toast. */
+  private void finished(Job job, String failed, boolean cancelled, boolean empty, String transcript, boolean redo) {
+    reporting.decrementAndGet();
+    if (!alive) return;
+    Session s = job.session;
+    boolean shown = session == s && UPLOADING.equals(state);
+    if (failed == null && !empty) {
+      s.noteId = job.id;
+      s.transcript = transcript;
+      s.redo = redo;
+      s.ready = true;
+      if (shown) {
+        s.message = "";
+        // The transcript comes first, on the panel to insert; never on the clipboard by itself.
+        transition(COPIED, tr("Your text is ready to insert"));
+      } else Toast.makeText(this, tr("An earlier recording is written down. It's in your notes."), Toast.LENGTH_LONG).show();
+      // After Stop trying the text is kept (it was paid for), but nothing starts by itself.
+      if (!job.stopped) decide(s);
+    } else if (failed == null) {
+      if (shown) transition(EMPTY, tr("No speech recognized. Ready to record again."));
+    } else if (cancelled || job.discard) {
+      if (shown) {
+        if (!job.discard) Toast.makeText(this, failed, Toast.LENGTH_LONG).show();
+        closePanel();
+      }
+    } else if (shown) {
+      s.message = tr("Not written down: %1$s It's kept in your notes; ↻ tries again.", failed);
+      transition(UNFINISHED, failed);
+    } else
+      Toast.makeText(this, tr("An earlier recording wasn't written down: %1$s It's kept in your notes to retry.", failed), Toast.LENGTH_LONG).show();
+    if (closing && working == 0 && JOBS.isEmpty()) finishIdle();
   }
 
   static void copy(Context context, String text) {
@@ -1396,6 +1692,7 @@ public final class DictationService extends Service {
     // Dictate & Delegate's own errors are plain IOExceptions with a translated message. Subclasses come from
     // the network stack (connection reset, TLS, timeouts) and carry raw English, if anything.
     if (ex.getClass() == IOException.class && ex.getMessage() != null) return ex.getMessage();
+    if (ex instanceof OpenRouter.Cancelled) return ex.getMessage();
     if (ex instanceof java.io.FileNotFoundException
         || ex instanceof java.nio.file.FileSystemException
         || ex instanceof java.io.EOFException
@@ -1415,6 +1712,12 @@ public final class DictationService extends Service {
     if (recorder != null) recorder.stop();
     stopListening();
     worker.shutdownNow();
+    // What's being written down stops and stays in the notes, to retry.
+    for (Job j : JOBS.values()) {
+      j.control.kill();
+      if (!j.started) JOBS.remove(j.id); // registered, never run: kept in the notes to retry
+    }
+    transcribers.shutdownNow();
     actions.shutdownNow();
     inserter.shutdownNow();
     if (wake.isHeld()) wake.release();

@@ -1723,7 +1723,7 @@ public final class MainActivity extends Activity {
     ui.add(
         recovery,
         ui.button(
-            tr("Retry saved recording"),
+            tr("Retry"),
             Ui.Kind.OUTLINE,
             v -> {
               if (ready()) send(DictationService.RETRY);
@@ -1743,7 +1743,7 @@ public final class MainActivity extends Activity {
             Ui.Kind.QUIET,
             v ->
                 new AlertDialog.Builder(this)
-                    .setTitle(tr("Discard the saved audio?"))
+                    .setTitle(tr("Discard the audio of the recordings not written down?"))
                     .setMessage(tr("Partial text and reported costs stay in your notes."))
                     .setPositiveButton(tr("Discard"), (d, w) -> send(DictationService.DISCARD))
                     .setNegativeButton(tr("Keep"), null)
@@ -2216,23 +2216,85 @@ public final class MainActivity extends Activity {
     String state = e.json.optString("status");
     if (!state.equals("complete") && !redoing) {
       LinearLayout warn = ui.add(content, ui.card(0xfffde3d8, 0), 12);
+      boolean kept = DictationService.recording(this, e.id()).exists();
+      String failed = e.json.optString("transcribeFailed");
       warn.addView(
           ui.text(
               switch (state) {
                 case "pending" -> tr("Still transcribing.");
                 case "no speech" -> tr("No speech was recognized in this recording.");
                 default ->
-                    tr(
-                        "This recording didn't finish (%1$s). Retry it from Home.",
-                        switch (state) {
-                          case "needs attention" -> tr("needs attention");
-                          case "audio discarded" -> tr("audio discarded");
-                          case "imported" -> tr("imported");
-                          default -> state;
-                        });
+                    kept
+                        ? (failed.isEmpty()
+                            ? tr("This recording wasn't written down yet. Its audio is kept.")
+                            : tr("This recording wasn't written down: %1$s Its audio is kept.", failed))
+                        : tr(
+                            "This recording didn't finish (%1$s).",
+                            switch (state) {
+                              case "needs attention" -> tr("needs attention");
+                              case "audio discarded" -> tr("audio discarded");
+                              case "imported" -> tr("imported");
+                              default -> state;
+                            });
               },
               14,
               Ui.WARN));
+      if (kept && !state.equals("no speech")) {
+        String id = e.id();
+        LinearLayout buttons = ui.add(warn, ui.horizontal(), 8);
+        buttons.addView(
+            ui.button(
+                tr("Retry"),
+                Ui.Kind.OUTLINE,
+                v -> {
+                  if (!ready()) return;
+                  try {
+                    startForegroundService(
+                        new Intent(this, DictationService.class).setAction(DictationService.RETRY).putExtra("noteId", id));
+                  } catch (Exception ex) {
+                    toast(tr("Could not start. Check permissions and try again."));
+                  }
+                  main.postDelayed(() -> { if (page.equals("note")) show("note"); }, 300);
+                }));
+        buttons.addView(
+            ui.button(
+                tr("Discard audio"),
+                Ui.Kind.QUIET,
+                v ->
+                    new AlertDialog.Builder(this)
+                        .setTitle(tr("Discard this recording's audio?"))
+                        .setMessage(tr("Partial text and reported costs stay in your notes."))
+                        .setPositiveButton(
+                            tr("Discard"),
+                            (d, w) -> {
+                              DictationService.discard(this, id);
+                              show("note");
+                            })
+                        .setNegativeButton(tr("Keep"), null)
+                        .show()));
+      }
+    } else if (redoing && DictationService.JOBS.containsKey(e.id())) {
+      LinearLayout warn = ui.add(content, ui.card(Ui.PANEL, 0), 12);
+      DictationService.Job writing = DictationService.JOBS.get(e.id());
+      warn.addView(
+          ui.text(
+              writing.control.cancelled() && writing.control.sent()
+                  ? tr("Stopped trying. It had already gone out, so its text is still saved when it arrives.")
+                  : tr("Writing it down… You can record something new meanwhile."),
+              14,
+              Ui.MUTED));
+      String id = e.id();
+      ui.add(
+          warn,
+          ui.button(
+              tr("Stop trying"),
+              Ui.Kind.QUIET,
+              v -> {
+                DictationService.Job j = DictationService.JOBS.get(id);
+                if (j != null) j.control.cancel();
+                main.postDelayed(() -> { if (page.equals("note")) show("note"); }, 300);
+              }),
+          8);
     }
     boolean chief = chiefNote(e);
     boolean sent = chief && DictationService.sentToChief(e);
@@ -2648,7 +2710,7 @@ public final class MainActivity extends Activity {
   }
 
   private boolean redoing() {
-    return DictationService.busy() && noteId.equals(prefs.getString("recordingId", ""));
+    return DictationService.transcribing(noteId);
   }
 
   /** Saves typed changes to the version you are looking at. */
@@ -2732,8 +2794,8 @@ public final class MainActivity extends Activity {
   private void redo(JSONObject model) {
     if (model == null) return;
     saveEdits();
-    if (DictationService.busy() || DictationService.audio(this).exists()) {
-      toast(tr("Finish or discard the pending recording first"));
+    if (DictationService.transcribing(noteId)) {
+      toast(tr("Wait until this note finishes"));
       return;
     }
     String session = UUID.randomUUID().toString();
@@ -2756,23 +2818,25 @@ public final class MainActivity extends Activity {
   }
 
   private void deleteNote() {
-    if (noteId.equals(prefs.getString("recordingId", "")) && DictationService.busy()) {
-      toast(tr("Wait until this note finishes"));
-      return;
-    }
     new AlertDialog.Builder(this)
         .setTitle(tr("Delete this note?"))
         .setMessage(tr("Its text, versions, costs and audio are removed. This can't be undone."))
         .setPositiveButton(
             tr("Delete"),
             (d, w) -> {
-              try (HistoryStore h = new HistoryStore(this)) {
-                for (HistoryEntry v : h.versions(noteId)) h.delete(v.id());
-                new AudioArchive(this).delete(noteId);
-                new Attachments(this).deleteNote(noteId);
-                vault.remove("transcript");
-              } catch (Exception ex) {
-                toast(tr("Could not delete everything"));
+              // Under the notes' lock, so a recording still being written down can't bring it back.
+              synchronized (DictationService.NOTES) {
+                try (HistoryStore h = new HistoryStore(this)) {
+                  for (HistoryEntry v : h.versions(noteId)) {
+                    DictationService.discard(this, v.id()); // stops writing it down, if it is
+                    h.delete(v.id());
+                  }
+                  new AudioArchive(this).delete(noteId);
+                  new Attachments(this).deleteNote(noteId);
+                  vault.remove("transcript");
+                } catch (Exception ex) {
+                  toast(tr("Could not delete everything"));
+                }
               }
               editor = null;
               prefs.edit().putLong("historyRevision", System.nanoTime()).apply();
@@ -3653,6 +3717,9 @@ public final class MainActivity extends Activity {
               try {
                 new AudioArchive(this).deleteAll();
                 DictationService.audio(this).delete();
+                for (DictationService.Job j : DictationService.JOBS.values()) j.control.kill();
+                File[] kept = DictationService.recordings(this).listFiles();
+                if (kept != null) for (File f : kept) f.delete();
                 deleteDatabase("history.db");
                 vault.remove(OpenRouter.KEY);
                 vault.remove(Anthropic.KEY);
@@ -4189,28 +4256,31 @@ public final class MainActivity extends Activity {
     renderHandsFree();
     boolean busy = DictationService.busy(), active = DictationService.instance != null;
     String state = active ? prefs.getString("state", "") : "";
-    boolean pending = !busy && DictationService.audio(this).exists();
+    // Recordings being written down or kept to retry never stop a new one.
+    int writing = DictationService.JOBS.size();
+    int kept = DictationService.unfinished(this).size();
+    boolean pending = kept > 0;
     if (record != null) {
       boolean recording = "recording".equals(state);
       String line =
           active && busy
               ? prefs.getString("detail", "")
-              : pending
-                  ? (DictationService.ERROR.equals(prefs.getString("state", ""))
-                      ? tr("%1$s The recording is saved.", prefs.getString("detail", ""))
-                      : tr("A recording was saved but not transcribed."))
-                  : DictationService.EMPTY.equals(prefs.getString("state", ""))
-                      ? tr("No speech recognized. Ready to try again.")
-                      : "";
+              : writing > 0
+                  ? plural(writing, "Writing down %1$d recording… You can record something new meanwhile.", "Writing down %1$d recordings… You can record something new meanwhile.")
+                  : pending
+                      ? plural(kept, "%1$d recording wasn't written down. Its audio is kept: retry it here or open it in Recent.", "%1$d recordings weren't written down. Their audio is kept: retry them here or open them in Recent.")
+                      : DictationService.EMPTY.equals(prefs.getString("state", ""))
+                          ? tr("No speech recognized. Ready to try again.")
+                          : "";
       String key = recording + "|" + busy + "|" + pending + "|" + line;
       if (!key.equals(record.getTag())) {
         record.setTag(key);
         record.setText(
             recording
                 ? tr("Stop")
-                : busy ? tr("Transcribing…") : page.equals("try1") ? tr("Start") : tr("Start dictating"));
+                : busy ? tr("Saving recording…") : page.equals("try1") ? tr("Start") : tr("Start dictating"));
         record.setBackground(ui.shape(recording ? Ui.REC : Ui.TEAL, 0, 16));
-        record.setEnabled(recording || (!busy && !pending));
+        record.setEnabled(recording || !busy);
         record.setAlpha(record.isEnabled() ? 1f : 0.6f);
         if (recovery != null) recovery.setVisibility(pending ? View.VISIBLE : View.GONE);
         status.setText(line);
@@ -4225,7 +4295,7 @@ public final class MainActivity extends Activity {
         boolean dirty =
             editor != null && !editor.getText().toString().trim().equals(editorBase.trim());
         if (!dirty) {
-          if (!redoSession.isEmpty() && !DictationService.busy()) {
+          if (!redoSession.isEmpty() && !DictationService.JOBS.containsKey(redoSession)) {
             redoSession = "";
             toast(tr("Redone with a smarter model"));
           }

@@ -5,6 +5,9 @@
     <string name="t_009d9bd2" formatted="false">Avvia vivavoce</string>
     <string name="t_00a11af1" formatted="false">Su GitHub</string>
     <string name="t_00f987b3" formatted="false">Il testo del tuo chief non è più sul tuo topic ntfy.</string>
+    <string name="t_01380324_many" formatted="false">%1$d di registrazioni non sono state trascritte. Il loro audio è salvato: riprova qui o aprile in Recenti.</string>
+    <string name="t_01380324_one" formatted="false">%1$d registrazione non è stata trascritta. Il suo audio è salvato: riprova qui o aprila in Recenti.</string>
+    <string name="t_01380324_other" formatted="false">%1$d registrazioni non sono state trascritte. Il loro audio è salvato: riprova qui o aprile in Recenti.</string>
     <string name="t_0174ec90" formatted="false">Chiunque conosca l\'argomento può leggere queste notifiche, per questo è lungo e casuale. Tienilo per te.</string>
     <string name="t_01e4f1a8" formatted="false">Elimina tutto</string>
     <string name="t_01f8e246" formatted="false">Riquadro o tieni premuto Volume su</string>
@@ -16,10 +19,12 @@
     <string name="t_04577256" formatted="false">Il modello vocale non ha rilevato parole: il tuo turno termina</string>
     <string name="t_04bb15b6" formatted="false">Audio salvato eliminato</string>
     <string name="t_04fc2b5b" formatted="false">Immagine</string>
+    <string name="t_0516fab1" formatted="false">L\'audio di questa registrazione non c\'è più. Il testo ottenuto finora è nelle tue note.</string>
     <string name="t_05db04e6" formatted="false">Prezzo non disponibile · vedi fonte</string>
     <string name="t_05ff3c07" formatted="false">Nulla da incollare: copia prima del testo.</string>
     <string name="t_064b8a10" formatted="false">Impossibile perfezionare questa nota: %1$s Di seguito trovi ciò che hai detto.</string>
     <string name="t_0656ff35" formatted="false">Dictate &amp; Delegate</string>
+    <string name="t_066ab8b4" formatted="false">Questa registrazione non è stata completata (%1$s).</string>
     <string name="t_067329ed" formatted="false">questa app accetta solo l\'incolla, quindi è anche negli appunti</string>
     <string name="t_068966f6" formatted="false">Perfeziona: crediti Anthropic ≈%1$s</string>
     <string name="t_07ee7593" formatted="false">Ti riferisci a qualcosa? Aggiungilo, come un\'offerta a cui rispondi.</string>
@@ -37,6 +42,7 @@
     <string name="t_0b61da7d" formatted="false">Parole di invio e tempi</string>
     <string name="t_0b870de2" formatted="false">Dati locali eliminati</string>
     <string name="t_0bf045a7" formatted="false">Rimuovere la tua chiave Anthropic?</string>
+    <string name="t_0c1dae16" formatted="false">Riprova</string>
     <string name="t_0c32355a" formatted="false">Scrittura… %1$d s</string>
     <string name="t_0c39377e" formatted="false">🧑‍💼 Chief ✓</string>
     <string name="t_0c4ebb56" formatted="false">Prezzi per milione di token in ingresso / uscita, listino di Anthropic.</string>
@@ -50,7 +56,6 @@
     <string name="t_0de44d68" formatted="false">1 messaggio</string>
     <string name="t_0e1c0935" formatted="false">bb risponde, ma non offre lo strumento di esecuzione. Aggiorna bb e controlla che il plugin MCP sia attivo.</string>
     <string name="t_0ea7c5dd" formatted="false">Lettura</string>
-    <string name="t_0f756679" formatted="false">Riprova registrazione salvata</string>
     <string name="t_0fe6675c" formatted="false">Pausa dopo cui verificare se hai finito (secondi)</string>
     <string name="t_1058bd61" formatted="false">Anruf nach %1$d s Stille beendet; nichts wurde gesendet</string>
     <string name="t_10aef2d8" formatted="false">Chief of staff</string>
@@ -58,6 +63,7 @@
     <string name="t_115acf0a" formatted="false">Consenti prima l\'accesso al microfono</string>
     <string name="t_115f8e33" formatted="false">Ancora nessuna parola.</string>
     <string name="t_12e4c8a9" formatted="false">Sintesi vocale non riuscita · %1$s</string>
+    <string name="t_13a0d58b" formatted="false">il modello è occupato</string>
     <string name="t_13f11ba3" formatted="false">Disattivata</string>
     <string name="t_14f38eda" formatted="false">Installazione delle skill e creazione del thread in bb…</string>
     <string name="t_1515cfb6" formatted="false">Nessun risultato trovato.</string>
@@ -75,7 +81,6 @@
     <string name="t_1959e611" formatted="false">Open source, Licenza MIT · github.com/Philipp258/dictate-and-delegate</string>
     <string name="t_1964b988" formatted="false">Stop</string>
     <string name="t_1a0dd3f6" formatted="false">Verifica richiesta · %1$s</string>
-    <string name="t_1a2e2aa9" formatted="false">Una registrazione salvata va prima riprovata o eliminata.</string>
     <string name="t_1b0932d1" formatted="false">Sintesi vocale</string>
     <string name="t_1b81f4cf" formatted="false">Successivi ›</string>
     <string name="t_1beba025" formatted="false">Indirizzo personalizzato · %1$s</string>
@@ -92,6 +97,7 @@
     <string name="t_1ea4a265" formatted="false">Microfono in pausa</string>
     <string name="t_1f0e3297" formatted="false">Modello vocale</string>
     <string name="t_1f3603cf" formatted="false">Avvia da qualsiasi app</string>
+    <string name="t_1f89d608" formatted="false">Non trascritta: %1$s È salvata nelle tue note; ↻ riprova.</string>
     <string name="t_1f8d5f9c" formatted="false">Facoltativo. Con la tua chiave Anthropic, ✨ Perfeziona va direttamente a Claude e viene scalato dai tuoi crediti Anthropic. Voce e Jev restano su OpenRouter. Se Anthropic non risponde, Perfeziona passa attraverso OpenRouter.</string>
     <string name="t_1fde91b3" formatted="false">I tuoi crediti Anthropic sono esauriti.</string>
     <string name="t_200afc5b" formatted="false">Modifica modello</string>
@@ -106,7 +112,6 @@
     <string name="t_236a5def" formatted="false">Quanto detto</string>
     <string name="t_2427c428" formatted="false">Tutte le note</string>
     <string name="t_244d0dc6" formatted="false">“Usa la mia richiesta di appartamento per il bilocale in Hauptstraße 5, la visita è sabato e aggiungi che lavoro da casa.”</string>
-    <string name="t_248af959" formatted="false">Una registrazione è stata salvata ma non trascritta.</string>
     <string name="t_24c47eae" formatted="false">Nessun server MCP a questo indirizzo (HTTP 404). Controlla l\'indirizzo e che il plugin MCP di bb sia attivo.</string>
     <string name="t_24c7367a" formatted="false">Incolla ciò che hai copiato</string>
     <string name="t_252c6bbe" formatted="false">né il capo né l\'interlocutore l\'hanno ricevuto: %1$s</string>
@@ -142,6 +147,7 @@
     <string name="t_2dc29d4d" formatted="false">Più tardi</string>
     <string name="t_2dd159ed" formatted="false">Nessun browser disponibile</string>
     <string name="t_2e5c65fd" formatted="false">tramite OpenRouter: %1$s</string>
+    <string name="t_2e975560" formatted="false">Questa registrazione non è stata trascritta: %1$s Il suo audio è salvato.</string>
     <string name="t_2ef3166c" formatted="false">Server ntfy</string>
     <string name="t_2f79a315" formatted="false">Gentile signor Weber,\n\ndesidero informarla che il rubinetto del bagno perde da lunedì.</string>
     <string name="t_2fa2161a" formatted="false">Consenti a Dictate &amp; Delegate di installare aggiornamenti, poi tocca di nuovo Aggiorna.</string>
@@ -149,6 +155,7 @@
     <string name="t_3017cfb9" formatted="false">non inoltrato: %1$s</string>
     <string name="t_30a4185d" formatted="false">Speso</string>
     <string name="t_30a98a26" formatted="false">Impossibile aggiornare la cronologia.</string>
+    <string name="t_315f471d" formatted="false">Trascrizione in corso… Intanto puoi registrare qualcosa di nuovo.</string>
     <string name="t_315f5fe4" formatted="false">Perfezionato</string>
     <string name="t_320126db" formatted="false">bb non è raggiungibile al momento. Il computer è acceso e bb è in esecuzione?</string>
     <string name="t_322dcd94" formatted="false">Le tue parole vengono sempre prima. Poi ✨ Perfeziona ne fa il testo che ti serve: capisce a cosa serve (un messaggio, un\'email, una nota), segue quello che hai chiesto e compila i tuoi modelli.</string>
@@ -162,8 +169,10 @@
     <string name="t_345d171c" formatted="false">Il server di accesso di bb ha risposto con HTTP %1$d.</string>
     <string name="t_34f63f9b" formatted="false">Rapporto inviato</string>
     <string name="t_3575eb12" formatted="false">Invia rapporto al tuo chief</string>
+    <string name="t_35b07608" formatted="false">Questa registrazione non è ancora stata trascritta. Il suo audio è salvato.</string>
     <string name="t_35c96237" formatted="false">Istruzioni per Perfeziona</string>
     <string name="t_35dab0c1" formatted="false">Impossibile riprodurre la risposta: %1$s. Il tuo prossimo messaggio avviserà il capo</string>
+    <string name="t_36138497" formatted="false">Smetti di riprovare: la registrazione resta nelle tue note per riprovare</string>
     <string name="t_36633739" formatted="false">Trascrive ciò che dici mentre parli, così la parola d\'invio invia subito. Usa la tua chiave del provider, con tariffazione in base al tempo di ascolto (si chiude dopo un minuto di silenzio).</string>
     <string name="t_36ab8c14" formatted="false">Invio ignorato: c\'è una risposta in corso e nulla da inviare</string>
     <string name="t_370bef97" formatted="false">Token (opzionale)</string>
@@ -199,7 +208,6 @@
     <string name="t_3eef8148_other" formatted="false">%1$d versioni</string>
     <string name="t_3f582d5c" formatted="false">bb non è raggiungibile ora. Il rapporto parte da solo appena possibile.</string>
     <string name="t_3f77ee75" formatted="false">Salvataggio…</string>
-    <string name="t_3f983199" formatted="false">%1$s La registrazione è salvata.</string>
     <string name="t_400b4b63" formatted="false">Tu dici</string>
     <string name="t_40de4e2a" formatted="false">Copiato. Incollalo dove segnali il problema.</string>
     <string name="t_41265b45" formatted="false">Tieni premuto per</string>
@@ -230,7 +238,6 @@
     <string name="t_4ae2821e" formatted="false">in corso</string>
     <string name="t_4b2ded64" formatted="false">Email</string>
     <string name="t_4b8a0a2e" formatted="false">nuovo invio</string>
-    <string name="t_4bfe4352" formatted="false">Apri recupero</string>
     <string name="t_4c0014e2" formatted="false">Perfeziona passerà di nuovo attraverso OpenRouter.</string>
     <string name="t_4c2540de" formatted="false">Anthropic non ha potuto eseguire questa richiesta (HTTP %1$d): %2$s</string>
     <string name="t_4c8985b5" formatted="false">Costo mensile</string>
@@ -239,7 +246,6 @@
     <string name="t_4da08f61" formatted="false">Quale modello è stato usato, quanto tempo ha richiesto, il costo</string>
     <string name="t_4dd7bb82" formatted="false">Trascrizione live non riuscita (%1$s): le tue parole vengono invece trascritte</string>
     <string name="t_4e3aca8c" formatted="false">Incolla la tua chiave</string>
-    <string name="t_4ef77ff2" formatted="false">Registrazione interrotta. Puoi riprovare con l\'audio salvato.</string>
     <string name="t_4f3f4751" formatted="false">Anthropic non ha potuto eseguire questa richiesta (HTTP %1$d).</string>
     <string name="t_4f723805" formatted="false">2 · Oppure tieni premuto un tasto volume</string>
     <string name="t_4f95835a" formatted="false">L\'indirizzo web inizia con https://</string>
@@ -304,6 +310,7 @@
     <string name="t_5e84bb28" formatted="false">%1$s/min</string>
     <string name="t_5eb87a8b" formatted="false">Avvia</string>
     <string name="t_5f1cb221" formatted="false">Cosa detti di solito</string>
+    <string name="t_608acc86" formatted="false">Registrazione interrotta.</string>
     <string name="t_60a70b6d" formatted="false">Perfeziona automaticamente</string>
     <string name="t_61710ff3" formatted="false">Per modello</string>
     <string name="t_6183a1b8" formatted="false">non è più recente di questa versione</string>
@@ -316,6 +323,7 @@
     <string name="t_6361c341" formatted="false">la connessione si è interrotta; è un server MCP (Streamable HTTP)?</string>
     <string name="t_6408cdf0" formatted="false">Risposta in pausa: stai parlando. Viene scartata quando parte il tuo messaggio</string>
     <string name="t_6418f0e2" formatted="false">Inserisci il tuo handle bb Connect</string>
+    <string name="t_64608f3a" formatted="false">Trascrizione in corso… %1$s, nuovo tentativo tra %2$d s (tentativo %3$d).</string>
     <string name="t_65211030" formatted="false">L\'indirizzo del server inizia con https://</string>
     <string name="t_653174a7" formatted="false">Rielaborato con un modello più intelligente</string>
     <string name="t_6542df76" formatted="false">Quando ti fermi, le tue parole vengono trascritte e un piccolo pannello fluttua sopra l\'app che stai usando.</string>
@@ -359,10 +367,12 @@
     <string name="t_772f8ccc" formatted="false">Il tuo nome</string>
     <string name="t_77a2a807" formatted="false">Elimina nota</string>
     <string name="t_77e5aff2" formatted="false">Inviato al chief of staff ↗</string>
+    <string name="t_77f722e3" formatted="false">Trascrizione in corso… %1$s, nuovo tentativo ora (tentativo %2$d).</string>
     <string name="t_783d9fbc" formatted="false">Impossibile leggere questa immagine.</string>
     <string name="t_78e66b38" formatted="false">Eliminare i dati locali?</string>
     <string name="t_791246e5" formatted="false">Nome del tuo capo</string>
     <string name="t_7a213062" formatted="false">Questo è il tuo capo staff. L\'interlocutore deve essere un altro thread.</string>
+    <string name="t_7a8fe19e" formatted="false">Una registrazione precedente non è stata trascritta: %1$s È salvata nelle tue note per riprovare.</string>
     <string name="t_7a933498" formatted="false">Impossibile eliminare tutto l\'audio</string>
     <string name="t_7abc2e98" formatted="false">Invia: trascrizione in corso, poi parte</string>
     <string name="t_7b65d791" formatted="false">Dictate &amp; Delegate richiama i modelli vocali e di testo tramite OpenRouter con questa chiave.</string>
@@ -389,7 +399,6 @@
     <string name="t_81e2a271" formatted="false">Trascrizione</string>
     <string name="t_821e233c" formatted="false">Con una sola autorizzazione, Inserisci posiziona il testo direttamente al cursore, e tenendo premuto un tasto del volume avvii la dettatura. Senza di essa, Dictate &amp; Delegate copia il testo e lo incolli tu.</string>
     <string name="t_8250ae9b" formatted="false">Accesso a bb…</string>
-    <string name="t_82527957" formatted="false">Trascrizione salvata nella cronologia. Apri Dictate &amp; Delegate per copiarla.</string>
     <string name="t_8265f0ba" formatted="false">Jev · perfeziona e invia al tuo chief da solo</string>
     <string name="t_826621ab" formatted="false">Quando ti rivolgi al tuo capo chiamandolo per nome (Impostazioni → Capo di gabinetto); altrimenti tocca 🧑‍💼</string>
     <string name="t_82a7b056" formatted="false">Il modello di testo non ha restituito nulla. Riprova.</string>
@@ -415,7 +424,6 @@
     <string name="t_883b0385" formatted="false">Risposta interrotta a metà (%1$s): con il prossimo messaggio farai sapere al capo fin dove hai ascoltato</string>
     <string name="t_886029f0" formatted="false">Le skill del tuo chief</string>
     <string name="t_8860ef62" formatted="false">Impossibile raggiungere %1$s. Controlla l\'indirizzo e la connessione.</string>
-    <string name="t_88ea76d0" formatted="false">Prima completa o elimina la registrazione in sospeso.</string>
     <string name="t_894a8c42" formatted="false">Risposta in arrivo</string>
     <string name="t_89b3b099" formatted="false">Approva Dictate &amp; Delegate nel browser, poi torna qui.</string>
     <string name="t_8ab1eddb" formatted="false">✓  Accesso effettuato a %1$s.getbb.app</string>
@@ -426,6 +434,7 @@
     <string name="t_8bf10d56" formatted="false">Elimina</string>
     <string name="t_8cb43c6e" formatted="false">Sintesi vocale non riuscita: %1$s</string>
     <string name="t_8cc9e4c3" formatted="false">📎 Aggiungi</string>
+    <string name="t_8d448705" formatted="false">Una registrazione precedente è stata trascritta. È nelle tue note.</string>
     <string name="t_8d8041f9" formatted="false">La tua voce deve superare il rumore di fondo di questo fattore</string>
     <string name="t_8edfe30e" formatted="false">richiede attenzione</string>
     <string name="t_8f13ebdb" formatted="false">Dictate &amp; Delegate scrive</string>
@@ -438,6 +447,7 @@
     <string name="t_918020d9" formatted="false">handle</string>
     <string name="t_918ca436" formatted="false">bb non ha potuto accettare l\'allegato (HTTP %1$d).</string>
     <string name="t_91d100de" formatted="false">Allegato</string>
+    <string name="t_92773fbb" formatted="false">%1$s È salvata nelle tue note; ↻ la trascrive.</string>
     <string name="t_92824f24" formatted="false">errore della voce (%1$s)</string>
     <string name="t_93fe9d61" formatted="false">Usa la bolla o apri Dictate &amp; Delegate per controllare la dettatura.</string>
     <string name="t_942b3beb" formatted="false">• Le tue note, l\'audio, le parole e i modelli restano su questo telefono.\n• Per trascrivere ciò che hai detto, la registrazione va direttamente a OpenRouter con la tua chiave, e poi al fornitore del modello vocale. Il testo segue lo stesso percorso verso Jev, un modello veloce che decide se perfezionarlo, insieme ai nomi dei tuoi modelli. Quando viene perfezionato, passa al modello di testo insieme alle informazioni su di te fornite a Dictate &amp; Delegate, alle tue parole, al modello indicato e a quanto allegato.\n• Se colleghi bb, un\'attività affidata al tuo chief of staff viene inviata alla tua istanza di bb, con il testo incollato.\n• Dictate &amp; Delegate non ha server e non raccoglie nulla. OpenRouter e i fornitori dei modelli gestiscono i dati in base alle loro informative sulla privacy.</string>
@@ -454,6 +464,7 @@
     <string name="t_980cb9e2" formatted="false">Anthropic ha impiegato troppo tempo.</string>
     <string name="t_9931e57c" formatted="false">Impossibile avviare. Controlla i permessi e riprova.</string>
     <string name="t_998a8ce0" formatted="false">Copiato negli appunti, incolla tenendo premuto</string>
+    <string name="t_99cccfe5" formatted="false">Elimina audio</string>
     <string name="t_9a6bdb3b" formatted="false">Jev · perfeziona da solo</string>
     <string name="t_9ae57457" formatted="false">Cerca aggiornamenti</string>
     <string name="t_9aefa862" formatted="false">Ottieni una chiave su openrouter.ai</string>
@@ -493,7 +504,6 @@
     <string name="t_a3c82a2d" formatted="false">offline, gratis</string>
     <string name="t_a42608c9" formatted="false">incompleto</string>
     <string name="t_a43d1375" formatted="false">Salva i testi che scrivi spesso, come la richiesta per un appartamento. Poi detta quale vuoi usare e cosa cambia questa volta.</string>
-    <string name="t_a475c571" formatted="false">Questa registrazione non è terminata (%1$s). Riprovala dalla Home.</string>
     <string name="t_a47dbae1" formatted="false">Questa nota ha già usato il modello più accurato.</string>
     <string name="t_a4af23b6" formatted="false">Una risposta non è stata riprodotta: il tuo nuovo messaggio è partito. Lo dice al capo</string>
     <string name="t_a4f48b05" formatted="false">Inviato: hai detto di aver finito (%1$d%%)</string>
@@ -585,6 +595,7 @@
     <string name="t_be7f9242" formatted="false">Impossibile salvare la cronologia delle trascrizioni.</string>
     <string name="t_bed11d96" formatted="false">Testo del tuo chief copiato</string>
     <string name="t_bf062440" formatted="false">Jev · invia al tuo chief da solo</string>
+    <string name="t_c002f56c" formatted="false">Eliminare l\'audio di questa registrazione?</string>
     <string name="t_c0d15569" formatted="false">Sintesi vocale non riuscita (%1$s): nessun\'altra voce disponibile su questo telefono</string>
     <string name="t_c0da8988" formatted="false">Note</string>
     <string name="t_c0ee3e71" formatted="false">✨ Perfezionamento…</string>
@@ -616,7 +627,6 @@
     <string name="t_c6f0a2dc" formatted="false">Non inviato al chief of staff</string>
     <string name="t_c705b630" formatted="false">Chiave non valida. Assicurati di averla copiata tutta.</string>
     <string name="t_c73cbcb8" formatted="false">Salva e verifica</string>
-    <string name="t_c7a54a7c" formatted="false">Trascrizione in corso… Puoi continuare a usare altre app.</string>
     <string name="t_c7ad7feb" formatted="false">Nessuna connessione a OpenRouter. Controlla la connessione internet e riprova.</string>
     <string name="t_c7b2a2f8" formatted="false">nessuna chiave</string>
     <string name="t_c8210626" formatted="false">Modello testo-voce</string>
@@ -632,8 +642,10 @@
     <string name="t_caf67b49" formatted="false">Claude ha rifiutato di perfezionare questo testo.</string>
     <string name="t_cba5c7dd" formatted="false">Volume giù</string>
     <string name="t_cc1ec5e4" formatted="false">ntfy è gratuita e open source. Installala, poi tocca di nuovo Apri in ntfy.</string>
+    <string name="t_cc8c6eb8" formatted="false">Registra qualcosa di nuovo</string>
     <string name="t_cc9b594b" formatted="false">Impossibile salvare le modifiche</string>
     <string name="t_ccd1bf1c" formatted="false">il download è danneggiato (checksum)</string>
+    <string name="t_cd0cedae" formatted="false">Eliminare l\'audio delle registrazioni non trascritte?</string>
     <string name="t_cd782109" formatted="false">Prima incolla la chiave</string>
     <string name="t_cd7cb0fd" formatted="false">Un unico thread bb riceve ogni attività che affidi a voce. Esegue le piccole operazioni da solo, avvia thread secondari per lavori più complessi e ti avvisa tramite ntfy quando ha finito o ha bisogno di te.</string>
     <string name="t_cd8737fa" formatted="false">Articolo</string>
@@ -654,6 +666,7 @@
     <string name="t_d27e302d" formatted="false">Il tuo braccio destro riceve tutto: testo incollato nel messaggio, immagini e PDF come allegati.</string>
     <string name="t_d2be46f0" formatted="false">Questa nota è costata %1$s.</string>
     <string name="t_d2c0aec0" formatted="false">Chiudi</string>
+    <string name="t_d2e26bc1" formatted="false">Trascrizione in corso… Puoi continuare a usare altre app o registrare qualcosa di nuovo.</string>
     <string name="t_d37efb26" formatted="false">Notifiche</string>
     <string name="t_d3c7fe72" formatted="false">🧑‍💼 Invio…</string>
     <string name="t_d3d608f4" formatted="false">Controllo se hai finito…</string>
@@ -691,6 +704,7 @@
     <string name="t_def9cb9f" formatted="false">Inizia</string>
     <string name="t_defee3bf" formatted="false">Trascrizione live</string>
     <string name="t_df336a1d" formatted="false">Link o ID del thread (thr_…)</string>
+    <string name="t_df7835dc" formatted="false">Interrotto. La registrazione è salvata nelle tue note; riprova da lì.</string>
     <string name="t_dfcb5ec6" formatted="false">1. Tocca Avvia e pronuncia una frase.\n2. Tocca Ferma. Dictate &amp; Delegate la trascrive.\n3. Tocca la casella qui sotto, poi 📥 Inserisci sul pannello mobile. Gli appunti restano invariati.</string>
     <string name="t_dff4964d" formatted="false">I crediti OpenRouter sono esauriti. Ricarica su openrouter.ai e riprova.</string>
     <string name="t_dff686d8" formatted="false">Aumenta questi valori se il rumore o altre persone interrompono; riducili se non rileva quando parli a bassa voce. Gli eventi recenti qui sotto mostrano ogni decisione con i relativi livelli.</string>
@@ -701,7 +715,6 @@
     <string name="t_e17493b2" formatted="false">nessuna risposta a questo indirizzo</string>
     <string name="t_e17c28b4" formatted="false">Decisioni</string>
     <string name="t_e1a911fe" formatted="false">chiave salvata</string>
-    <string name="t_e244f6df" formatted="false">Eliminare l\'audio salvato?</string>
     <string name="t_e24b4cba" formatted="false">Accesso non riuscito: %1$s</string>
     <string name="t_e2530adf" formatted="false">Inserisci qui</string>
     <string name="t_e2774654" formatted="false">Apri in ntfy</string>
@@ -717,6 +730,7 @@
     <string name="t_e5523fab" formatted="false">Impossibile eliminare tutto</string>
     <string name="t_e587893b" formatted="false">I pulsanti ✨ e 🧑‍💼 funzionano sempre, qualunque cosa sia impostata qui.</string>
     <string name="t_e5a8e366" formatted="false">Dettato</string>
+    <string name="t_e5bbe918" formatted="false">Niente più tentativi. Era già stata inviata, quindi il suo testo verrà comunque salvato quando arriva.</string>
     <string name="t_e6a56db0" formatted="false">Usa questo thread</string>
     <string name="t_e6b9caa8" formatted="false">Il modello è occupato al momento. Attendi un istante, poi riprova.</string>
     <string name="t_e6d8f947" formatted="false">Il tuo argomento</string>
@@ -724,6 +738,9 @@
     <string name="t_e70fcc33" formatted="false">Inviato ✓</string>
     <string name="t_e7224453" formatted="false">Nuovo modello</string>
     <string name="t_e75c6468" formatted="false">Aggiungi la chiave OpenRouter per iniziare a dettare</string>
+    <string name="t_e7be8f8e_many" formatted="false">Trascrizione di %1$d di registrazioni in corso… Intanto puoi registrare qualcosa di nuovo.</string>
+    <string name="t_e7be8f8e_one" formatted="false">Trascrizione di %1$d registrazione in corso… Intanto puoi registrare qualcosa di nuovo.</string>
+    <string name="t_e7be8f8e_other" formatted="false">Trascrizione di %1$d registrazioni in corso… Intanto puoi registrare qualcosa di nuovo.</string>
     <string name="t_e7dda7bb" formatted="false">Impossibile trascrivere %1$.1f s di ciò che hai detto: %2$s</string>
     <string name="t_e8683fe0" formatted="false">Studio</string>
     <string name="t_e8ef0352" formatted="false">Perfeziona di nuovo</string>
@@ -737,7 +754,6 @@
     <string name="t_ec054ecf" formatted="false">Invio ignorato: già in corso</string>
     <string name="t_ec8fbe93" formatted="false">Il suo testo, le versioni, i costi e l\'audio verranno rimossi. L\'azione non può essere annullata.</string>
     <string name="t_ecb6c206" formatted="false">Copia l\'ultima chiamata</string>
-    <string name="t_ed4646d0" formatted="false">Prima completa o elimina la registrazione in sospeso</string>
     <string name="t_ed46f7d2" formatted="false">nessuna connessione</string>
     <string name="t_ed783112" formatted="false">✓  In uso %1$s (%2$s). Istruito a usare le skill.</string>
     <string name="t_ed8814bc" formatted="false">Copia</string>
@@ -746,7 +762,9 @@
     <string name="t_ee5fc561" formatted="false">Verifica delle skill del chief in bb…</string>
     <string name="t_eea7466f" formatted="false">Inserisce il testo dove si trova il cursore, dove stai digitando.</string>
     <string name="t_eec8ea51" formatted="false">Elimina dati locali</string>
+    <string name="t_ef217ee7" formatted="false">Riprova</string>
     <string name="t_efc1065a" formatted="false">Non connesso</string>
+    <string name="t_efcb8ba3" formatted="false">la connessione si è interrotta</string>
     <string name="t_f01551fb" formatted="false">La registrazione non contiene audio leggibile.</string>
     <string name="t_f01db452" formatted="false">Crea una chiave lì, copiala e incollala qui sopra. Aggiungi anche qualche dollaro di credito su OpenRouter: una nota di un minuto costa solitamente molto meno di un centesimo.</string>
     <string name="t_f032e365" formatted="false">Ottieni una chiave su console.anthropic.com</string>
@@ -778,7 +796,6 @@
     <string name="t_f703e6b3" formatted="false">OpenRouter non ha ancora segnalato costi per questa nota.</string>
     <string name="t_f7362d4a" formatted="false">Invia ora</string>
     <string name="t_f7503f59" formatted="false">Attendi il completamento di questa nota</string>
-    <string name="t_f7508945" formatted="false">Trovata registrazione salvata. Apri Dictate &amp; Delegate per riprovare o eliminarla.</string>
     <string name="t_f791ca6c" formatted="false">Note, audio, modelli, chiavi, accesso a bb e impostazioni</string>
     <string name="t_f8964565" formatted="false">Chiude il pannello. La nota rimane in Dictate &amp; Delegate.</string>
     <string name="t_f8a28f83" formatted="false">Riquadro Impostazioni rapide</string>
@@ -803,6 +820,7 @@
     <string name="t_feccbddf" formatted="false">Perfezionato. Il testo è in Dictate &amp; Delegate.</string>
     <string name="t_ff1ae3ef" formatted="false">Non richiesti: registrazione schermo, notifiche, contatti, posizione.</string>
     <string name="t_ff38152f" formatted="false">Spazio di archiviazione quasi esaurito. Registrazione interrotta; puoi riprovare con l\'audio salvato.</string>
+    <string name="t_ff769841" formatted="false">Smetti di riprovare</string>
     <string name="t_ff770e18" formatted="false">Costi e attività</string>
     <string name="t_ffd9a681" formatted="false">Rifacimento con un modello più intelligente… Puoi lasciare questa schermata.</string>
 </resources>

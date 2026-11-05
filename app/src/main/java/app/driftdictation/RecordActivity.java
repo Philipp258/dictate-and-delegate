@@ -55,9 +55,9 @@ public final class RecordActivity extends Activity {
         return;
       }
       try {
+        // A recording kept from before doesn't stop a new one: it waits in the notes to retry.
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
-                != PackageManager.PERMISSION_GRANTED
-            || DictationService.audio(this).exists()) {
+            != PackageManager.PERMISSION_GRANTED) {
           openApp();
           return;
         }

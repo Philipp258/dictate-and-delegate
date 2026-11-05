@@ -157,13 +157,16 @@ public class DeviceFlowTest {
     waitFor("recording");
     Thread.sleep(1600);
     send(DictationService.STOP);
-    waitFor("error");
-    assertTrue(DictationService.audio(context).length() > 0);
+    waitFor("unfinished");
+    // Kept as a note of its own: the next recording isn't held up by it.
+    assertFalse(DictationService.audio(context).exists());
+    String id = DictationService.unfinished(context).get(0);
+    assertTrue(DictationService.recording(context, id).length() > 0);
     assertTrue(vault.get("transcript").isEmpty());
     send(DictationService.RETRY);
     waitFor("copied");
     assertEquals("Recovered prompt.", vault.get("transcript"));
-    assertFalse(DictationService.audio(context).exists());
+    assertFalse(DictationService.recording(context, id).exists());
   }
 
   @Test
@@ -186,7 +189,10 @@ public class DeviceFlowTest {
     assertNull(DictationService.instance);
     assertTrue(DictationService.audio(context).length() > 0);
     send(DictationService.ENABLE);
-    waitFor("error");
+    Thread.sleep(500);
+    // Taken into the notes to retry; it doesn't block anything.
+    assertFalse(DictationService.audio(context).exists());
+    assertEquals(1, DictationService.unfinished(context).size());
     TestServer.transcripts("Recovered after interruption.");
     send(DictationService.RETRY);
     waitFor("copied");
@@ -216,12 +222,9 @@ public class DeviceFlowTest {
     }
     TestServer.transcripts("First part.", null, "Second part.");
     send(DictationService.RETRY);
-    waitFor("error");
+    waitFor("unfinished");
     try (HistoryStore h = new HistoryStore(context)) {
-      assertTrue(
-          h.get(context.getSharedPreferences("settings", 0).getString("sessionId", ""))
-              .text()
-              .contains("First part."));
+      assertTrue(h.get(DictationService.unfinished(context).get(0)).text().contains("First part."));
     }
     send(DictationService.RETRY);
     waitFor("copied");
