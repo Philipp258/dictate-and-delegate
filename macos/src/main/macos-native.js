@@ -78,6 +78,7 @@ function bind(koffi) {
     str: OBJC.func('const char *objc_msgSend(void *self, void *sel)'),
     boolId: OBJC.func('bool objc_msgSend(void *self, void *sel, void *a)'),
     boolIdId: OBJC.func('bool objc_msgSend(void *self, void *sel, void *a, void *b)'),
+    voidIdIdBool: OBJC.func('void objc_msgSend(void *self, void *sel, void *a, void *b, bool c)'),
   };
 
   const sels = {};
@@ -241,11 +242,28 @@ function bind(koffi) {
       }
     },
 
-    /** Gives the focus back to the app that was in front before, without hiding the panel. */
+    /**
+     * Gives the focus back to the app that was in front before, without hiding the panel. Queued
+     * on the main run loop: deactivating resigns the key window, AppKit's notifications for that
+     * call into Electron's JavaScript, and running that while this FFI call is still on the stack
+     * crashes the app (a V8 trap). appActive() turns false once it has run.
+     */
     deactivate() {
       const pool = objc.poolPush();
       try {
-        objc.void(objc.id(objc.getClass('NSApplication'), S('sharedApplication')), S('deactivate'));
+        const app = objc.id(objc.getClass('NSApplication'), S('sharedApplication'));
+        objc.voidIdIdBool(app, S('performSelectorOnMainThread:withObject:waitUntilDone:'), S('deactivate'), null, false);
+      } finally {
+        objc.poolPop(pool);
+      }
+    },
+
+    /** The name of the app in front (where ⌘V goes), for the log. */
+    frontApp() {
+      const pool = objc.poolPush();
+      try {
+        const front = objc.id(objc.id(objc.getClass('NSWorkspace'), S('sharedWorkspace')), S('frontmostApplication'));
+        return front ? objc.str(objc.id(front, S('localizedName')), S('UTF8String')) : 'none';
       } finally {
         objc.poolPop(pool);
       }

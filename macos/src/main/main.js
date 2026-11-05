@@ -106,7 +106,8 @@ function start() {
       const mac = nativeMac.load();
       if (activation.opensWindow() || !mac || !mac.appActive()) return;
       mac.deactivate();
-      wlog('app: activated by the panel or a notification; gave the focus back', activeNow());
+      // deactivate() is queued on the run loop: log once it has run, so activeNow() shows the result.
+      setTimeout(() => wlog('app: activated by the panel or a notification; gave the focus back', activeNow()), 100);
     }, 150);
   });
   app.on('did-resign-active', () => wlog('macOS: app no longer active'));
@@ -291,7 +292,7 @@ function start() {
       insert: async (text) => {
         await focusBack();
         const r = await insertion.insert(text, { method: ctx.prefs.get(INSERT_METHOD, 'paste'), log: ctx.log });
-        if (r.how === 'copied') return { how: 'copied', reason: r.why === 'no-field' ? undefined : 'permission' };
+        if (r.how === 'copied') return { how: 'copied', reason: 'permission' };
         return { how: r.how, clipboard: false };
       },
       replaceInPlace: async (oldText, newText) => {

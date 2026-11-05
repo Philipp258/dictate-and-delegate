@@ -1452,8 +1452,9 @@ class Dictation extends EventEmitter {
           replaced = r !== null;
         }
         if (r === null && this.insertAt) r = (await this.insertAt(text)) || null;
-      } catch {
-        r = null; // The app went away mid-way: copy instead.
+      } catch (ex) {
+        this.log(`insert: ${friendly(ex)}; copied instead`);
+        r = null;
       }
       if (!r || r.how === 'copied') {
         // Insert couldn't: the clipboard instead, and the panel says so.

@@ -7,12 +7,12 @@
 const TEXT_ROLES = new Set(['AXTextField', 'AXTextArea', 'AXComboBox', 'AXSearchField', 'AXSecureTextField']);
 
 /**
- * What the focused element says about pasting: 'text' (a text field: paste), 'none' (nothing has
- * the focus: there's nowhere to paste, so the text is copied instead and the panel says so), or
- * 'unknown' (something else, or Accessibility can't tell: paste, as most apps take ⌘V somewhere).
+ * What the focused element says about pasting: 'text' (a text field) or 'unknown' (something
+ * else, or Accessibility can't tell). Both get ⌘V: most apps take it somewhere, and Chromium-based
+ * apps (bb's desktop app among them) often report no focused element while a text field has it.
  */
 function target(focus) {
-  if (!focus || focus.error === 'no-focus') return 'none';
+  if (!focus || focus.error !== undefined) return 'unknown';
   if (focus.role && TEXT_ROLES.has(focus.role)) return 'text';
   if (focus.editable) return 'text';
   return 'unknown';

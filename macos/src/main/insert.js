@@ -69,21 +69,24 @@ async function paste(mac, text, log) {
 /**
  * Inserts text at the cursor. method: 'paste' (default) or 'direct'. Resolves to
  * {how: 'inserted'|'pasted'|'copied', why} — 'copied' with why 'accessibility' (no permission) or
- * 'no-field' (nothing has the focus).
+ * 'unavailable' (the native macOS bindings couldn't be loaded).
  */
 function insert(text, { method = 'paste', log = () => {} } = {}) {
   return queue.run(async () => {
     const mac = nativeMac.load();
-    if (!mac || !accessibility()) {
+    if (!mac) {
+      log(`insert: the native macOS bindings (koffi) couldn't be loaded (${nativeMac.loadError}); copied instead`);
       await copy(text);
-      return { how: 'copied', why: mac ? 'accessibility' : 'unavailable' };
+      return { how: 'copied', why: 'unavailable' };
+    }
+    if (!accessibility()) {
+      log("insert: macOS says this app doesn't have the Accessibility permission; copied instead");
+      await copy(text);
+      return { how: 'copied', why: 'accessibility' };
     }
     const focus = mac.focus(method === 'direct');
     const kind = target(focus);
-    if (kind === 'none') {
-      await copy(text);
-      return { how: 'copied', why: 'no-field' };
-    }
+    const where = `${mac.frontApp()}, focus ${focus.error !== undefined ? `error ${focus.error}` : `${focus.role}${focus.editable ? ' (editable)' : ''}`}`;
     if (method === 'direct' && kind === 'text') {
       const err = mac.setSelectedText(text);
       await sleep(80);
@@ -92,6 +95,7 @@ function insert(text, { method = 'paste', log = () => {} } = {}) {
       log(`insert: direct insert didn't land (AXError ${err}, role ${focus.role}); pasting`);
     }
     await paste(mac, text, log);
+    log(`insert: pressed ⌘V (${where})`);
     return { how: 'pasted' };
   });
 }
