@@ -26,7 +26,6 @@
     <string name="t_064b8a10" formatted="false">Não foi possível refinar esta nota: %1$s Abaixo está o que disseste.</string>
     <string name="t_0656ff35" formatted="false">Dictate &amp; Delegate</string>
     <string name="t_066ab8b4" formatted="false">Esta gravação não terminou (%1$s).</string>
-    <string name="t_067329ed" formatted="false">esta app só aceita colar, por isso também está na área de transferência</string>
     <string name="t_068966f6" formatted="false">Refinar: créditos Anthropic ≈%1$s</string>
     <string name="t_07ee7593" formatted="false">A falar sobre algo? Adiciona-o, como uma proposta a que respondes.</string>
     <string name="t_083e8bd0" formatted="false">O bb não instalou a habilidade do interlocutor. Vamos tentar novamente da próxima vez.</string>
@@ -859,4 +858,5 @@
     <string name="t_ff769841" formatted="false">Parar de tentar</string>
     <string name="t_ff770e18" formatted="false">Custos e atividade</string>
     <string name="t_ffd9a681" formatted="false">A refazer com um modelo melhor… Podes sair deste ecrã.</string>
+    <string name="t_772ae93b" formatted="false">também está na área de transferência</string>
 </resources>

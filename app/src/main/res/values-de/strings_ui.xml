@@ -25,7 +25,6 @@
     <string name="t_064b8a10" formatted="false">Notiz konnte nicht verfeinert werden: %1$s Unten steht das Gesagte.</string>
     <string name="t_0656ff35" formatted="false">Dictate &amp; Delegate</string>
     <string name="t_066ab8b4" formatted="false">Diese Aufnahme wurde nicht fertig (%1$s).</string>
-    <string name="t_067329ed" formatted="false">diese App nimmt Text nur über die Zwischenablage an, daher liegt er auch dort</string>
     <string name="t_068966f6" formatted="false">Verfeinern: Anthropic-Guthaben ≈%1$s</string>
     <string name="t_07ee7593" formatted="false">Geht es um etwas Bestimmtes? Füge es hinzu, z. B. ein Angebot, auf das du antwortest.</string>
     <string name="t_083e8bd0" formatted="false">bb hat den Skill des Talkers nicht installiert. Beim nächsten Mal wird es erneut versucht.</string>
@@ -852,4 +851,5 @@
     <string name="t_ff769841" formatted="false">Nicht weiter versuchen</string>
     <string name="t_ff770e18" formatted="false">Kosten und Aktivität</string>
     <string name="t_ffd9a681" formatted="false">Wird mit klügerem Modell wiederholt… Du kannst diesen Bereich verlassen.</string>
+    <string name="t_772ae93b" formatted="false">der Text liegt auch in der Zwischenablage</string>
 </resources>

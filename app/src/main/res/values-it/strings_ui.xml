@@ -26,7 +26,6 @@
     <string name="t_064b8a10" formatted="false">Impossibile perfezionare questa nota: %1$s Di seguito trovi ciò che hai detto.</string>
     <string name="t_0656ff35" formatted="false">Dictate &amp; Delegate</string>
     <string name="t_066ab8b4" formatted="false">Questa registrazione non è stata completata (%1$s).</string>
-    <string name="t_067329ed" formatted="false">questa app accetta solo l\'incolla, quindi è anche negli appunti</string>
     <string name="t_068966f6" formatted="false">Perfeziona: crediti Anthropic ≈%1$s</string>
     <string name="t_07ee7593" formatted="false">Ti riferisci a qualcosa? Aggiungilo, come un\'offerta a cui rispondi.</string>
     <string name="t_083e8bd0" formatted="false">bb non ha installato la skill del talker. Riproverà la prossima volta.</string>
@@ -859,4 +858,5 @@
     <string name="t_ff769841" formatted="false">Smetti di riprovare</string>
     <string name="t_ff770e18" formatted="false">Costi e attività</string>
     <string name="t_ffd9a681" formatted="false">Rifacimento con un modello più intelligente… Puoi lasciare questa schermata.</string>
+    <string name="t_772ae93b" formatted="false">è anche negli appunti</string>
 </resources>

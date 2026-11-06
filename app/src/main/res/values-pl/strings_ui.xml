@@ -27,7 +27,6 @@
     <string name="t_064b8a10" formatted="false">Nie udało się dopracować tej notatki: %1$s Poniżej znajduje się to, co zostało powiedziane.</string>
     <string name="t_0656ff35" formatted="false">Dictate &amp; Delegate</string>
     <string name="t_066ab8b4" formatted="false">To nagranie nie zostało ukończone (%1$s).</string>
-    <string name="t_067329ed" formatted="false">ta aplikacja przyjmuje tylko wklejanie, więc tekst jest też w schowku</string>
     <string name="t_068966f6" formatted="false">Dopracuj: środki Anthropic ≈%1$s</string>
     <string name="t_07ee7593" formatted="false">Nawiązujesz do czegoś? Dodaj to, np. ofertę, na którą odpowiadasz.</string>
     <string name="t_083e8bd0" formatted="false">bb nie zainstalowało umiejętności talkera. Nastąpi kolejna próba następnym razem.</string>
@@ -866,4 +865,5 @@
     <string name="t_ff769841" formatted="false">Przestań próbować</string>
     <string name="t_ff770e18" formatted="false">Koszty i aktywność</string>
     <string name="t_ffd9a681" formatted="false">Poprawianie inteligentniejszym modelem… Możesz opuścić ten ekran.</string>
+    <string name="t_772ae93b" formatted="false">tekst jest też w schowku</string>
 </resources>

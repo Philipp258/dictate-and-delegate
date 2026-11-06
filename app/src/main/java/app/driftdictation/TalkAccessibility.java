@@ -213,8 +213,10 @@ public final class TalkAccessibility extends AccessibilityService {
 
   // ------------------------------------------------------------------ insert
 
-  /** Where a text was put: the field, and the range it took there (start -1 when unknown). */
-  /** clipboard: the app only took it as a paste, so the text is on the clipboard now too. */
+  /**
+   * Where a text was put: the field, and the range it took there (start -1 when unknown).
+   * clipboard: the text is on the clipboard now too (what was there before couldn't be put back).
+   */
   record Inserted(AccessibilityNodeInfo field, String text, int start, boolean clipboard) {}
 
   /** The text field that has input focus in the app you're in, or null. */
@@ -272,17 +274,20 @@ public final class TalkAccessibility extends AccessibilityService {
   }
 
   /**
-   * Puts the text at the cursor of the focused field, replacing a selection: by setting the
-   * field's text with ours spliced in at the cursor, which leaves the clipboard alone. Only if the
-   * app refuses that, through the clipboard and the field's own paste. Null when there's no field
-   * or the app refused both.
+   * Puts the text at the cursor of the focused field, replacing a selection, through the field's
+   * own paste: only our text goes in. The field is never written back whole from what
+   * Accessibility reports as its text, which in web fields can be a placeholder or other text on
+   * the page, and would end up in front of the dictation. The paste needs the clipboard; what was
+   * on it before is put back when Android lets us read it. Only an app that refuses pastes gets
+   * its text set, and only in a native field, whose reported text is its real text. Null when
+   * there's no field or nothing could go in.
    */
   Inserted insert(Context context, String text) {
     AccessibilityNodeInfo n = field();
     if (n == null) return null;
     String before = text(n);
-    // Text that may be a placeholder: paste at the cursor rather than rewrite the field with it.
-    if (!trusted(web(n), n.getHintText() == null ? "" : n.getHintText().toString(), before)) return pasteAtCursor(context, n, before, text);
+    Inserted pasted = paste(context, n, before, text);
+    if (pasted != null || web(n)) return pasted;
     int s = n.getTextSelectionStart(), e = n.getTextSelectionEnd();
     if (s < 0 || e < 0 || s > before.length() || e > before.length()) s = e = before.length();
     if (s > e) {
@@ -290,12 +295,13 @@ public final class TalkAccessibility extends AccessibilityService {
       s = e;
       e = t;
     }
-    return put(context, n, before, s, e, text);
+    return setText(n, before, s, e, text);
   }
 
   /**
    * Replaces an inserted text with another (the refined version), if the field still contains it
-   * unchanged; returns null otherwise, and the caller inserts at the cursor instead.
+   * unchanged: selects it, and pastes over it once the field confirms exactly that selection.
+   * Null otherwise, and the caller inserts at the cursor instead.
    */
   Inserted replace(Context context, Inserted earlier, String text) {
     AccessibilityNodeInfo n = field();
@@ -303,7 +309,11 @@ public final class TalkAccessibility extends AccessibilityService {
     String now = text(n);
     int at = locate(now, earlier.text(), earlier.start());
     if (at < 0) return null;
-    return put(context, n, now, at, at + earlier.text().length(), text);
+    int end = at + earlier.text().length();
+    if (!select(n, at, end, earlier.text())) return web(n) ? null : setText(n, now, at, end, text);
+    Inserted pasted = paste(context, n, now, text);
+    if (pasted != null || web(n)) return pasted;
+    return setText(n, now, at, end, text);
   }
 
   /** Is the field web content (Chromium: Chrome, WebView, a web app)? */
@@ -312,26 +322,74 @@ public final class TalkAccessibility extends AccessibilityService {
     return extras != null && extras.containsKey("AccessibilityNodeInfo.chromeRole");
   }
 
-  /**
-   * Can a field's text be spliced into and written back whole? Not a web field's with no hint:
-   * a web editor whose placeholder is drawn by CSS (the bb app's, ::before) reports the
-   * placeholder as its text, with nothing telling it apart. A web field that names its hint, a
-   * native field or an empty one can be.
-   */
-  static boolean trusted(boolean web, String hint, String text) {
-    return !web || !hint.isEmpty() || text.isEmpty();
+  /** Selects [s, e) and checks the field now has exactly that selected, holding the expected text. */
+  private static boolean select(AccessibilityNodeInfo n, int s, int e, String expected) {
+    Bundle range = new Bundle();
+    range.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, s);
+    range.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, e);
+    if (!n.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, range)) return false;
+    n.refresh();
+    return selects(text(n), n.getTextSelectionStart(), n.getTextSelectionEnd(), s, e, expected);
+  }
+
+  /** The field's selection is [s, e) and covers the expected text (non-breaking spaces aside). */
+  static boolean selects(String field, int selStart, int selEnd, int s, int e, String expected) {
+    if (selStart != s || selEnd != e || e > field.length()) return false;
+    return field.substring(s, e).replace('\u00a0', ' ').equals(expected.replace('\u00a0', ' '));
   }
 
   /**
-   * Pastes at the field's own cursor (replacing its selection), without reading or rewriting what's
-   * in it: needs the clipboard. Null if the app refused.
+   * The field's own paste at its cursor (replacing its selection). Once the app takes the paste
+   * nothing else is tried, also when the change doesn't show within a second and a half (slow web
+   * apps): a second attempt would put the text in twice. The clipboard is put back only once the
+   * text is visibly in, so a late paste can't take the old clipboard instead. Null if the app
+   * refused the paste.
    */
-  private Inserted pasteAtCursor(Context context, AccessibilityNodeInfo n, String before, String text) {
+  private Inserted paste(Context context, AccessibilityNodeInfo n, String before, String text) {
+    ClipData previous = restorable(context);
     DictationService.copy(context, text);
-    if (!n.performAction(AccessibilityNodeInfo.ACTION_PASTE)) return null;
-    String after = settle(n, before);
-    if (after.equals(before)) return null;
-    return new Inserted(n, text, locate(after, text, -1), true);
+    if (!n.performAction(AccessibilityNodeInfo.ACTION_PASTE)) {
+      restore(context, previous);
+      return null;
+    }
+    String after = settle(n, before, 30);
+    if (after.equals(before)) return new Inserted(n, text, -1, true);
+    boolean restored = restore(context, previous);
+    return new Inserted(n, text, locate(after, text, -1), !restored);
+  }
+
+  /**
+   * What's on the clipboard now, if Android lets us read it (usually only the app in front and the
+   * keyboard can) and it's plain text we can put back; null otherwise.
+   */
+  private static ClipData restorable(Context context) {
+    try {
+      ClipboardManager cm = context.getSystemService(ClipboardManager.class);
+      ClipData clip = cm.getPrimaryClip();
+      return restorable(clip) ? clip : null;
+    } catch (RuntimeException ex) {
+      return null;
+    }
+  }
+
+  static boolean restorable(ClipData clip) {
+    if (clip == null || clip.getItemCount() == 0) return false;
+    for (int i = 0; i < clip.getItemCount(); i++) {
+      ClipData.Item item = clip.getItemAt(i);
+      if (item.getText() == null || item.getUri() != null || item.getIntent() != null) return false;
+    }
+    return true;
+  }
+
+  /** Puts a clipboard back; false when there was nothing to put back. */
+  private static boolean restore(Context context, ClipData previous) {
+    if (previous == null) return false;
+    try {
+      context.getSystemService(ClipboardManager.class).setPrimaryClip(previous);
+      return true;
+    } catch (RuntimeException ex) {
+      return false;
+    }
   }
 
   /** Where the inserted text is now: at its old place, or its only occurrence; -1 if gone. */
@@ -350,36 +408,26 @@ public final class TalkAccessibility extends AccessibilityService {
     return before.substring(0, s) + text + before.substring(e);
   }
 
-  private Inserted put(
-      Context context, AccessibilityNodeInfo n, String before, int s, int e, String text) {
-    String expected = spliced(before, s, e, text);
-    // Set the field's text with ours spliced in, then the cursor after it: no clipboard.
+  /**
+   * For native fields whose app refuses pastes: sets the field's text with ours spliced in, then
+   * the cursor after it. No clipboard. Once the app takes it, nothing else is tried.
+   */
+  private static Inserted setText(AccessibilityNodeInfo n, String before, int s, int e, String text) {
     Bundle args = new Bundle();
-    args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, expected);
-    if (n.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
-      Bundle cursor = new Bundle();
-      cursor.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, s + text.length());
-      cursor.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, s + text.length());
-      n.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, cursor);
-      String after = settle(n, before);
-      if (!after.equals(before)) return new Inserted(n, text, locate(after, text, s), false);
-    }
-    // The app ignored that: paste, which needs the text on the clipboard.
-    Bundle range = new Bundle();
-    range.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, s);
-    range.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, e);
-    n.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, range);
-    DictationService.copy(context, text);
-    if (!n.performAction(AccessibilityNodeInfo.ACTION_PASTE)) return null;
-    String after = settle(n, before);
-    if (after.equals(before)) return null;
-    return new Inserted(n, text, after.equals(expected) ? s : locate(after, text, s), true);
+    args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, spliced(before, s, e, text));
+    if (!n.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) return null;
+    Bundle cursor = new Bundle();
+    cursor.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, s + text.length());
+    cursor.putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, s + text.length());
+    n.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, cursor);
+    String after = settle(n, before, 10);
+    return new Inserted(n, text, after.equals(before) ? -1 : locate(after, text, s), false);
   }
 
-  /** The field's text once it changed (apps paste asynchronously), at most about half a second. */
-  private static String settle(AccessibilityNodeInfo n, String before) {
+  /** The field's text once it changed (apps paste asynchronously), at most tries × 50 ms. */
+  private static String settle(AccessibilityNodeInfo n, String before, int tries) {
     String now = before;
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < tries; i++) {
       n.refresh();
       now = text(n);
       if (!now.equals(before)) return now;

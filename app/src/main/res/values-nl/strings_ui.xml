@@ -25,7 +25,6 @@
     <string name="t_064b8a10" formatted="false">Kon deze notitie niet verfijnen: %1$s Hieronder staat wat je zei.</string>
     <string name="t_0656ff35" formatted="false">Dictate &amp; Delegate</string>
     <string name="t_066ab8b4" formatted="false">Deze opname is niet afgerond (%1$s).</string>
-    <string name="t_067329ed" formatted="false">deze app accepteert alleen plakken, dus het staat ook op het klembord</string>
     <string name="t_068966f6" formatted="false">Verfijnen: Anthropic-tegoed ≈%1$s</string>
     <string name="t_07ee7593" formatted="false">Heb je het ergens over? Voeg het toe, zoals een offerte waarop je reageert.</string>
     <string name="t_083e8bd0" formatted="false">bb heeft de vaardigheid van de talker niet geïnstalleerd. Het wordt de volgende keer opnieuw geprobeerd.</string>
@@ -852,4 +851,5 @@
     <string name="t_ff769841" formatted="false">Stoppen met proberen</string>
     <string name="t_ff770e18" formatted="false">Kosten en activiteit</string>
     <string name="t_ffd9a681" formatted="false">Opnieuw doen met een slimmer model… Je kunt dit scherm verlaten.</string>
+    <string name="t_772ae93b" formatted="false">het staat ook op het klembord</string>
 </resources>

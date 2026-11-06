@@ -26,7 +26,6 @@
     <string name="t_064b8a10" formatted="false">Impossible de peaufiner cette note : %1$s Voici ce que tu as dit.</string>
     <string name="t_0656ff35" formatted="false">Dictate &amp; Delegate</string>
     <string name="t_066ab8b4" formatted="false">Cet enregistrement n\'est pas allé au bout (%1$s).</string>
-    <string name="t_067329ed" formatted="false">cette appli n\'accepte que le collage, c\'est donc aussi dans le presse-papiers</string>
     <string name="t_068966f6" formatted="false">Affiner : crédits Anthropic ≈%1$s</string>
     <string name="t_07ee7593" formatted="false">Tu parles de quelque chose ? Ajoute-le, comme une offre à laquelle tu réponds.</string>
     <string name="t_083e8bd0" formatted="false">bb n\'a pas installé la compétence du talker. Nouvel essai la prochaine fois.</string>
@@ -859,4 +858,5 @@
     <string name="t_ff769841" formatted="false">Arrêter d\'essayer</string>
     <string name="t_ff770e18" formatted="false">Coûts et activité</string>
     <string name="t_ffd9a681" formatted="false">Traitement avec un modèle plus performant… Tu peux quitter cet écran.</string>
+    <string name="t_772ae93b" formatted="false">c\'est aussi dans le presse-papiers</string>
 </resources>

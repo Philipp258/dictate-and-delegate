@@ -276,7 +276,7 @@ public class PanelTest {
     find("Insert refined").click();
     until("the refined text replaced it", () -> "Hi Jana, See you at eleven.".equals(padText()));
     find("Replaced with the refined text");
-    // Inserting, refining and replacing never touched the clipboard.
+    // Insert and replace paste through the clipboard, then put back what was there when Android lets the app read it.
     front();
     assertEquals("something I still need", clipboard());
     HistoryEntry e = note();
