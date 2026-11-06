@@ -49,6 +49,12 @@ test('aSendWordCountsOnlyAtTheEnd', () => {
   assert.equal(HandsFree.endsWith('book a table, over!', send), 'book a table');
   assert.equal(HandsFree.endsWith('Buch einen Tisch. Schick ab.', HandsFree.list('over, schick ab')), 'Buch einen Tisch.');
   assert.equal(HandsFree.endsWith('Over.', send), '');
+  assert.equal(HandsFree.endings('…of those options. Over. Over.', send), 2);
+  assert.equal(HandsFree.endings('…of those options. Over. Over. Over.', send), 3);
+  assert.equal(HandsFree.endings('Over over, over', send), 3);
+  assert.equal(HandsFree.endings('…since yesterday over. Well, over.', send), 1);
+  assert.equal(HandsFree.endings('Over.', send), 1);
+  assert.equal(HandsFree.endings('Over the weekend I want to rest.', send), 0);
   // Not at the end, or only part of a word: keep listening.
   assert.equal(HandsFree.endsWith('Over the weekend I want to rest.', send), null);
   assert.equal(HandsFree.endsWith('We went to Hanover', send), null);

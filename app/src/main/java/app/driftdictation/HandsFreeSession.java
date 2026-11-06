@@ -238,11 +238,26 @@ final class HandsFreeSession {
   record Verdict(String choice, double send, double end, java.math.BigDecimal cost) {}
 
   /**
-   * At these probabilities a turn is sent, or the call ended: Jev is clearly sure. A send word or
-   * a pause only asks; when Jev can't answer nothing is sent (the send word decides only without
-   * Jev).
+   * At these probabilities a turn is sent, or the call ended: Jev is clearly sure. A pause only
+   * asks (a send word asks too, but needs much less: PHRASE_HOLD_BELOW); when Jev can't answer
+   * nothing is sent (the send word decides only without Jev, or said twice).
    */
   static final double SEND_AT = 0.7, END_AT = 0.8;
+
+  /**
+   * A turn ending with the send word goes unless Jev is clearly sure you're mid-sentence (done
+   * below this): saying it is a clear wish to send. Said twice or more in a row ("Over. Over.") it
+   * goes without asking Jev. Philipp's calls, 6 November 2026: Jev gave "…the advantages of those
+   * options. Over." 0.68 and "…Well, over." 0.37, and saying it again made it less sure (0.66,
+   * 0.50), so it took the Send button. The one it was right to hold that morning, "…switch between
+   * them. End the over." (he went on: "End the robot. Overlay."), got 0.26.
+   */
+  static final double PHRASE_HOLD_BELOW = 0.3;
+
+  /** Whether a turn's text ends with the send word said twice or more in a row. */
+  boolean repeatedSend(String text) {
+    return HandsFree.endings(text, sendWords) >= 2;
+  }
 
   interface Sender {
     /** A new request ID, for a message about to go: it counts as ours from then on. */
@@ -2281,7 +2296,8 @@ final class HandsFreeSession {
    * saying goodbye), while the short quiet after the phrase is waited for, so it adds little to
    * the wait; then the model is asked for its final text, and if that still ends with the phrase
    * the turn goes (or the call ends) without waiting for a pause. A phrase mid-sentence ("until
-   * the period is over", "game over and …") sends nothing.
+   * the period is over", "game over and …") sends nothing when you go on after it, or when Jev is
+   * sure you're mid-sentence (PHRASE_HOLD_BELOW).
    */
   private void phrase(boolean end) {
     LiveText l = live;
@@ -2292,12 +2308,14 @@ final class HandsFreeSession {
           + "; your next pause decides");
       return;
     }
-    // Asked at once: its answer comes while the quiet after the phrase is waited for.
-    Asked asked = ask((turnPrefix + " " + l.text()).trim());
+    // Asked at once: its answer comes while the quiet after the phrase is waited for. The send
+    // word said twice or more in a row isn't asked about (null): it goes.
+    String said = (turnPrefix + " " + l.text()).trim();
+    Asked asked = !end && repeatedSend(said) ? null : ask(said);
     try {
       phrase(end, l, asked);
     } finally {
-      asked.cancel(); // You went on, or the call ended: its answer is no longer wanted.
+      if (asked != null) asked.cancel(); // You went on, or the call ended: its answer is no longer wanted.
     }
   }
 
@@ -2334,10 +2352,11 @@ final class HandsFreeSession {
     long quiet = (System.nanoTime() - waited) / 1_000_000;
     checkStep = "asking";
     listener.changed();
-    Verdict v = asked.verdict();
+    Verdict v = asked == null ? null : asked.verdict();
     if (v != null) logVerdict(end ? "on the end phrase" : "on the send phrase", asked.ms(), v);
     if (state != State.LISTENING) return;
-    if (end) {
+    if (asked == null) log("the send word said again and again: sent without asking Jev");
+    else if (end) {
       // Hanging up by mistake is the worst: only when Jev confirms it's a goodbye. Without that
       // (no Jev, it failed, or not a goodbye) the turn goes on as it is, and your pause decides.
       String why =
@@ -2347,11 +2366,12 @@ final class HandsFreeSession {
         log(why + ": not ended, the turn goes on");
         return;
       }
-    } else if (v != null && v.send() < SEND_AT) {
-      // "Over" as a word of the sentence, or not clearly the end: the turn goes on, and the same
-      // text doesn't ask again (the live text repeats it until you say more).
+    } else if (v != null && v.send() < PHRASE_HOLD_BELOW) {
+      // "Over" as a word of the sentence ("until the period is over"), Jev clearly sure: the turn
+      // goes on, and the same text doesn't ask again (the live text repeats it until you say more).
+      // Say it again to send anyway.
       heldPhrase = HandsFree.normalize(asked.said);
-      log(String.format(java.util.Locale.ROOT, "send phrase: Jev says you're not clearly done (done %.2f): not sent, the turn goes on", v.send()));
+      log(String.format(java.util.Locale.ROOT, "send phrase: Jev is sure you're mid-sentence (done %.2f): not sent, the turn goes on", v.send()));
       notDone(v);
       listener.changed();
       return;
@@ -2362,6 +2382,8 @@ final class HandsFreeSession {
       listener.changed();
       return;
     } else if (v == null) log("no Jev: the send word decides");
+    else if (v.send() < SEND_AT)
+      log(String.format(java.util.Locale.ROOT, "send phrase: Jev isn't sure you're done (done %.2f), but you said the send word: sent", v.send()));
     long start = clock.getAsLong();
     writingSince = start;
     checkStep = "writing";
@@ -2615,7 +2637,9 @@ final class HandsFreeSession {
     String failed = null;
     checkStep = "asking";
     listener.changed();
-    if (judge != null) {
+    // The send word said twice or more in a row at the end: it goes, Jev isn't asked.
+    boolean repeated = repeatedSend(text);
+    if (judge != null && !repeated) {
       try {
         v = judge.judge(text);
       } catch (Exception ex) {
@@ -2623,6 +2647,7 @@ final class HandsFreeSession {
       }
     }
     long ms = clock.getAsLong() - start;
+    if (repeated) log("the send word said again and again: sent without asking Jev");
     if (v != null) logVerdict("", ms, v);
     else if (failed != null) log("Jev failed after " + ms + " ms (" + failed + "): not sent, nothing ended");
     if (state == State.ENDED) return; // The call's end sent it.
@@ -2631,10 +2656,11 @@ final class HandsFreeSession {
       return;
     }
     String ended = HandsFree.endsWith(text, endWords), over = HandsFree.endsWith(text, sendWords);
-    // Only Jev's clear answer sends or ends; the words decide only without Jev at all.
+    // Only Jev's clear answer sends or ends; the words decide only without Jev at all. Ending with
+    // the send word, the turn goes unless Jev is sure you're mid-sentence; said twice, it goes.
     boolean noJev = judge == null;
     boolean end = v != null ? v.end() >= END_AT : noJev && ended != null;
-    boolean done = v != null ? v.send() >= SEND_AT : noJev && over != null && !HandsFree.normalize(text).equals(heldPhrase);
+    boolean done = repeated || (v != null ? v.send() >= (over != null ? PHRASE_HOLD_BELOW : SEND_AT) : noJev && over != null && !HandsFree.normalize(text).equals(heldPhrase));
     if (failed != null) reason("Couldn't ask whether you're done (%1$s): not sent; say %2$s or press Send", failed, sendWords.isEmpty() ? "Send" : "\"" + sendWords.get(0) + "\"");
     if (end) {
       log("end of the call");
@@ -2673,7 +2699,7 @@ final class HandsFreeSession {
         giveUpTurn("only the send word", false);
         return;
       }
-      if (v == null) reason("Sent: you said %1$s", "\"" + sendWords.get(0) + "\"");
+      if (v == null || over != null && v.send() < SEND_AT) reason("Sent: you said %1$s", "\"" + sendWords.get(0) + "\"");
       else
         switch (v.choice()) {
           case "question" -> reason("Sent: you asked your question (%1$d%%)", pct);

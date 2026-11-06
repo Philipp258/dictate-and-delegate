@@ -131,6 +131,17 @@ function endsWith(text, wordList) {
   return null;
 }
 
+/**
+ * How many times in a row the text ends with one of the words: "…those options. Over. Over." with
+ * [over] → 2, "…is over." → 1, none → 0. (The text sent keeps all but the last: "the period is
+ * over. Over." keeps its sentence.)
+ */
+function endings(text, wordList) {
+  let n = 0;
+  for (let t = endsWith(text, wordList); t != null; t = t === '' ? null : endsWith(t, wordList)) n++;
+  return n;
+}
+
 /** The text without its last n words, and without the punctuation left before them. */
 function cut(text, n) {
   let t = text.replace(/[^\p{L}\p{N}]+$/u, '');
@@ -490,6 +501,7 @@ module.exports = {
   list,
   normalize,
   endsWith,
+  endings,
   GATE,
   TAKE_MS,
   DEFAULT_GATE,

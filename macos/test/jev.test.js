@@ -158,7 +158,9 @@ test('theTurnQuestionNamesTheSendAndEndWords', () => {
   assert.deepEqual(Object.keys(turn.criteria), Jev.TURN_CHOICES);
   assert.equal(
     turn.criteria.over,
-    'Ends with a cue that this turn is finished and can go: "over and out", "send it", "go ahead", "that\'s it", "that\'s all".',
+    'Ends with a cue that this turn is finished and can go: "over and out", "send it", "go ahead", "that\'s it", "that\'s all".' +
+      ' The speaker says it on purpose to send, so it counts even when what came before rambles or trails off ("Well, over.").' +
+      ' Said twice or more ("Over. Over.") it\'s emphasis: they\'re surely done.',
   );
   assert.equal(turn.criteria.end, 'Wants to end the whole call: "end the call", "hang up", "bye", "talk later".');
   // Without words, the defaults.

@@ -2094,7 +2094,8 @@ class HandsFreeSession {
    * saying goodbye), while the short quiet after the phrase is waited for, so it adds little to
    * the wait; then the model is asked for its final text, and if that still ends with the phrase
    * the turn goes (or the call ends) without waiting for a pause. A phrase mid-sentence ("until
-   * the period is over", "game over and …") sends nothing.
+   * the period is over", "game over and …") sends nothing when you go on after it, or when Jev is
+   * sure you're mid-sentence (PHRASE_HOLD_BELOW).
    */
   async phrase(end) {
     const l = this.live;
@@ -2114,12 +2115,14 @@ class HandsFreeSession {
       );
       return;
     }
-    // Asked at once: its answer comes while the quiet after the phrase is waited for.
-    const asked = this.ask((this.turnPrefix + ' ' + l.text()).trim());
+    // Asked at once: its answer comes while the quiet after the phrase is waited for. The send
+    // word said twice or more in a row isn't asked about (null): it goes.
+    const said = (this.turnPrefix + ' ' + l.text()).trim();
+    const asked = !end && this.repeatedSend(said) ? null : this.ask(said);
     try {
       await this.phraseChecked(end, l, asked);
     } finally {
-      asked.cancel(); // You went on, or the call ended: its answer is no longer wanted.
+      if (asked != null) asked.cancel(); // You went on, or the call ended: its answer is no longer wanted.
     }
   }
 
@@ -2161,10 +2164,11 @@ class HandsFreeSession {
     const quiet = Math.trunc(performance.now() - waited);
     this._checkStep = 'asking';
     this.changed();
-    const v = await asked.verdict();
+    const v = asked == null ? null : await asked.verdict();
     if (v != null) this.logVerdict(end ? 'on the end phrase' : 'on the send phrase', asked.ms(), v);
     if (this._state !== State.LISTENING) return;
-    if (end) {
+    if (asked == null) this.log('the send word said again and again: sent without asking Jev');
+    else if (end) {
       // Hanging up by mistake is the worst: only when Jev confirms it's a goodbye. Without that
       // (no Jev, it failed, or not a goodbye) the turn goes on as it is, and your pause decides.
       const why =
@@ -2177,11 +2181,12 @@ class HandsFreeSession {
         this.log(why + ': not ended, the turn goes on');
         return;
       }
-    } else if (v != null && v.send < HandsFreeSession.SEND_AT) {
-      // "Over" as a word of the sentence, or not clearly the end: the turn goes on, and the same
-      // text doesn't ask again (the live text repeats it until you say more).
+    } else if (v != null && v.send < HandsFreeSession.PHRASE_HOLD_BELOW) {
+      // "Over" as a word of the sentence ("until the period is over"), Jev clearly sure: the turn
+      // goes on, and the same text doesn't ask again (the live text repeats it until you say more).
+      // Say it again to send anyway.
       this.heldPhrase = HandsFree.normalize(asked.said);
-      this.log(format('send phrase: Jev says you\'re not clearly done (done %.2f): not sent, the turn goes on', v.send));
+      this.log(format('send phrase: Jev is sure you\'re mid-sentence (done %.2f): not sent, the turn goes on', v.send));
       this.notDone(v);
       this.changed();
       return;
@@ -2192,6 +2197,8 @@ class HandsFreeSession {
       this.changed();
       return;
     } else if (v == null) this.log('no Jev: the send word decides');
+    else if (v.send < HandsFreeSession.SEND_AT)
+      this.log(format('send phrase: Jev isn\'t sure you\'re done (done %.2f), but you said the send word: sent', v.send));
     const start = this.clock();
     this.writingSince = start;
     this._checkStep = 'writing';
@@ -2329,6 +2336,11 @@ class HandsFreeSession {
     );
   }
 
+  /** Whether a turn's text ends with the send word said twice or more in a row. */
+  repeatedSend(text) {
+    return HandsFree.endings(text, this.sendWords) >= 2;
+  }
+
   /** Says why your turn wasn't sent, from Jev's answer. */
   notDone(v) {
     const pct = Math.round(100 * v.send);
@@ -2423,8 +2435,10 @@ class HandsFreeSession {
     let failed = null;
     this._checkStep = 'asking';
     this.changed();
+    // The send word said twice or more in a row at the end: it goes, Jev isn't asked.
+    const repeated = this.repeatedSend(text);
     const j = this.judgeFn();
-    if (j != null) {
+    if (j != null && !repeated) {
       try {
         v = await j(text);
       } catch (ex) {
@@ -2432,6 +2446,7 @@ class HandsFreeSession {
       }
     }
     const ms = this.clock() - start;
+    if (repeated) this.log('the send word said again and again: sent without asking Jev');
     if (v != null) this.logVerdict('', ms, v);
     else if (failed != null) this.log('Jev failed after ' + ms + ' ms (' + failed + '): not sent, nothing ended');
     if (this._state === State.ENDED) return; // The call's end sent it.
@@ -2441,10 +2456,15 @@ class HandsFreeSession {
     }
     const ended = HandsFree.endsWith(text, this.endWords);
     const over = HandsFree.endsWith(text, this.sendWords);
-    // Only Jev's clear answer sends or ends; the words decide only without Jev at all.
+    // Only Jev's clear answer sends or ends; the words decide only without Jev at all. Ending with
+    // the send word, the turn goes unless Jev is sure you're mid-sentence; said twice, it goes.
     const noJev = this.judge == null;
     const end = v != null ? v.end >= HandsFreeSession.END_AT : noJev && ended != null;
-    const done = v != null ? v.send >= HandsFreeSession.SEND_AT : noJev && over != null && HandsFree.normalize(text) !== this.heldPhrase;
+    const done =
+      repeated ||
+      (v != null
+        ? v.send >= (over != null ? HandsFreeSession.PHRASE_HOLD_BELOW : HandsFreeSession.SEND_AT)
+        : noJev && over != null && HandsFree.normalize(text) !== this.heldPhrase);
     if (failed != null)
       this.reason(
         'Couldn\'t ask whether you\'re done (%1$s): not sent; say %2$s or press Send',
@@ -2493,7 +2513,7 @@ class HandsFreeSession {
         this.giveUpTurn('only the send word', false);
         return;
       }
-      if (v == null) this.reason('Sent: you said %1$s', '"' + this.sendWords[0] + '"');
+      if (v == null || (over != null && v.send < HandsFreeSession.SEND_AT)) this.reason('Sent: you said %1$s', '"' + this.sendWords[0] + '"');
       else
         switch (v.choice) {
           case 'question':
@@ -2877,12 +2897,21 @@ Object.assign(HandsFreeSession, {
   /** The floor open this long with no speech: words the live text has (noise, a TV) are dropped. */
   STRAY_MS: 3000,
   /**
-   * At these probabilities a turn is sent, or the call ended: Jev is clearly sure. A send word or
-   * a pause only asks; when Jev can't answer nothing is sent (the send word decides only without
-   * Jev).
+   * At these probabilities a turn is sent, or the call ended: Jev is clearly sure. A pause only
+   * asks (a send word asks too, but needs much less: PHRASE_HOLD_BELOW); when Jev can't answer
+   * nothing is sent (the send word decides only without Jev, or said twice).
    */
   SEND_AT: 0.7,
   END_AT: 0.8,
+  /**
+   * A turn ending with the send word goes unless Jev is clearly sure you're mid-sentence (done
+   * below this): saying it is a clear wish to send. Said twice or more in a row ("Over. Over.") it
+   * goes without asking Jev. Philipp's calls, 6 November 2026: Jev gave "…the advantages of those
+   * options. Over." 0.68 and "…Well, over." 0.37, and saying it again made it less sure (0.66,
+   * 0.50), so it took the Send button. The one it was right to hold that morning, "…switch between
+   * them. End the over." (he went on: "End the robot. Overlay."), got 0.26.
+   */
+  PHRASE_HOLD_BELOW: 0.3,
   /** Writing down took this long: shown as slow. */
   SLOW_WRITING_MS: 4000,
   /** Writing down a turn is given up after this long and tried once more (tests change it). */

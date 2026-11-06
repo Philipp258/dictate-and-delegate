@@ -399,7 +399,7 @@ test('overThatsAWordOfTheSentenceIsHeldBackByJevAndTheTurnGoesOn', async () => {
   assert.equal(f.sent.length, 0);
   assert.equal(f.session.floor(), Floor.YOU);
   assert.equal(live.text(), sentence, 'the live text wasn\'t taken: it goes on');
-  assert.ok(f.logText().includes('send phrase: Jev says you\'re not clearly done (done 0.20): not sent, the turn goes on'));
+  assert.ok(f.logText().includes('send phrase: Jev is sure you\'re mid-sentence (done 0.20): not sent, the turn goes on'));
   // The live text repeats it (its final): not asked again.
   live.say(sentence);
   await sleep(100);
@@ -449,7 +449,7 @@ test('overSaidAgainWhileJevIsAskedAboutTheFirstIsCheckedAfterIt', async () => {
     asked.push(said);
     if (said === first) {
       await answer.promise;
-      return verdict('more', 0.4, 0);
+      return verdict('more', 0.1, 0);
     }
     return verdict('over', 0.95, 0);
   };
@@ -465,10 +465,9 @@ test('overSaidAgainWhileJevIsAskedAboutTheFirstIsCheckedAfterIt', async () => {
   answer.countDown();
   await until(() => f.sent.length === 1);
   assert.equal(f.sent[0], first);
-  assert.deepEqual(asked, [first, first + ' Over.']);
+  assert.deepEqual(asked, [first], 'said twice, Jev isn\'t asked again');
   assert.ok(f.logText().includes('a phrase is being checked already; checked again after it'), f.logText());
-  await sleep(200);
-  assert.equal(asked.length, 2, 'the same text isn\'t asked again');
+  assert.ok(f.logText().includes('the send word said again and again: sent without asking Jev'), f.logText());
 });
 
 test('overSaidAgainWhileJevFailsIsAskedAgain', async () => {
@@ -535,7 +534,7 @@ test('whenJevCantTellOnASendWordNothingIsSent', async () => {
   }
 });
 
-test('onTheSendWordJevMustBeClearlySureNotJustLikely', async () => {
+test('onTheSendWordJevOnlyHasToNotBeSureYoureMidSentence', async () => {
   const f = new Fake();
   const live = new FakeLive(f);
   f.session.judge = async () => verdict('over', 0.6, 0); // Likely done, not clearly.
@@ -543,10 +542,117 @@ test('onTheSendWordJevMustBeClearlySureNotJustLikely', async () => {
   f.speak();
   live.say('Book the table. Over.');
   f.quiet(400);
-  await until(() => f.logText().includes('send phrase: Jev says you\'re not clearly done (done 0.60)'));
-  await sleep(100);
-  assert.equal(f.sent.length, 0);
+  await until(() => f.sent.length === 1);
+  assert.equal(f.sent[0], 'Book the table.');
+  assert.ok(f.logText().includes('send phrase: Jev isn\'t sure you\'re done (done 0.60), but you said the send word: sent'), f.logText());
 });
+
+// Philipp's call, 6 November 2026, 08:49 (Android 3.6.0): Jev's answers on the send word, as logged.
+const OPTIONS =
+  "Oh, because there's more options. And we should explore all the options. Like another good option would be to have a kind of mode." +
+  ' So maybe not buttons, but like one switch on the overlay between, or like even allowing hand assistants. Like end BBs.' +
+  ' And just have a kind of a switch between them. End the robot. Overlay. Oh, we have the 2 apps, right, with 2 hotkeys.' +
+  " Oh, nice. Allowing you to have multiple times. With different hotkeys, such as having configurable hotkeys. And I don't" +
+  ' know, like, first of all, maybe there are even more options, and then you should weigh the disadvantages and the' +
+  ' advantages of those options.';
+
+/** Says text as the live text, ending a turn with Jev answering v; what was sent ('' none). */
+async function phraseSends(text, v, asked) {
+  const f = new Fake();
+  const live = new FakeLive(f);
+  f.session.judge = async (said) => {
+    asked.push(said);
+    return v;
+  };
+  f.quiet(1000);
+  f.speak();
+  live.say(text);
+  f.quiet(400);
+  await until(() => f.sent.length === 1 || reasons(f).includes('Not sent'));
+  await sleep(100);
+  return f.sent.length === 0 ? '' : f.sent[0];
+}
+
+test('overSendsUnlessJevIsSureYoureMidSentence', async () => {
+  const asked = [];
+  // 08:52:31: "over (done 0.68)" held it back.
+  assert.equal(await phraseSends(OPTIONS + ' Over.', verdict('over', 0.68, 0), asked), OPTIONS);
+  // 09:11:38 and 09:11:44: "unfinished (done 0.48)", "unfinished (done 0.37)".
+  assert.equal(await phraseSends('From, uh, since yesterday over.', verdict('unfinished', 0.48, 0), asked), 'From, uh, since yesterday');
+  assert.equal(await phraseSends('From, uh, since yesterday over. Well, over.', verdict('unfinished', 0.37, 0), asked), 'From, uh, since yesterday over. Well');
+  assert.equal(asked.length, 3);
+  // 08:51:59: "…switch between them. End the over." was mid-sentence (he went on "End the robot.
+  // Overlay."), Jev "unfinished (done 0.26)": held back, as it was.
+  assert.equal(await phraseSends('And just have a kind of a switch between them. End the over.', verdict('unfinished', 0.26, 0), asked), '');
+});
+
+test('overSaidTwiceOrMoreSendsWithoutAskingJev', async () => {
+  // 08:52:35 and 08:52:38: "Over. Over." got done 0.66, "Over. Over. Over." 0.50; he pressed Send.
+  for (const repeats of [' Over. Over.', ' Over. Over. Over.']) {
+    const asked = [];
+    const sent = await phraseSends(OPTIONS + repeats, verdict('over', 0.1, 0), asked);
+    assert.equal(sent, (OPTIONS + repeats).slice(0, -' Over.'.length), repeats);
+    assert.deepEqual(asked, [], repeats);
+  }
+});
+
+test('overSaidAgainAfterJevHeldItBackSendsWithoutAskingAgain', async () => {
+  // "End the over." held back (08:51:59); you say "over" once more: it goes.
+  const first = 'And just have a kind of a switch between them. End the over.';
+  const f = new Fake();
+  const live = new FakeLive(f);
+  const asked = [];
+  f.session.judge = async (said) => {
+    asked.push(said);
+    return verdict('unfinished', 0.26, 0);
+  };
+  f.quiet(1000);
+  f.speak();
+  live.say(first);
+  f.quiet(400);
+  await until(() => reasons(f).includes('Not sent: you seem mid-sentence (26% done)'));
+  f.speak();
+  live.say(first + ' Over.');
+  f.quiet(400);
+  await until(() => f.sent.length === 1);
+  assert.equal(f.sent[0], first);
+  assert.deepEqual(asked, [first]);
+  assert.ok(reasons(f).includes('Sent: you said "over"'), reasons(f));
+});
+
+test('atAPauseATurnEndingWithOverNeedsLessFromJevOneWithoutItIsAsBefore', async () => {
+  // 08:52:43, the pause after "Over. Over. Over.": Jev "over (done 0.59)", not sent. Now it goes
+  // without asking.
+  const f = new Fake(OPTIONS + ' Over. Over. Over.');
+  const asked = [];
+  f.session.judge = async (said) => {
+    asked.push(said);
+    return verdict('over', 0.59, 0);
+  };
+  await f.talk();
+  await until(() => f.sent.length === 1);
+  assert.equal(f.sent[0], OPTIONS + ' Over. Over.');
+  assert.deepEqual(asked, []);
+  // Once: Jev's 0.59 is enough.
+  const g = new Fake(OPTIONS + ' Over.');
+  g.session.judge = async () => verdict('over', 0.59, 0);
+  await g.talk();
+  await until(() => g.sent.length === 1);
+  assert.equal(g.sent[0], OPTIONS);
+  // Jev sure you're mid-sentence: not sent.
+  const m = new Fake('And just have a kind of a switch between them. End the over.');
+  m.session.judge = async () => verdict('unfinished', 0.26, 0);
+  await m.talk();
+  await until(() => reasons(m).includes('Not sent: you seem mid-sentence (26% done)'));
+  assert.equal(m.sent.length, 0);
+  // Without the send word the pause still needs Jev's clear "done" (0.7).
+  const p = new Fake("It's like a 3-room apartment, I think.");
+  p.session.judge = async () => verdict('request', 0.59, 0);
+  await p.talk();
+  await until(() => reasons(p).includes('Not sent: not clearly done yet (59%)'));
+  assert.equal(p.sent.length, 0);
+});
+
 
 // ------------------------------------------------------------------ words before and after a send word
 
@@ -694,7 +800,7 @@ test('aSendWordAfterAPauseSendsWordsWrittenDownFromAudioThatLiveTranscriptionMis
   f.quiet(400);
   await until(() => f.sent.length === 1);
   assert.equal(f.sent[0], 'So it seems to be stuck right over');
-  assert.deepEqual(asked, ['So it seems to be stuck right over', 'So it seems to be stuck right over Over.']);
+  assert.deepEqual(asked, ['So it seems to be stuck right over'], '"…right over Over." is the send word twice: Jev isn\'t asked');
   assert.equal(f.transcriptions, 1, 'written down once');
   assert.ok(!reasons(f).includes('Only the send word'), reasons(f));
 });

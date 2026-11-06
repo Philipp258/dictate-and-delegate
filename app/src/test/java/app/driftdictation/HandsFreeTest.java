@@ -26,6 +26,12 @@ public class HandsFreeTest {
     assertEquals("book a table", HandsFree.endsWith("book a table, over!", send));
     assertEquals("Buch einen Tisch.", HandsFree.endsWith("Buch einen Tisch. Schick ab.", HandsFree.list("over, schick ab")));
     assertEquals("", HandsFree.endsWith("Over.", send));
+    assertEquals(2, HandsFree.endings("…of those options. Over. Over.", send));
+    assertEquals(3, HandsFree.endings("…of those options. Over. Over. Over.", send));
+    assertEquals(3, HandsFree.endings("Over over, over", send));
+    assertEquals(1, HandsFree.endings("…since yesterday over. Well, over.", send));
+    assertEquals(1, HandsFree.endings("Over.", send));
+    assertEquals(0, HandsFree.endings("Over the weekend I want to rest.", send));
     // Not at the end, or only part of a word: keep listening.
     assertNull(HandsFree.endsWith("Over the weekend I want to rest.", send));
     assertNull(HandsFree.endsWith("We went to Hanover", send));
@@ -2105,7 +2111,7 @@ public class HandsFreeTest {
     assertEquals(0, f.sent.size());
     assertEquals(HandsFreeSession.Floor.YOU, f.session.floor());
     assertEquals("the live text wasn't taken: it goes on", sentence, live.text());
-    assertTrue(String.join("\n", f.log).contains("send phrase: Jev says you're not clearly done (done 0.20): not sent, the turn goes on"));
+    assertTrue(String.join("\n", f.log).contains("send phrase: Jev is sure you're mid-sentence (done 0.20): not sent, the turn goes on"));
     // The live text repeats it (its final): not asked again.
     live.say(sentence);
     Thread.sleep(100);
@@ -2157,7 +2163,7 @@ public class HandsFreeTest {
       asked.add(said);
       if (said.equals(first)) {
         answer.await();
-        return verdict("more", 0.4, 0);
+        return verdict("more", 0.1, 0);
       }
       return verdict("over", 0.95, 0);
     };
@@ -2173,12 +2179,10 @@ public class HandsFreeTest {
     answer.countDown();
     until(() -> f.sent.size() == 1);
     assertEquals("So I will say something else and then let's see what happens. Over.", f.sent.get(0));
-    assertEquals(List.of(first, first + " Over."), asked);
+    assertEquals("said twice, Jev isn't asked again", List.of(first), asked);
     String log = String.join("\n", f.log);
     assertTrue(log, log.contains("a phrase is being checked already; checked again after it"));
-    // Held back a second time, the same text isn't asked again.
-    Thread.sleep(200);
-    assertEquals(2, asked.size());
+    assertTrue(log, log.contains("the send word said again and again: sent without asking Jev"));
   }
 
   @Test
@@ -2206,6 +2210,116 @@ public class HandsFreeTest {
     answer.countDown();
     until(() -> f.sent.size() == 1);
     assertEquals("Book the table. Over.", f.sent.get(0));
+  }
+
+  // Philipp's call, 6 November 2026, 08:49 (3.6.0): Jev's answers on the send word, as logged.
+  static final String OPTIONS =
+      "Oh, because there's more options. And we should explore all the options. Like another good option would be to have a kind of mode."
+          + " So maybe not buttons, but like one switch on the overlay between, or like even allowing hand assistants. Like end BBs."
+          + " And just have a kind of a switch between them. End the robot. Overlay. Oh, we have the 2 apps, right, with 2 hotkeys."
+          + " Oh, nice. Allowing you to have multiple times. With different hotkeys, such as having configurable hotkeys. And I don't"
+          + " know, like, first of all, maybe there are even more options, and then you should weigh the disadvantages and the"
+          + " advantages of those options.";
+
+  /** Says text as the live text, ending a turn with Jev answering v; what was sent ("" none). */
+  static String phraseSends(String text, HandsFreeSession.Verdict v, List<String> asked) throws Exception {
+    Fake f = new Fake();
+    FakeLive live = new FakeLive(f);
+    f.session.judge = said -> {
+      asked.add(said);
+      return v;
+    };
+    f.quiet(1000);
+    f.speak();
+    live.say(text);
+    f.quiet(400);
+    until(() -> f.sent.size() == 1 || reasons(f).contains("Not sent"));
+    Thread.sleep(100);
+    return f.sent.isEmpty() ? "" : f.sent.get(0);
+  }
+
+  @Test
+  public void overSendsUnlessJevIsSureYoureMidSentence() throws Exception {
+    List<String> asked = new CopyOnWriteArrayList<>();
+    // 08:52:31: "over (done 0.68)" held it back.
+    assertEquals(OPTIONS, phraseSends(OPTIONS + " Over.", verdict("over", 0.68, 0), asked));
+    // 09:11:38 and 09:11:44: "unfinished (done 0.48)", "unfinished (done 0.37)".
+    assertEquals("From, uh, since yesterday", phraseSends("From, uh, since yesterday over.", verdict("unfinished", 0.48, 0), asked));
+    assertEquals("From, uh, since yesterday over. Well", phraseSends("From, uh, since yesterday over. Well, over.", verdict("unfinished", 0.37, 0), asked));
+    assertEquals(3, asked.size());
+    // 08:51:59: "…switch between them. End the over." was mid-sentence (he went on "End the robot.
+    // Overlay."), Jev "unfinished (done 0.26)": held back, as it was.
+    assertEquals("", phraseSends("And just have a kind of a switch between them. End the over.", verdict("unfinished", 0.26, 0), asked));
+  }
+
+  @Test
+  public void overSaidTwiceOrMoreSendsWithoutAskingJev() throws Exception {
+    // 08:52:35 and 08:52:38: "Over. Over." got done 0.66, "Over. Over. Over." 0.50; he pressed Send.
+    for (String repeats : List.of(" Over. Over.", " Over. Over. Over.")) {
+      List<String> asked = new CopyOnWriteArrayList<>();
+      String sent = phraseSends(OPTIONS + repeats, verdict("over", 0.1, 0), asked);
+      assertEquals(repeats, (OPTIONS + repeats).substring(0, (OPTIONS + repeats).length() - " Over.".length()), sent);
+      assertEquals(repeats, List.of(), asked);
+    }
+  }
+
+  @Test
+  public void overSaidAgainAfterJevHeldItBackSendsWithoutAskingAgain() throws Exception {
+    // "End the over." held back (08:51:59); you say "over" once more: it goes.
+    String first = "And just have a kind of a switch between them. End the over.";
+    Fake f = new Fake();
+    FakeLive live = new FakeLive(f);
+    List<String> asked = new CopyOnWriteArrayList<>();
+    f.session.judge = said -> {
+      asked.add(said);
+      return verdict("unfinished", 0.26, 0);
+    };
+    f.quiet(1000);
+    f.speak();
+    live.say(first);
+    f.quiet(400);
+    until(() -> reasons(f).contains("Not sent: you seem mid-sentence (26% done)"));
+    f.speak();
+    live.say(first + " Over.");
+    f.quiet(400);
+    until(() -> f.sent.size() == 1);
+    assertEquals(first, f.sent.get(0));
+    assertEquals(List.of(first), asked);
+    assertTrue(reasons(f), reasons(f).contains("Sent: you said \"over\""));
+  }
+
+  @Test
+  public void atAPauseATurnEndingWithOverNeedsLessFromJevOneWithoutItIsAsBefore() throws Exception {
+    // 08:52:43, the pause after "Over. Over. Over.": Jev "over (done 0.59)", not sent. Now it goes
+    // without asking.
+    Fake f = new Fake(OPTIONS + " Over. Over. Over.");
+    List<String> asked = new CopyOnWriteArrayList<>();
+    f.session.judge = said -> {
+      asked.add(said);
+      return verdict("over", 0.59, 0);
+    };
+    f.talk();
+    until(() -> f.sent.size() == 1);
+    assertEquals(OPTIONS + " Over. Over.", f.sent.get(0));
+    assertEquals(List.of(), asked);
+    // Once: Jev's 0.59 is enough.
+    Fake g = new Fake(OPTIONS + " Over.");
+    g.session.judge = said -> verdict("over", 0.59, 0);
+    g.talk();
+    until(() -> g.sent.size() == 1);
+    assertEquals(OPTIONS, g.sent.get(0));
+    // Jev sure you're mid-sentence: not sent.
+    Fake m = new Fake("And just have a kind of a switch between them. End the over.");
+    m.session.judge = said -> verdict("unfinished", 0.26, 0);
+    m.talk();
+    until(() -> reasons(m).contains("Not sent: you seem mid-sentence (26% done)"));
+    assertEquals(0, m.sent.size());
+    // Without the send word the pause still needs Jev's clear "done" (0.7).
+    Fake p = new Fake("It's like a 3-room apartment, I think.");
+    p.session.judge = said -> verdict("request", 0.59, 0);
+    p.talk();
+    until(() -> reasons(p).contains("Not sent: not clearly done yet (59%)"));
+    assertEquals(0, p.sent.size());
   }
 
   @Test
@@ -2341,7 +2455,7 @@ public class HandsFreeTest {
     f.quiet(400);
     until(() -> f.sent.size() == 1);
     assertEquals("So it seems to be stuck right over", f.sent.get(0));
-    assertEquals(List.of("So it seems to be stuck right over", "So it seems to be stuck right over Over."), asked);
+    assertEquals("\"…right over Over.\" is the send word twice: Jev isn't asked", List.of("So it seems to be stuck right over"), asked);
     assertEquals("written down once", 1, f.transcriptions.get());
     assertFalse(reasons(f), reasons(f).contains("Only the send word"));
   }
@@ -2608,6 +2722,9 @@ public class HandsFreeTest {
     assertEquals("over", criteria.keys().next()); // First: a fake without a script says done.
     assertTrue(criteria.getString("over").contains("\"over\""));
     assertTrue(criteria.getString("end").contains("\"end the call\""));
+    // A final "over" is a wish to send, also after a loose sentence; said again it's emphasis.
+    assertTrue(criteria.getString("over").contains("on purpose to send"));
+    assertTrue(criteria.getString("over").contains("Said twice or more (\"Over. Over.\") it's emphasis"));
   }
 
   @Test

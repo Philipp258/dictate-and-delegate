@@ -206,7 +206,9 @@ final class Jev {
     return switch (choice) {
       case "over" ->
           "Ends with a cue that this turn is finished and can go: " + quoted(sendWords, "\"over\"")
-              + ", \"send it\", \"go ahead\", \"that's it\", \"that's all\".";
+              + ", \"send it\", \"go ahead\", \"that's it\", \"that's all\". The speaker says it on purpose to"
+              + " send, so it counts even when what came before rambles or trails off (\"Well, over.\")."
+              + " Said twice or more (\"Over. Over.\") it's emphasis: they're surely done.";
       case "question" -> "Has fully asked a question and is now waiting for the answer.";
       case "request" -> "Has said a complete request, instruction or statement and is clearly finished with it.";
       case "end" ->

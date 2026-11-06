@@ -121,6 +121,17 @@ final class HandsFree {
     return null;
   }
 
+  /**
+   * How many times in a row the text ends with one of the words: "…those options. Over. Over." with
+   * [over] → 2, "…is over." → 1, none → 0. (The text sent keeps all but the last: "the period is
+   * over. Over." keeps its sentence.)
+   */
+  static int endings(String text, List<String> words) {
+    int n = 0;
+    for (String t = endsWith(text, words); t != null; t = t.isEmpty() ? null : endsWith(t, words)) n++;
+    return n;
+  }
+
   /** The text without its last n words, and without the punctuation left before them. */
   private static String cut(String text, int n) {
     String t = text.replaceAll("[^\\p{L}\\p{N}]+$", "");
