@@ -80,6 +80,12 @@ const Live = Object.freeze({
 /** The moments that get a quiet sound. */
 const Cue = Object.freeze({ HEARD: 'HEARD', SENT: 'SENT', REPLY: 'REPLY', FAILED: 'FAILED' });
 
+/**
+ * What the microphone hears right now, for the meter on screen: quiet, a sound that doesn't count
+ * as your speech (too quiet against the background, or too short so far), or your voice.
+ */
+const Hearing = Object.freeze({ QUIET: 'QUIET', SOUND: 'SOUND', VOICE: 'VOICE' });
+
 /** How a message went: to bb (both), to the talker only (the chief missed it), or not at all. */
 const Delivery = Object.freeze({ SENT: 'SENT', CHIEF_MISSED: 'CHIEF_MISSED', FAILED: 'FAILED' });
 
@@ -221,6 +227,8 @@ function tail(text) {
   const w = String(text).trim().split(/\s+/);
   return (w.length > 6 ? '…' : '') + w.slice(Math.max(0, w.length - 6)).join(' ');
 }
+
+const quote = (word) => '"' + word + '"';
 
 const isLetterOrDigit = (c) => /[\p{L}\p{N}]/u.test(c);
 
@@ -409,6 +417,14 @@ class HandsFreeSession {
      */
     this.heldPhrase = '';
     this.liveFailedSaid = false;
+    /** The microphone's level for the meter: the loudest recent frame, falling back fast. */
+    this.meterLevel = 0;
+    /** Your speech since live transcription's words last changed, in ms. */
+    this.speechSinceWords = 0;
+    /** The live text last seen with words: only new words say live transcription works. */
+    this.wordsSeen = '';
+    /** The send or end word a running phrase check is about (for the live line). */
+    this.phraseWord = '';
 
     const session = this;
     this.segmenter = new Segmenter(
@@ -532,14 +548,102 @@ class HandsFreeSession {
     if (this._state === State.READING) return !this.playing ? Live.REPLY_COMING : Live.PLAYING;
     const voiceReady = this._held.length === 0 || this._held[0].ready;
     if (now < this.mutedUntil) return Live.MUTED;
-    if (this.segmenter.speaking()) return Live.HEARING;
+    // A send word or your pause being checked: shown even while the stretch it ended in goes on.
+    const step = this.checkStep();
+    if (step === 'pause' || step === 'asking') return Live.WRITING;
+    // Your voice now; a stretch goes on through the pause that ends it, which isn't hearing you.
+    if (this.voiceNow()) return Live.HEARING;
     if (this.transcribing > 0) return Live.WRITING;
     if (this.sendPressed || this.outgoing > 0) return Live.SENDING;
     if (this.held() > 0) return voiceReady ? Live.REPLY_WAITING : Live.REPLY_COMING;
-    if (this.hasTurn()) return Live.WAITING_SEND;
+    if (this.hasTurn() || this._pending !== '') return Live.WAITING_SEND;
+    if (this.segmenter.speaking()) return Live.HEARING;
     if (now - this.deliveredAt < HandsFreeSession.SENT_SHOWN_MS) return Live.SENT;
     for (const w of this.working.values()) if (w[0] < 2 && now - w[1] < HandsFreeSession.WORKING_MS) return Live.WAITING_CHIEF;
     return Live.LISTENING;
+  }
+
+  /** What the microphone hears right now (the meter's colour). */
+  hearing() {
+    if (this.voiceNow()) return Hearing.VOICE;
+    // The same "clearly there" as the segmenter's too-quiet report: above its minimum and half
+    // again the background.
+    return this.meterLevel > Math.max(600, this.segmenter.background() * 1.5) ? Hearing.SOUND : Hearing.QUIET;
+  }
+
+  /**
+   * Your voice is there now: a stretch goes on through the pause that ends it (5 s by default),
+   * and that silence isn't your voice.
+   */
+  voiceNow() {
+    return this.segmenter.speaking() && this.segmenter.silentMs() < HandsFreeSession.HEARING_MS;
+  }
+
+  /** The meter's height, 0 to 1: the microphone's recent level on a log scale (100 to 10,000). */
+  meter() {
+    const l = this.meterLevel;
+    return l <= 100 ? 0 : Math.min(1, (Math.log10(l) - 2) / 2);
+  }
+
+  /**
+   * The last words heard, for the call bar ({words, counted}), or null when there are none: your
+   * unsent words (counted), or what live transcription hears while none of it counts as your
+   * speech (not counted: noise, the radio, or your voice too quiet against the background).
+   */
+  heard() {
+    const p = this._pending;
+    if (p !== '') return { words: HandsFreeSession.lastWords(p, HandsFreeSession.HEARD_WORDS), counted: true };
+    const l = this.live;
+    if (l == null || !l.working() || this._state !== State.LISTENING || this.batchTurn) return null;
+    const t = l.text();
+    return t === '' ? null : { words: HandsFreeSession.lastWords(t, HandsFreeSession.HEARD_WORDS), counted: false };
+  }
+
+  /** Does live transcription bring your words as you speak (this turn)? Else they come at your pause. */
+  liveWords() {
+    return this.streaming();
+  }
+
+  /**
+   * Why your words may not be coming through, in a few words, or "": live transcription failed or
+   * has no key (the whole call), or it brought no words for NO_WORDS_MS of your speech.
+   */
+  trouble() {
+    const l = this.live;
+    if (l != null && !l.working()) return tr('Live transcription failed: %1$s', l.failure());
+    if (this.liveOff !== '') return tr('Live transcription is off: no %1$s key (Settings → Hands-free)', this.liveOff);
+    const ms = this.speechSinceWords;
+    if (this.streaming() && ms >= HandsFreeSession.NO_WORDS_MS) return tr('No words for %1$d s of sound: live transcription may not be working', Math.trunc(ms / 1000));
+    return '';
+  }
+
+  /**
+   * As trouble(), short, for the call bar; "" when there's none. A missing key isn't here: the
+   * call bar says that in the call's first minute (liveOffRecent).
+   */
+  troubleShort() {
+    const l = this.live;
+    if (l != null && !l.working()) return tr('No live text · words at pauses');
+    const ms = this.speechSinceWords;
+    if (this.streaming() && ms >= HandsFreeSession.NO_WORDS_MS) return tr('No words for %1$d s', Math.trunc(ms / 1000));
+    return '';
+  }
+
+  /** The send or end word a running check heard and waits for a pause after; "" otherwise. */
+  phraseWaiting() {
+    return this.checkStep() === 'pause' ? this.phraseWord : '';
+  }
+
+  /** The text's last n words, "…" before them when there were more. */
+  static lastWords(text, n) {
+    const w = text.trim().split(/\s+/);
+    return (w.length > n ? '…' : '') + w.slice(Math.max(0, w.length - n)).join(' ');
+  }
+
+  /** Which of the words the text ends with ("" none), as set. */
+  static matched(text, words) {
+    for (const w of words) if (HandsFree.endsWith(text, [w]) != null) return w.trim();
+    return '';
   }
 
   /** The latest decisions with their reasons ({at, text, times}), newest first. */
@@ -735,6 +839,7 @@ class HandsFreeSession {
    */
   frame(frame) {
     const cue = this.inCue();
+    this.meterLevel = Math.max(Segmenter.level(frame, frame.length), this.meterLevel * HandsFreeSession.METER_FALL);
     const l = this.live;
     if (l != null && l.working() && this._state !== State.ENDED) {
       // Live transcription hears everything you say (not only what the segmenter keeps); a reply
@@ -760,11 +865,48 @@ class HandsFreeSession {
     // A sound of ours just played: it can't start a stretch of speech (one going on goes on).
     if (cue && !this.segmenter.candidate()) return;
     this.segmenter.frame(frame);
+    // Only loud frames count: the warning rather comes late than when you're simply pausing.
+    if (this.segmenter.speaking() && this.segmenter.silentMs() === 0 && this.streaming()) this.noWords(Segmenter.FRAME_MS);
     // A waiting reply plays once your turn is over: checked a few times a second.
     if (++this.sinceCheck >= 10) {
       this.sinceCheck = 0;
       this.noteTurn();
       if (this.held() > 0) this.readNext();
+    }
+  }
+
+  /**
+   * Your speech went on ms more without live transcription bringing words: past NO_WORDS_MS it's
+   * on screen (and once in the log and the reasons, with the levels, as it may be noise counted as
+   * speech) until words come.
+   */
+  noWords(ms) {
+    const was = this.speechSinceWords,
+      now = was + ms;
+    this.speechSinceWords = now;
+    const limit = HandsFreeSession.NO_WORDS_MS;
+    if (was < limit && now >= limit) {
+      const l = this.live;
+      this.log(
+        format(
+          'live transcription: no words for %d s of speech (background %.0f; it %s)',
+          Math.trunc(now / 1000),
+          this.segmenter.background(),
+          l == null ? 'isn\'t there' : l.working() ? 'says it\'s working' : 'failed',
+        ),
+      );
+      this.reason('No words came for %1$d s of sound: live transcription may not be working, or it\'s noise', Math.trunc(now / 1000));
+    } else if (now >= limit && Math.trunc(now / 1000) !== Math.trunc(was / 1000)) this.changed(); // The seconds on screen.
+  }
+
+  /** Live transcription brought words: it works (a warning that it brought none goes, and is logged). */
+  words(text) {
+    this.wordsSeen = text;
+    const was = this.speechSinceWords;
+    this.speechSinceWords = 0;
+    if (was >= HandsFreeSession.NO_WORDS_MS) {
+      this.log(format('live transcription: words again, after %d s of speech without', Math.trunc(was / 1000)));
+      this.changed();
     }
   }
 
@@ -978,6 +1120,7 @@ class HandsFreeSession {
    * phrase at its end acts at once (checked on the work queue: the model's final text decides).
    */
   liveText(text) {
+    if (text !== '' && text !== this.wordsSeen) this.words(text);
     const ending =
       text === '' ? null : HandsFree.endsWith(text, this.endWords) != null ? 'end' : HandsFree.endsWith(text, this.sendWords) != null ? 'send' : null;
     if (this._state !== State.LISTENING || !this.streaming() || text === '' || !this.floorIsYours()) {
@@ -1029,6 +1172,7 @@ class HandsFreeSession {
     }
     this.keyword = true;
     this.keywordAt = this.clock();
+    this.phraseWord = HandsFreeSession.matched(text, phrase === 'end' ? this.endWords : this.sendWords);
     this.log('live text ends with the ' + phrase + ' phrase: "' + tail(text) + '"');
     this.check(phrase === 'end' ? 'end phrase' : 'send phrase');
   }
@@ -1048,12 +1192,20 @@ class HandsFreeSession {
     );
   }
 
-  /** Logs why a send or end phrase at the end of the live text didn't act: every one says why. */
+  /**
+   * Logs why a send or end phrase at the end of the live text didn't act: every one says why. Not
+   * acting because your voice didn't count is on screen too: in the car "over" seemed ignored.
+   */
   phraseSkipped(phrase, text, why) {
     const line = 'live text ends with the ' + phrase + ' phrase, not acted on: ' + why + ' ("' + tail(text) + '")';
     if (line === this.lastSkip) return;
     this.lastSkip = line;
     this.log(line);
+    if (why.startsWith('nobody had the floor'))
+      this.reason(
+        'Heard %1$s, but your voice didn\'t count as speech (too quiet against the background?): not sent',
+        quote(HandsFreeSession.matched(text, phrase === 'end' ? this.endWords : this.sendWords)),
+      );
   }
 
   /**
@@ -1976,6 +2128,8 @@ class HandsFreeSession {
     const need = end ? HandsFreeSession.END_QUIET_MS : HandsFreeSession.SEND_QUIET_MS;
     const waited = performance.now();
     const until = waited + HandsFreeSession.PHRASE_WAIT_MS;
+    this._checkStep = 'pause';
+    this.changed();
     while (this.segmenter.silentMs() < need) {
       if (this._state !== State.LISTENING) return;
       if (HandsFree.endsWith(l.text(), words) == null) {
@@ -1983,7 +2137,19 @@ class HandsFreeSession {
         return;
       }
       if (performance.now() > until) {
-        this.log('no pause after the phrase: it\'s left to your next pause');
+        // The live text still ends with it, but sound went on: noise counted as speech (the car)
+        // looks like this, and so does talking on before its words came. Said on screen, with the
+        // levels in the log.
+        this.log(
+          format(
+            'no pause after the phrase in %d ms (sound went on: level %.0f, background %.0f, gate ×%.1f): it\'s left to your next pause',
+            HandsFreeSession.PHRASE_WAIT_MS,
+            this.meterLevel,
+            this.segmenter.background(),
+            this.gate,
+          ),
+        );
+        if (!end) this.reason('Heard %1$s, but sound went on after it (noise?): not sent. Pause a moment, or press Send', quote(this.phraseWord));
         return;
       }
       await sleep(10);
@@ -2051,6 +2217,7 @@ class HandsFreeSession {
       this.turnVersion++;
       this.dropStretch = this.segmenter.candidate(); // The stretch going on holds them too.
       this.log(notEnding + ': not ' + (end ? 'ended' : 'sent') + ', the turn goes on');
+      if (!end) this.reason('Heard %1$s, but the final words went on after it: not sent', quote(this.phraseWord));
       return;
     }
     // Its audio went with this message: the stretch going on now is part of it.
@@ -2366,6 +2533,7 @@ class HandsFreeSession {
    */
   endTurn(forget = true) {
     this._pending = '';
+    this.speechSinceWords = 0; // The sound without words was this turn's.
     this.takenByYou = false;
     this.heldBack = false;
     this.batchTurn = false;
@@ -2422,6 +2590,7 @@ class HandsFreeSession {
     }
     this.letGo();
     this._pending = '';
+    this.speechSinceWords = 0;
     this.takenByYou = more;
     this.heldPhrase = '';
     this.heldBack = false;
@@ -2647,6 +2816,20 @@ Object.assign(HandsFreeSession, {
    * most (the live text's delay for the first words): noise or a cough doesn't hold a reply.
    */
   WORDLESS_MS: 3000,
+  Hearing,
+  /**
+   * With live transcription, this much of your speech (as the segmenter counts it) with no words
+   * coming back says so on screen: it isn't working, or what counts as speech is noise (Philipp,
+   * 6 November 2026, in the car: "if I talk for 10 minutes and nothing is picked up, that is quite
+   * frustrating").
+   */
+  NO_WORDS_MS: 5000,
+  /** The live line says it hears you while your voice stopped less than this long ago. */
+  HEARING_MS: 700,
+  /** How fast the meter falls back after a loud frame (each 20 ms frame: half in about 130 ms). */
+  METER_FALL: 0.9,
+  /** How many of the last words the call bar shows. */
+  HEARD_WORDS: 8,
   /** How many of a reply's first words a note quotes. */
   MISSED_WORDS: 12,
   /** How long the screen says Sent ✓ after a message went. */
@@ -2720,4 +2903,4 @@ Object.assign(HandsFreeSession, {
   phraseJudgeMs: 3500,
 });
 
-module.exports = { HandsFreeSession, State, Phase, Floor, Live, Cue, Delivery, PartlySent, requestId, plain };
+module.exports = { HandsFreeSession, State, Phase, Floor, Live, Cue, Hearing, Delivery, PartlySent, requestId, plain };

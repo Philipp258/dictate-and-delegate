@@ -124,7 +124,14 @@ function liveLabel(s) {
     case Live.HEARING:
       return tr('Hearing you');
     case Live.WRITING:
-      return s.checkStep() === 'asking' ? tr('Checking whether you\'re done…') : tr('Writing down… %1$d s', Math.max(1, Math.trunc((s.writingMs() + 999) / 1000)));
+      switch (s.checkStep()) {
+        case 'asking':
+          return tr('Checking whether you\'re done…');
+        case 'pause':
+          return tr('Heard %1$s · waiting for a pause', '"' + s.phraseWaiting() + '"');
+        default:
+          return tr('Writing down… %1$d s', Math.max(1, Math.trunc((s.writingMs() + 999) / 1000)));
+      }
     case Live.WAITING_SEND:
       return tr('Listening · not sent yet');
     case Live.SENDING:
@@ -153,11 +160,19 @@ function shortLabel(s) {
   const failed = voiceFailure(s);
   if (failed != null) return tr('Voice failed · %1$s', brief(failed));
   if (liveOffShown(s)) return tr('Live off · no %1$s key', s.liveKeyMissing());
+  if (troubleShown(s)) return s.troubleShort();
   switch (s.liveState()) {
     case Live.HEARING:
       return tr('Hearing you');
     case Live.WRITING:
-      return s.checkStep() === 'asking' ? tr('Checking…') : tr('Writing… %1$d s', Math.max(1, Math.trunc((s.writingMs() + 999) / 1000)));
+      switch (s.checkStep()) {
+        case 'asking':
+          return tr('Checking…');
+        case 'pause':
+          return tr('Heard %1$s…', '"' + s.phraseWaiting() + '"');
+        default:
+          return tr('Writing… %1$d s', Math.max(1, Math.trunc((s.writingMs() + 999) / 1000)));
+      }
     case Live.WAITING_SEND:
       return tr('Not sent yet');
     case Live.SENDING:
@@ -165,13 +180,13 @@ function shortLabel(s) {
     case Live.SENT:
       return tr('Sent ✓');
     case Live.WAITING_CHIEF:
-      return tr('Working…');
+      return tr('Waiting for the reply');
     case Live.REPLY_WAITING:
       return tr('Reply waiting');
     case Live.REPLY_COMING:
       return tr('Reply coming');
     case Live.PLAYING:
-      return tr('Reading');
+      return tr('Playing the reply');
     case Live.MUTED:
       return tr('Mic paused');
     case Live.ENDED:
@@ -190,6 +205,30 @@ const QUIET_MOMENTS = new Set([Live.LISTENING, Live.WAITING_CHIEF, Live.REPLY_WA
 function liveOffShown(s) {
   if (!s.liveOffRecent()) return false;
   return QUIET_MOMENTS.has(s.liveState());
+}
+
+const TROUBLE_MOMENTS = new Set([Live.LISTENING, Live.HEARING, Live.WAITING_SEND, Live.WAITING_CHIEF, Live.SENT]);
+
+/**
+ * The call bar says why your words may not be coming through (HandsFreeSession.troubleShort)
+ * while it's listening or hearing you: not over a reply or a check, which say more.
+ */
+function troubleShown(s) {
+  if (s.troubleShort() === '') return false;
+  return TROUBLE_MOMENTS.has(s.liveState());
+}
+
+/**
+ * The call bar's second line: the last words heard (also what live transcription hears that
+ * doesn't count as you), or, without live text, that your words come at your pause; "" none.
+ */
+function wordsLine(s) {
+  const live = s.liveState();
+  if (live === Live.PLAYING || live === Live.REPLY_COMING || live === Live.ENDED) return '';
+  const h = s.heard();
+  if (h != null) return h.counted ? '“' + h.words + '”' : tr('Not counted as you: %1$s', '“' + h.words + '”');
+  if (live === Live.HEARING && !s.liveWords()) return tr('Your words come at your pause');
+  return '';
 }
 
 /** In full, for VoiceOver and the call bar's tooltip. */
@@ -672,6 +711,16 @@ class HandsFreeCall {
       canEnd: !this.callEnded,
       voiceError: s.voiceError(),
       liveOff: liveOffShown(s) ? liveOffText(s) : '',
+      // What the microphone hears and the words heard (the meter and the call bar's second line),
+      // and why your words may not be coming through: in the call bar (short, with troubleShown)
+      // and on the call screen (in full, for the whole call).
+      hearing: s.hearing(),
+      meter: s.meter(),
+      words: wordsLine(s),
+      heard: s.heard(),
+      liveWords: s.liveWords(),
+      trouble: s.trouble(),
+      troubleShown: troubleShown(s),
       liveKeyMissing: s.liveKeyMissing(),
       held: s.held(),
       sent: s.sent(),
@@ -738,6 +787,8 @@ module.exports = {
   liveLabel,
   shortLabel,
   liveOffShown,
+  troubleShown,
+  wordsLine,
   liveOffText,
   voiceFailure,
   brief,

@@ -1716,6 +1716,17 @@ function liveLook(live) {
   }
 }
 
+/** The call screen's meter: three bars moving with the microphone (full for your voice, faint for a sound, low for quiet). */
+const HF_WEIGHT = [0.75, 1, 0.6];
+function hfMeter(el, level, hearing) {
+  const l = hearing === 'QUIET' ? 0 : Math.max(0, Math.min(1, Number(level) || 0));
+  el.classList.toggle('sound', hearing === 'SOUND');
+  el.classList.toggle('voice', hearing === 'VOICE');
+  [...el.children].forEach((bar, i) => {
+    bar.style.height = Math.max(4, Math.round(22 * Math.min(1, l * HF_WEIGHT[i] * 1.4))) + 'px';
+  });
+}
+
 /** The call's part of the page, from a snapshot: started or not, the live line, reasons, words, cost. */
 function callArea(snap) {
   const active = !!(snap && snap.active);
@@ -1731,24 +1742,57 @@ function callArea(snap) {
     return h('div', null, p('Talk with your chief while you drive or cook. Pause as long as you like; answers are read aloud.', 'body gap-4'), h('div', { class: 'gap-16' }, start), h('div', { class: 'record-hint' }, 'or press ', h('kbd', null, accelLabel(S.callHotkey)), ' in any app'));
   }
   const live = h('div', { class: 'live', id: 'hf-live', role: 'status' });
+  // What the microphone hears, moving with it, and what that means in words.
+  const bars = h('span', { class: 'hf-meter', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'));
+  const hearing = h('span', { class: 'muted' }, '');
+  const mic = h('div', { class: 'hf-mic gap-8' }, bars, hearing);
+  // Why your words may not be coming through (live transcription failed, has no key, or brings no
+  // words): for as long as it lasts.
   const off = p('', 'warn gap-8 hidden');
   const pending = p('', 'body gap-12 pre');
   const reasons = h('div', { class: 'reasons gap-4', id: 'hf-reasons' });
   const send = btn('Send now', 'primary', () => api('sendNow').catch((e) => toast(e.message)), { block: true, tall: true });
   const end = btn('End hands-free', 'quiet', () => api('endCall').catch((e) => toast(e.message)), { block: true, danger: true });
   const costLine = p('', 'muted small center gap-8');
-  const area = h('div', null, live, off, pending, strong('What it decided, and why', 'gap-16'), reasons, h('div', { class: 'gap-16' }, send), h('div', { class: 'gap-8' }, end), costLine, h('div', { class: 'record-hint' }, 'Send now: ', h('kbd', null, accelLabel(S.hotkey)), '   End: ', h('kbd', null, accelLabel(S.callHotkey))));
+  const area = h('div', null, live, mic, off, pending, strong('What it decided, and why', 'gap-16'), reasons, h('div', { class: 'gap-16' }, send), h('div', { class: 'gap-8' }, end), costLine, h('div', { class: 'record-hint' }, 'Send now: ', h('kbd', null, accelLabel(S.hotkey)), '   End: ', h('kbd', null, accelLabel(S.callHotkey))));
   area.update = (s) => {
     const [icon, cls] = liveLook(s.live);
     live.textContent = icon + (s.liveLabel || '');
     live.className = 'live ' + cls;
-    off.textContent = s.liveOff || '';
-    off.classList.toggle('hidden', !s.liveOff);
+    off.textContent = s.trouble ? '⚠ ' + s.trouble : s.liveOff || '';
+    off.classList.toggle('hidden', !s.trouble && !s.liveOff);
+    hfMeter(bars, s.meter, s.hearing);
+    hearing.textContent =
+      s.hearing === 'VOICE'
+        ? s.state === 'READING'
+          ? 'Mic: your voice (it pauses the reply)'
+          : s.liveWords
+            ? 'Mic: your voice · words come live'
+            : 'Mic: your voice · words come at your pause'
+        : s.hearing === 'SOUND'
+          ? 'Mic: a sound, not counted as speech'
+          : 'Mic: quiet';
     const reasonList = Array.isArray(s.reasons) ? s.reasons.slice(0, 5) : [];
+    // The state comes ten times a second (for the meter): the list is rebuilt only when it changed.
+    const reasonsKey = JSON.stringify(reasonList);
+    if (reasonsKey === area.reasonsKey) return rest(s);
+    area.reasonsKey = reasonsKey;
     reasons.replaceChildren(...(reasonList.length ? reasonList.map((r) => h('div', null, h('span', { class: 't' }, r.at ? clock(r.at) : ''), r.text, r.times > 1 ? '  ×' + r.times : '')) : [h('div', { class: 'muted' }, 'Nothing yet.')]));
+    rest(s);
+  };
+  const rest = (s) => {
     // Below it, always labelled: your words so far while listening, the chief's while reading, or an error.
     const error = s.error || '';
-    pending.textContent = error ? error : s.phase === 'READING' && s.reply ? fmt('Chief: %1$s', s.reply) : s.pending ? fmt('You: %1$s', s.pending) : '';
+    const heard = s.heard;
+    pending.textContent = error
+      ? error
+      : s.phase === 'READING' && s.reply
+        ? fmt('Chief: %1$s', s.reply)
+        : s.pending
+          ? fmt('You: %1$s', s.pending)
+          : heard && !heard.counted
+            ? fmt('Not counted as you: %1$s', '“' + heard.words + '”')
+            : '';
     pending.className = 'text gap-12 pre ' + (error ? 'warn' : 'body');
     costLine.textContent = s.cost ? fmt('This call so far: %1$s', exact(s.cost)) : '';
     send.classList.toggle('hidden', !s.canSend);

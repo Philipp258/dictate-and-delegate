@@ -4,7 +4,7 @@
 <link rel="stylesheet" href="callbar.css">
 <title>Hands-free call</title></head>
 <body><div id="bar" role="toolbar" aria-label="Hands-free call">
-  <button id="state" class="state" title="Open the call"><span id="dot" class="dot"></span><span id="label">Listening</span></button>
+  <button id="state" class="state" title="Open the call"><span id="dot" class="meter" aria-hidden="true"><i></i><i></i><i></i></span><span class="lines"><span id="label">Listening</span><span id="words" class="words" hidden></span></span></button>
   <button id="send" class="send" title="Send now" aria-label="Send now">
     <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path fill="currentColor" d="M3.4 20.4 21 12 3.4 3.6 3.4 10.1 15 12 3.4 13.9z"/></svg></button>
   <button id="end" class="end" title="End the call" aria-label="End the call">

@@ -56,7 +56,6 @@
     <string name="t_0dd1e692" formatted="false">Couldn\'t tell the talker to use its skill: %1$s</string>
     <string name="t_0de44d68" formatted="false">1 message</string>
     <string name="t_0e1c0935" formatted="false">bb answers, but it doesn\'t offer the run tool. Update bb and check that the MCP plugin is on.</string>
-    <string name="t_0ea7c5dd" formatted="false">Reading</string>
     <string name="t_0fe6675c" formatted="false">Pause after which it checks whether you\'re done (seconds)</string>
     <string name="t_1058bd61" formatted="false">Call ended after %1$d s of silence; nothing was sent</string>
     <string name="t_10aef2d8" formatted="false">Chief of staff</string>
@@ -169,6 +168,7 @@
     <string name="t_33fdfd35" formatted="false">Helps Dictate &amp; Delegate spell names right and process each note for its purpose.</string>
     <string name="t_345d171c" formatted="false">bb\'s sign-in server answered with HTTP %1$d.</string>
     <string name="t_34f63f9b" formatted="false">Report sent</string>
+    <string name="t_3519ffb2" formatted="false">Mic: your voice · words come at your pause</string>
     <string name="t_3575eb12" formatted="false">Send report to your chief</string>
     <string name="t_35b07608" formatted="false">This recording wasn\'t written down yet. Its audio is kept.</string>
     <string name="t_35c96237" formatted="false">Refine instructions</string>
@@ -189,6 +189,7 @@
     <string name="t_3b9793b3" formatted="false">%1$s didn\'t answer in time. Try again.</string>
     <string name="t_3b9938d1" formatted="false">Delete this template?</string>
     <string name="t_3c847f8f" formatted="false">Floating panel · optional</string>
+    <string name="t_3cd9539d" formatted="false">Your words come at your pause</string>
     <string name="t_3ce1b08b" formatted="false">best voice</string>
     <string name="t_3d021462" formatted="false">It went through on try %1$d; the first failed at %2$s.</string>
     <string name="t_3d06124e" formatted="false">Your OpenRouter key isn\'t valid anymore. Change it in Dictate &amp; Delegate\'s Settings.</string>
@@ -218,6 +219,8 @@
     <string name="t_41c5ed6f" formatted="false">Microphone allowed</string>
     <string name="t_421f0793" formatted="false">Could not delete saved audio. Try again after restarting Dictate &amp; Delegate.</string>
     <string name="t_42463e69" formatted="false">Reply couldn\'t be played (%1$s): trying again</string>
+    <string name="t_426c07ff" formatted="false">Heard %1$s, but sound went on after it (noise?): not sent. Pause a moment, or press Send</string>
+    <string name="t_4409a889" formatted="false">No live text · words at pauses</string>
     <string name="t_446b3ccc" formatted="false">%1$d h %2$d min</string>
     <string name="t_449d8bae" formatted="false">Remove %1$s</string>
     <string name="t_45a0c8fa" formatted="false">Refined through OpenRouter instead of Anthropic: %1$s</string>
@@ -234,6 +237,7 @@
     <string name="t_481510cc" formatted="false">What OpenRouter charged for each call.</string>
     <string name="t_487286f2" formatted="false">Sent: you asked your question (%1$d%%)</string>
     <string name="t_48b31da3" formatted="false">The update couldn\'t be installed: %1$s</string>
+    <string name="t_49d66dde" formatted="false">Mic: a sound, not counted as speech</string>
     <string name="t_49db38fb" formatted="false">Live off · no %1$s key</string>
     <string name="t_4a473e6c" formatted="false">Could not load saved data. Your data has not been removed.</string>
     <string name="t_4a881de5" formatted="false">Finish recording or upload first</string>
@@ -262,6 +266,7 @@
     <string name="t_51a8b5d9" formatted="false">Checking the thread and the skills in bb…</string>
     <string name="t_51bac044" formatted="false">Cancel</string>
     <string name="t_51eabb10" formatted="false">Waiting for the chief · you can talk</string>
+    <string name="t_51ec3385" formatted="false">Live transcription failed: %1$s</string>
     <string name="t_523a6999" formatted="false">The connection to bb broke off. Try again.</string>
     <string name="t_525e2e9d" formatted="false">Previous month</string>
     <string name="t_5265d3ae" formatted="false">Most accurate</string>
@@ -276,6 +281,7 @@
     <string name="t_54964c79" formatted="false">A send word or a longer pause asks Jev whether you\'re done; only a clear yes sends (the send word alone, without Jev). Separate several with commas.</string>
     <string name="t_55026b0c" formatted="false">Activity</string>
     <string name="t_551d8c4b" formatted="false">No app to pick files with.</string>
+    <string name="t_5561cf2b" formatted="false">Heard %1$s, but the final words went on after it: not sent</string>
     <string name="t_55793fa6" formatted="false">Sounds and voice</string>
     <string name="t_55cc6297" formatted="false">Background dictation</string>
     <string name="t_568a8214" formatted="false">Hands-free settings</string>
@@ -303,7 +309,6 @@
     <string name="t_5cab269d" formatted="false">Your chief of staff works on it in bb and notifies you through ntfy when it\'s done or needs you. The button opens the thread.</string>
     <string name="t_5cacb072" formatted="false">This call so far: %1$s</string>
     <string name="t_5d00536d" formatted="false">Copied</string>
-    <string name="t_5d04f79c" formatted="false">Working…</string>
     <string name="t_5d08e4c2" formatted="false">Heard you, sent, reply coming, something failed</string>
     <string name="t_5d3efd7d" formatted="false">Couldn\'t ask whether you\'re done (%1$s): not sent; say %2$s or press Send</string>
     <string name="t_5da707be" formatted="false">Next month</string>
@@ -352,9 +357,11 @@
     <string name="t_6dde3895" formatted="false">Anthropic is busy right now.</string>
     <string name="t_6df56c0c" formatted="false">Not sent yet</string>
     <string name="t_6f2c1806" formatted="false">Remove</string>
+    <string name="t_707aa7bf" formatted="false">Heard %1$s · waiting for a pause</string>
     <string name="t_714149a6" formatted="false">Send to chief when addressed</string>
     <string name="t_71cc04b4" formatted="false">bb sent no sign-in code. Start it again.</string>
     <string name="t_721589c1" formatted="false">Today</string>
+    <string name="t_722c6f22" formatted="false">Heard %1$s…</string>
     <string name="t_72ec293c" formatted="false">GitHub sent something unexpected</string>
     <string name="t_72f939f7" formatted="false">Reply waits: your message is being sent</string>
     <string name="t_7382e59f" formatted="false">Signing out…</string>
@@ -449,7 +456,9 @@
     <string name="t_9153ca96" formatted="false">%1$s so far</string>
     <string name="t_918020d9" formatted="false">handle</string>
     <string name="t_918ca436" formatted="false">bb couldn\'t take the attachment (HTTP %1$d).</string>
+    <string name="t_918d74c3" formatted="false">No words for %1$d s</string>
     <string name="t_91d100de" formatted="false">Attached</string>
+    <string name="t_92084019" formatted="false">Mic: your voice (it pauses the reply)</string>
     <string name="t_92773fbb" formatted="false">%1$s It\'s kept in your notes; ↻ writes it down.</string>
     <string name="t_92824f24" formatted="false">the voice failed (%1$s)</string>
     <string name="t_93fe9d61" formatted="false">Use the bubble or open Dictate &amp; Delegate to control dictation.</string>
@@ -562,6 +571,7 @@
     <string name="t_b1c2889b" formatted="false">Check the skills in bb</string>
     <string name="t_b203fda8" formatted="false">Custom address</string>
     <string name="t_b214280c" formatted="false">Delete template</string>
+    <string name="t_b2f0175f" formatted="false">No words for %1$d s of sound: live transcription may not be working</string>
     <string name="t_b3410a1e" formatted="false">Not sent: you seem mid-sentence (%1$d%% done)</string>
     <string name="t_b36a2ca5" formatted="false">Reply waiting</string>
     <string name="t_b3a08580" formatted="false">Nothing to send: no words were written down</string>
@@ -572,6 +582,7 @@
     <string name="t_b561b378" formatted="false">1 · Quick Settings tile</string>
     <string name="t_b5ae1bae" formatted="false">bb</string>
     <string name="t_b60e80e5" formatted="false">it\'s too big to pass on this way</string>
+    <string name="t_b622655c" formatted="false">No words came for %1$d s of sound: live transcription may not be working, or it\'s noise</string>
     <string name="t_b67d60c1" formatted="false">Could not save the template</string>
     <string name="t_b6a5c51b" formatted="false">Sent as a bearer token</string>
     <string name="t_b6cac25b_few" formatted="false">%1$d files</string>
@@ -596,6 +607,7 @@
     <string name="t_bbb4c248" formatted="false">Anything else Dictate &amp; Delegate should know?</string>
     <string name="t_bbfdd3ed" formatted="false">Dictate &amp; Delegate reaches bb through bb\'s MCP server (plugin bb--mcp), which has to be on in bb.</string>
     <string name="t_bc1b2887" formatted="false">The ntfy server answered with HTTP %1$d.</string>
+    <string name="t_bd62c852" formatted="false">Mic: quiet</string>
     <string name="t_bdae2794" formatted="false">Used to spell names and terms right, in transcription and processing.</string>
     <string name="t_be7f9242" formatted="false">Could not save transcript history.</string>
     <string name="t_bed11d96" formatted="false">Copied your chief\'s text</string>
@@ -604,6 +616,7 @@
     <string name="t_c0d15569" formatted="false">Voice failed (%1$s): this phone has no other voice</string>
     <string name="t_c0da8988" formatted="false">Notes</string>
     <string name="t_c0ee3e71" formatted="false">✨ Refining…</string>
+    <string name="t_c17cebfc" formatted="false">Heard %1$s, but your voice didn\'t count as speech (too quiet against the background?): not sent</string>
     <string name="t_c1829c8e_few" formatted="false">%1$d words</string>
     <string name="t_c1829c8e_many" formatted="false">%1$d words</string>
     <string name="t_c1829c8e_one" formatted="false">%1$d word</string>
@@ -616,6 +629,7 @@
     <string name="t_c2ac4ac4" formatted="false">✓  A key is saved on this phone, encrypted.</string>
     <string name="t_c323cecd" formatted="false">While you dictate</string>
     <string name="t_c3257368" formatted="false">Redo with a smarter model</string>
+    <string name="t_c3314cf1" formatted="false">Not counted as you: %1$s</string>
     <string name="t_c34fa500" formatted="false">Give the template a name and a text</string>
     <string name="t_c37118a8" formatted="false">Dictate &amp; Delegate couldn\'t read or write its files. Check available storage, then retry.</string>
     <string name="t_c37292d9" formatted="false">about %1$s</string>
@@ -652,6 +666,7 @@
     <string name="t_cc9b594b" formatted="false">Could not save your changes</string>
     <string name="t_ccd1bf1c" formatted="false">the download is damaged (checksum)</string>
     <string name="t_cd0cedae" formatted="false">Discard the audio of the recordings not written down?</string>
+    <string name="t_cd1464c6" formatted="false">Mic: your voice · words come live</string>
     <string name="t_cd782109" formatted="false">Paste your key first</string>
     <string name="t_cd7cb0fd" formatted="false">One bb thread gets every task you hand over by voice. It does small things itself, starts child threads for bigger work, and notifies you through ntfy when it\'s done or needs you.</string>
     <string name="t_cd8737fa" formatted="false">Article</string>
@@ -726,6 +741,7 @@
     <string name="t_e2774654" formatted="false">Open in ntfy</string>
     <string name="t_e281d2a6" formatted="false">The sign-in came back from an unexpected server (%1$s).</string>
     <string name="t_e35e00df" formatted="false">default</string>
+    <string name="t_e36b69a2" formatted="false">Waiting for the reply</string>
     <string name="t_e3725a1f" formatted="false">✓  Installed in bb</string>
     <string name="t_e3d95fe1" formatted="false">Where thread links open, usually https://&lt;handle&gt;.getbb.app.</string>
     <string name="t_e3e3bdf6" formatted="false">No text yet</string>

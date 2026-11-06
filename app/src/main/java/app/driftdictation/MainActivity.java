@@ -68,7 +68,8 @@ public final class MainActivity extends Activity {
 
   private String bbNotice = "";
   private boolean bbNoticeOk, changingChief;
-  private TextView skillsLine, hfStatus, hfLiveOff, hfPending, hfCost, hfReasons;
+  private TextView skillsLine, hfStatus, hfLiveOff, hfPending, hfCost, hfReasons, hfHearing;
+  private LevelMeter hfMeter;
   private Button hfSend;
   /** The name field waits for a pause in typing before the skills are updated in bb. */
   private final Runnable skillsAfterName = () -> ChiefSkills.sync(this, false);
@@ -287,7 +288,8 @@ public final class MainActivity extends Activity {
     record = null;
     status = null;
     noteStatus = null;
-    skillsLine = hfStatus = hfLiveOff = hfPending = hfCost = hfReasons = null;
+    skillsLine = hfStatus = hfLiveOff = hfPending = hfCost = hfReasons = hfHearing = null;
+    hfMeter = null;
     hfSend = null;
     recovery = recentBox = monthBox = wordsBox = modelList = refineList = null;
     notesList = null;
@@ -3306,7 +3308,19 @@ public final class MainActivity extends Activity {
       hfStatus.setTypeface(Ui.BOLD);
       hfStatus.setGravity(Gravity.CENTER);
       hfStatus.setPadding(ui.dp(16), ui.dp(28), ui.dp(16), ui.dp(28));
-      // Live transcription missing its key: for the whole call, as it lasts that long.
+      // What the microphone hears, moving with it, and what that means in words.
+      LinearLayout hearing = new LinearLayout(this);
+      hearing.setOrientation(LinearLayout.HORIZONTAL);
+      hearing.setGravity(Gravity.CENTER_VERTICAL);
+      hfMeter = new LevelMeter(this);
+      hearing.addView(hfMeter, new LinearLayout.LayoutParams(ui.dp(18), ui.dp(22)));
+      hfHearing = ui.text("", 14, Ui.MUTED);
+      LinearLayout.LayoutParams after = new LinearLayout.LayoutParams(0, -2, 1);
+      after.leftMargin = ui.dp(10);
+      hearing.addView(hfHearing, after);
+      ui.add(content, hearing, 10);
+      // Why your words may not be coming through (live transcription failed, has no key, or brings
+      // no words): for as long as it lasts.
       hfLiveOff = ui.add(content, ui.text("", 15, Ui.WARN), 10);
       hfLiveOff.setVisibility(View.GONE);
       hfPending = ui.add(content, ui.text("", 15, Ui.MUTED), 10);
@@ -3382,9 +3396,14 @@ public final class MainActivity extends Activity {
             0,
             20));
     if (hfLiveOff != null) {
-      hfLiveOff.setText(s.liveKeyMissing().isEmpty() ? "" : HandsFreeService.liveOffText(s));
-      hfLiveOff.setVisibility(s.liveKeyMissing().isEmpty() ? View.GONE : View.VISIBLE);
+      String trouble = s.trouble();
+      hfLiveOff.setText(trouble.isEmpty() ? "" : "⚠ " + trouble);
+      hfLiveOff.setVisibility(trouble.isEmpty() ? View.GONE : View.VISIBLE);
     }
+    renderHearing(s);
+    // One chain of the meter's redraws at a time (this runs every 750 ms; onPause stops it).
+    main.removeCallbacks(hfMeterTicker);
+    main.postDelayed(hfMeterTicker, HandsFreeService.METER_MS);
     StringBuilder why = new StringBuilder();
     java.text.SimpleDateFormat time = new java.text.SimpleDateFormat("HH:mm:ss", Locale.getDefault());
     for (HandsFreeSession.Reason r : s.reasons().subList(0, Math.min(5, s.reasons().size())))
@@ -3397,9 +3416,11 @@ public final class MainActivity extends Activity {
     // Below it, always labelled: your words so far while listening, the chief's while reading, or
     // an error; and what the call cost so far.
     String error = s.error(), line;
+    HandsFreeSession.Heard heard = s.heard();
     if (!error.isEmpty()) line = error;
     else if (phase == HandsFreeSession.Phase.READING) line = tr("Chief: %1$s", s.reply());
     else if (!s.pending().isEmpty()) line = tr("You: %1$s", s.pending());
+    else if (heard != null && !heard.counted()) line = tr("Not counted as you: %1$s", "“" + heard.words() + "”");
     else line = "";
     hfPending.setTextColor(error.isEmpty() ? Ui.BODY : Ui.WARN);
     hfPending.setText(line);
@@ -3409,6 +3430,35 @@ public final class MainActivity extends Activity {
     // Only the control that fits: Send now while you can talk; End is always there.
     hfSend.setVisibility(HandsFreeService.canSend(s) ? View.VISIBLE : View.GONE);
   }
+
+  /**
+   * The call screen's meter and what it hears, in words: your voice (and whether its words come
+   * live or at your pause), a sound that doesn't count as speech, or quiet.
+   */
+  private void renderHearing(HandsFreeSession s) {
+    if (hfMeter == null || hfHearing == null) return;
+    HandsFreeSession.Hearing h = s.hearing();
+    boolean reading = s.state() == HandsFreeSession.State.READING;
+    hfMeter.show(s.meter(), h, h == HandsFreeSession.Hearing.VOICE ? Ui.TEAL : Ui.MUTED);
+    String text =
+        switch (h) {
+          case VOICE -> reading ? tr("Mic: your voice (it pauses the reply)") : s.liveWords() ? tr("Mic: your voice · words come live") : tr("Mic: your voice · words come at your pause");
+          case SOUND -> tr("Mic: a sound, not counted as speech");
+          default -> tr("Mic: quiet");
+        };
+    if (!text.contentEquals(hfHearing.getText())) hfHearing.setText(text);
+  }
+
+  /** The call screen's meter moves with the microphone: ten times a second while it's shown. */
+  private final Runnable hfMeterTicker =
+      new Runnable() {
+        public void run() {
+          HandsFreeSession s = HandsFreeService.session();
+          if (hfMeter == null || s == null) return;
+          renderHearing(s);
+          main.postDelayed(this, HandsFreeService.METER_MS);
+        }
+      };
 
   /** Settings → Hands-free: the words, the timing and the voice. */
   private void handsFreeSettingsPage() {
@@ -4331,6 +4381,7 @@ public final class MainActivity extends Activity {
   protected void onPause() {
     saveEdits();
     main.removeCallbacks(refresh);
+    main.removeCallbacks(hfMeterTicker);
     super.onPause();
   }
 

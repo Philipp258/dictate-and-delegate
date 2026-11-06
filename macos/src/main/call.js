@@ -181,6 +181,25 @@ function createCall({ ctx, audio, shell }) {
     if (bar && !bar.isDestroyed()) bar.webContents.send('call', snap);
   };
 
+  /**
+   * The level meter moves with the microphone, and the live line moves on by itself ("Hearing
+   * you" ends a moment after your voice): the call's state goes out ten times a second while a
+   * call is on (Android's METER_MS).
+   */
+  const METER_MS = 100;
+  let meterTimer = null;
+  function meterTicks() {
+    if (meterTimer) return;
+    meterTimer = setInterval(() => {
+      if (!api.active()) {
+        clearInterval(meterTimer);
+        meterTimer = null;
+        return;
+      }
+      changed();
+    }, METER_MS);
+  }
+
   function newController(ownBlocker) {
     const { prefs, vault, bb, openRouter, profile, history } = ctx;
     voice = new Voice({ vault, player, log: (l) => ctx.log('voice: ' + l) });
@@ -318,6 +337,7 @@ function createCall({ ctx, audio, shell }) {
       controller.start({ seed });
       audio.mediaButtons(() => api.sendNow()); // The headset button sends, as on Android.
       showBar(seed ? at : null);
+      meterTicks();
       changed();
     },
 

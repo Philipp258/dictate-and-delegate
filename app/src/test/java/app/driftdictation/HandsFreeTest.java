@@ -3009,4 +3009,126 @@ public class HandsFreeTest {
     until(() -> reasons(f).contains("Sent to the talker only. The chief didn't get it: thread not found"));
     assertEquals(2, f.sent.size());
   }
+
+  // ------------------------------------------------------------------ the live state on screen
+
+  @Test
+  public void theMeterSaysQuietASoundOrYourVoice() throws Exception {
+    Fake f = new Fake();
+    f.quiet(1000);
+    assertEquals(HandsFreeSession.Hearing.QUIET, f.session.hearing());
+    assertEquals(0, f.session.meter(), 0.01);
+    // Clearly there, but not loud enough against the background to count as speech.
+    for (int i = 0; i < 10; i++) f.session.frame(frame(900));
+    assertEquals(HandsFreeSession.Hearing.SOUND, f.session.hearing());
+    f.quiet(1000);
+    f.speak();
+    assertEquals(HandsFreeSession.Hearing.VOICE, f.session.hearing());
+    assertTrue(f.session.meter() > 0.5);
+  }
+
+  @Test
+  public void theLastWordsHeardShowAndWordsThatDontCountAreMarked() throws Exception {
+    Fake f = new Fake();
+    FakeLive live = new FakeLive(f);
+    f.quiet(1000);
+    // Live text while nobody has the floor (the radio): shown, as not counted.
+    live.say("traffic news for the A3");
+    HandsFreeSession.Heard h = f.session.heard();
+    assertNotNull(h);
+    assertFalse(h.counted());
+    assertEquals("traffic news for the A3", h.words());
+    live.discard();
+    f.speak();
+    live.say("one two three four five six seven eight nine ten");
+    h = f.session.heard();
+    assertTrue(h.counted());
+    assertEquals("…three four five six seven eight nine ten", h.words());
+    assertEquals(HandsFreeSession.Live.HEARING, f.session.live());
+  }
+
+  @Test
+  public void speechWithoutLiveWordsSaysSoUntilWordsCome() throws Exception {
+    Fake f = new Fake("");
+    FakeLive live = new FakeLive(f);
+    f.quiet(1000);
+    // Speech counts from when it took the turn (0.4 s in): 0.8 s, then 1.2 s each.
+    for (int i = 0; i < 4; i++) f.speak();
+    assertEquals("", f.session.trouble());
+    f.speak();
+    assertTrue(f.session.trouble(), f.session.trouble().startsWith("No words for 5 s of sound"));
+    assertEquals("No words for 5 s", f.session.troubleShort());
+    assertTrue(reasons(f), reasons(f).contains("No words came for 5 s of sound"));
+    live.say("Can you hear me");
+    assertEquals("", f.session.trouble());
+    assertTrue(String.join("\n", f.log).contains("live transcription: words again, after 5 s of speech without"));
+  }
+
+  @Test
+  public void failedLiveTranscriptionIsShownForTheWholeCall() throws Exception {
+    Fake f = new Fake();
+    FakeLive live = new FakeLive(f);
+    f.quiet(1000);
+    live.fail("connection lost");
+    assertEquals("Live transcription failed: connection lost", f.session.trouble());
+    assertEquals("No live text · words at pauses", f.session.troubleShort());
+    assertFalse(f.session.liveWords());
+  }
+
+  @Test
+  public void aSendWordWithoutAPauseAfterItSaysWhyNothingWent() throws Exception {
+    // In the car: "over", but sound goes on (noise counted as speech) and the live text stays.
+    Fake f = new Fake();
+    FakeLive live = new FakeLive(f);
+    f.session.judge = said -> verdict("over", 0.95, 0);
+    f.quiet(1000);
+    f.speak();
+    live.say("Read me the message, over");
+    until(() -> "pause".equals(f.session.checkStep()));
+    assertEquals(HandsFreeSession.Live.WRITING, f.session.live());
+    assertEquals("over", f.session.phraseWaiting());
+    long until = System.currentTimeMillis() + HandsFreeSession.PHRASE_WAIT_MS + 1000;
+    while (System.currentTimeMillis() < until && !reasons(f).contains("sound went on after it")) {
+      f.speak();
+      Thread.sleep(50);
+    }
+    assertTrue(reasons(f), reasons(f).contains("Heard \"over\", but sound went on after it (noise?): not sent"));
+    assertTrue(String.join("\n", f.log).contains("no pause after the phrase in 3000 ms (sound went on: level"));
+    assertEquals(0, f.sent.size());
+  }
+
+  @Test
+  public void aSendWordWhileYourVoiceDoesntCountIsOnScreen() throws Exception {
+    Fake f = new Fake();
+    FakeLive live = new FakeLive(f);
+    f.quiet(1000);
+    live.say("Read me the message. Over.");
+    assertTrue(reasons(f), reasons(f).contains("Heard \"over\", but your voice didn't count as speech"));
+    assertEquals(0, f.sent.size());
+  }
+
+  @Test
+  public void thePauseThatEndsAStretchIsntYourVoiceNorSoundWithoutWords() throws Exception {
+    // A stretch goes on through the pause that ends it (here 1 s; 5 s by default): that silence
+    // mustn't show as your voice or count as sound without words.
+    Fake f = new Fake();
+    FakeLive live = new FakeLive(f);
+    f.quiet(1000);
+    f.speak();
+    live.say("Hello there");
+    f.quiet(900); // Still the same stretch.
+    assertTrue(f.session.speaking());
+    assertNotEquals(HandsFreeSession.Hearing.VOICE, f.session.hearing());
+    assertNotEquals(HandsFreeSession.Live.HEARING, f.session.live());
+    // More stretches, each with a pause just short of ending it, and the same words: only the
+    // voice counts, 1.2 s each.
+    for (int i = 0; i < 4; i++) {
+      f.speak();
+      live.say("Hello there"); // A repeat isn't new words.
+      f.quiet(900);
+    }
+    assertEquals("", f.session.trouble());
+    f.speak();
+    assertTrue(f.session.trouble(), f.session.trouble().startsWith("No words for 6 s of sound"));
+  }
 }

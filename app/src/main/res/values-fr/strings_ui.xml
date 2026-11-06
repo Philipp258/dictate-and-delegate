@@ -55,7 +55,6 @@
     <string name="t_0dd1e692" formatted="false">Impossible de demander au talker d\'utiliser sa compétence : %1$s</string>
     <string name="t_0de44d68" formatted="false">1 message</string>
     <string name="t_0e1c0935" formatted="false">bb répond, mais ne propose pas l\'outil d\'exécution. Mets à jour bb et vérifie que le plugin MCP est activé.</string>
-    <string name="t_0ea7c5dd" formatted="false">Lecture</string>
     <string name="t_0fe6675c" formatted="false">Pause après laquelle vérifier si tu as fini (secondes)</string>
     <string name="t_1058bd61" formatted="false">Anruf nach %1$d s Stille beendet; nichts wurde gesendet</string>
     <string name="t_10aef2d8" formatted="false">Chef de cabinet</string>
@@ -168,6 +167,7 @@
     <string name="t_33fdfd35" formatted="false">Aide Dictate &amp; Delegate à bien orthographier les noms et à adapter chaque note à son objectif.</string>
     <string name="t_345d171c" formatted="false">Le serveur de connexion de bb a répondu avec HTTP %1$d.</string>
     <string name="t_34f63f9b" formatted="false">Rapport envoyé</string>
+    <string name="t_3519ffb2" formatted="false">Micro : ta voix · les mots arrivent à ta pause</string>
     <string name="t_3575eb12" formatted="false">Envoyer un rapport à ton chief</string>
     <string name="t_35b07608" formatted="false">Cet enregistrement n\'est pas encore transcrit. Son audio est gardé.</string>
     <string name="t_35c96237" formatted="false">Instructions pour Peaufiner</string>
@@ -188,6 +188,7 @@
     <string name="t_3b9793b3" formatted="false">%1$s n\'a pas répondu à temps. Réessaie.</string>
     <string name="t_3b9938d1" formatted="false">Supprimer ce modèle ?</string>
     <string name="t_3c847f8f" formatted="false">Panneau flottant · facultatif</string>
+    <string name="t_3cd9539d" formatted="false">Tes mots arrivent à ta pause</string>
     <string name="t_3ce1b08b" formatted="false">meilleure voix</string>
     <string name="t_3d021462" formatted="false">C\'est passé au %1$de essai ; le premier a échoué à %2$s.</string>
     <string name="t_3d06124e" formatted="false">Ta clé OpenRouter n\'est plus valide. Modifie-la dans les paramètres de Dictate &amp; Delegate.</string>
@@ -216,6 +217,8 @@
     <string name="t_41c5ed6f" formatted="false">Microphone autorisé</string>
     <string name="t_421f0793" formatted="false">Impossible de supprimer l\'audio. Réessaie après avoir redémarré Dictate &amp; Delegate.</string>
     <string name="t_42463e69" formatted="false">Impossible de lire la réponse (%1$s) : nouvel essai</string>
+    <string name="t_426c07ff" formatted="false">%1$s entendu, mais le son a continué ensuite (du bruit ?) : pas envoyé. Fais une courte pause ou appuie sur « Envoyer maintenant »</string>
+    <string name="t_4409a889" formatted="false">Pas de texte en direct · mots aux pauses</string>
     <string name="t_446b3ccc" formatted="false">%1$d h %2$d min</string>
     <string name="t_449d8bae" formatted="false">Supprimer %1$s</string>
     <string name="t_45a0c8fa" formatted="false">Affiné via OpenRouter au lieu d\'Anthropic : %1$s</string>
@@ -232,6 +235,7 @@
     <string name="t_481510cc" formatted="false">Ce qu\'OpenRouter a facturé pour chaque appel.</string>
     <string name="t_487286f2" formatted="false">Envoyé : tu as posé ta question (%1$d%%)</string>
     <string name="t_48b31da3" formatted="false">La mise à jour n\'a pas pu être installée : %1$s</string>
+    <string name="t_49d66dde" formatted="false">Micro : un son, pas compté comme parole</string>
     <string name="t_49db38fb" formatted="false">Direct désactivé · pas de clé %1$s</string>
     <string name="t_4a473e6c" formatted="false">Impossible de charger les données. Tes données n\'ont pas été supprimées.</string>
     <string name="t_4a881de5" formatted="false">Termine d\'abord l\'enregistrement ou l\'envoi</string>
@@ -260,6 +264,7 @@
     <string name="t_51a8b5d9" formatted="false">Vérification du fil et des compétences dans bb…</string>
     <string name="t_51bac044" formatted="false">Annuler</string>
     <string name="t_51eabb10" formatted="false">En attente du chef · tu peux parler</string>
+    <string name="t_51ec3385" formatted="false">La transcription en direct a échoué : %1$s</string>
     <string name="t_523a6999" formatted="false">La connexion à bb a été interrompue. Réessaie.</string>
     <string name="t_525e2e9d" formatted="false">Mois précédent</string>
     <string name="t_5265d3ae" formatted="false">Le plus précis</string>
@@ -274,6 +279,7 @@
     <string name="t_54964c79" formatted="false">Ein Sendewort oder eine längere Pause fragt Jev, ob du fertig bist; nur ein klares Ja sendet (ohne Jev das Sendewort allein). Mehrere mit Kommas trennen.</string>
     <string name="t_55026b0c" formatted="false">Activité</string>
     <string name="t_551d8c4b" formatted="false">Aucune appli pour choisir des fichiers.</string>
+    <string name="t_5561cf2b" formatted="false">%1$s entendu, mais le texte final continuait après : pas envoyé</string>
     <string name="t_55793fa6" formatted="false">Sons et voix</string>
     <string name="t_55cc6297" formatted="false">Dictée en arrière-plan</string>
     <string name="t_568a8214" formatted="false">Paramètres mains libres</string>
@@ -301,7 +307,6 @@
     <string name="t_5cab269d" formatted="false">Ton chef de cabinet s\'en charge dans bb et t\'alerte via ntfy quand il a fini ou s\'il a besoin de toi. Le bouton ouvre le fil.</string>
     <string name="t_5cacb072" formatted="false">Cet appel jusqu\'ici : %1$s</string>
     <string name="t_5d00536d" formatted="false">Copié</string>
-    <string name="t_5d04f79c" formatted="false">Traitement…</string>
     <string name="t_5d08e4c2" formatted="false">Entendu, envoyé, réponse en cours, échec</string>
     <string name="t_5d3efd7d" formatted="false">Konnte nicht fragen, ob du fertig bist (%1$s): nicht gesendet; sag %2$s oder tippe auf Senden</string>
     <string name="t_5da707be" formatted="false">Mois suivant</string>
@@ -350,9 +355,11 @@
     <string name="t_6dde3895" formatted="false">Anthropic est saturé pour le moment.</string>
     <string name="t_6df56c0c" formatted="false">Pas encore envoyé</string>
     <string name="t_6f2c1806" formatted="false">Supprimer</string>
+    <string name="t_707aa7bf" formatted="false">%1$s entendu · j\'attends une pause</string>
     <string name="t_714149a6" formatted="false">Envoyer au chef si interpellé</string>
     <string name="t_71cc04b4" formatted="false">bb n\'a envoyé aucun code de connexion. Recommence.</string>
     <string name="t_721589c1" formatted="false">Aujourd\'hui</string>
+    <string name="t_722c6f22" formatted="false">%1$s entendu…</string>
     <string name="t_72ec293c" formatted="false">GitHub a renvoyé une réponse inattendue</string>
     <string name="t_72f939f7" formatted="false">Réponse en attente : message en cours d\'envoi</string>
     <string name="t_7382e59f" formatted="false">Déconnexion…</string>
@@ -446,7 +453,9 @@
     <string name="t_9153ca96" formatted="false">%1$s jusqu\'ici</string>
     <string name="t_918020d9" formatted="false">identifiant</string>
     <string name="t_918ca436" formatted="false">bb n\'a pas pu traiter la pièce jointe (HTTP %1$d).</string>
+    <string name="t_918d74c3" formatted="false">Aucun mot depuis %1$d s</string>
     <string name="t_91d100de" formatted="false">Joint</string>
+    <string name="t_92084019" formatted="false">Micro : ta voix (elle met la réponse en pause)</string>
     <string name="t_92773fbb" formatted="false">%1$s Il est gardé dans tes notes ; ↻ le transcrit.</string>
     <string name="t_92824f24" formatted="false">la voix a échoué (%1$s)</string>
     <string name="t_93fe9d61" formatted="false">Utilise la bulle ou ouvre Dictate &amp; Delegate pour contrôler la dictée.</string>
@@ -558,6 +567,7 @@
     <string name="t_b1c2889b" formatted="false">Vérifier les compétences dans bb</string>
     <string name="t_b203fda8" formatted="false">Adresse personnalisée</string>
     <string name="t_b214280c" formatted="false">Supprimer le modèle</string>
+    <string name="t_b2f0175f" formatted="false">Aucun mot pour %1$d s de son : la transcription en direct ne fonctionne peut-être pas</string>
     <string name="t_b3410a1e" formatted="false">Non envoyé : tu sembles au milieu d\'une phrase (%1$d%% fini)</string>
     <string name="t_b36a2ca5" formatted="false">Réponse en attente</string>
     <string name="t_b3a08580" formatted="false">Rien à envoyer : aucun mot n\'a été transcrit</string>
@@ -568,6 +578,7 @@
     <string name="t_b561b378" formatted="false">1 · Tuile des Paramètres rapides</string>
     <string name="t_b5ae1bae" formatted="false">bb</string>
     <string name="t_b60e80e5" formatted="false">Trop volumineux pour être transmis ainsi</string>
+    <string name="t_b622655c" formatted="false">Aucun mot pour %1$d s de son : la transcription en direct ne fonctionne peut-être pas, ou c\'est du bruit</string>
     <string name="t_b67d60c1" formatted="false">Impossible d\'enregistrer le modèle</string>
     <string name="t_b6a5c51b" formatted="false">Envoyé comme jeton Bearer</string>
     <string name="t_b6cac25b_many" formatted="false">%1$d de fichiers</string>
@@ -591,6 +602,7 @@
     <string name="t_bbb4c248" formatted="false">Autre chose que Dictate &amp; Delegate devrait savoir ?</string>
     <string name="t_bbfdd3ed" formatted="false">Dictate &amp; Delegate communique avec bb via le serveur MCP de bb (plugin bb--mcp), qui doit être activé dans bb.</string>
     <string name="t_bc1b2887" formatted="false">Le serveur ntfy a répondu avec HTTP %1$d.</string>
+    <string name="t_bd62c852" formatted="false">Micro : silence</string>
     <string name="t_bdae2794" formatted="false">Utilisé pour orthographier correctement les noms et les termes.</string>
     <string name="t_be7f9242" formatted="false">Impossible d\'enregistrer l\'historique des transcriptions.</string>
     <string name="t_bed11d96" formatted="false">Texte de ton chef copié</string>
@@ -599,6 +611,7 @@
     <string name="t_c0d15569" formatted="false">Échec vocal (%1$s) : ce téléphone n\'a pas d\'autre voix</string>
     <string name="t_c0da8988" formatted="false">Notes</string>
     <string name="t_c0ee3e71" formatted="false">✨ Peaufinage…</string>
+    <string name="t_c17cebfc" formatted="false">%1$s entendu, mais ta voix n\'a pas compté comme parole (trop faible par rapport au bruit de fond ?) : pas envoyé</string>
     <string name="t_c1829c8e_many" formatted="false">%1$d de mots</string>
     <string name="t_c1829c8e_one" formatted="false">%1$d mot</string>
     <string name="t_c1829c8e_other" formatted="false">%1$d mots</string>
@@ -610,6 +623,7 @@
     <string name="t_c2ac4ac4" formatted="false">✓  Une clé est enregistrée sur ce téléphone, chiffrée.</string>
     <string name="t_c323cecd" formatted="false">Pendant la dictée</string>
     <string name="t_c3257368" formatted="false">Refaire avec un modèle plus performant</string>
+    <string name="t_c3314cf1" formatted="false">Pas compté comme toi : %1$s</string>
     <string name="t_c34fa500" formatted="false">Donne un nom et un texte au modèle</string>
     <string name="t_c37118a8" formatted="false">Dictate &amp; Delegate n\'a pas pu lire ou écrire ses fichiers. Vérifie l\'espace disponible, puis réessaie.</string>
     <string name="t_c37292d9" formatted="false">environ %1$s</string>
@@ -646,6 +660,7 @@
     <string name="t_cc9b594b" formatted="false">Impossible d\'enregistrer tes modifications</string>
     <string name="t_ccd1bf1c" formatted="false">le téléchargement est endommagé (somme de contrôle)</string>
     <string name="t_cd0cedae" formatted="false">Supprimer l\'audio des enregistrements non transcrits ?</string>
+    <string name="t_cd1464c6" formatted="false">Micro : ta voix · les mots arrivent en direct</string>
     <string name="t_cd782109" formatted="false">Colle d\'abord ta clé</string>
     <string name="t_cd7cb0fd" formatted="false">Un unique fil bb reçoit chaque tâche transmise vocalement. Il traite les petites choses lui-même, crée des sous-fils pour les travaux plus importants et te prévient via ntfy une fois terminé ou s\'il a besoin de toi.</string>
     <string name="t_cd8737fa" formatted="false">Article</string>
@@ -720,6 +735,7 @@
     <string name="t_e2774654" formatted="false">Ouvrir dans ntfy</string>
     <string name="t_e281d2a6" formatted="false">La connexion provient d\'un serveur inattendu (%1$s).</string>
     <string name="t_e35e00df" formatted="false">par défaut</string>
+    <string name="t_e36b69a2" formatted="false">En attente de la réponse</string>
     <string name="t_e3725a1f" formatted="false">✓  Installé dans bb</string>
     <string name="t_e3d95fe1" formatted="false">Là où s\'ouvrent les liens de fils, généralement https://&lt;identifiant&gt;.getbb.app.</string>
     <string name="t_e3e3bdf6" formatted="false">Aucun texte pour l\'instant</string>

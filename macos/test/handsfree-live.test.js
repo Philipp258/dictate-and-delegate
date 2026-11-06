@@ -1337,3 +1337,120 @@ test('aMessageOnlyTheTalkerOrOnlyTheChiefGotCountsAsSentAndSaysWhoMissedIt', asy
   await until(() => reasons(f).includes('Sent to the talker only. The chief didn\'t get it: thread not found'));
   assert.equal(f.sent.length, 2);
 });
+
+// ------------------------------------------------------------------ the live state on screen
+
+const { Hearing } = HandsFreeSession;
+
+test('theMeterSaysQuietASoundOrYourVoice', async () => {
+  const f = new Fake();
+  f.quiet(1000);
+  assert.equal(f.session.hearing(), Hearing.QUIET);
+  assert.ok(Math.abs(f.session.meter()) < 0.01);
+  // Clearly there, but not loud enough against the background to count as speech.
+  for (let i = 0; i < 10; i++) f.session.frame(frame(900));
+  assert.equal(f.session.hearing(), Hearing.SOUND);
+  f.quiet(1000);
+  f.speak();
+  assert.equal(f.session.hearing(), Hearing.VOICE);
+  assert.ok(f.session.meter() > 0.5);
+});
+
+test('theLastWordsHeardShowAndWordsThatDontCountAreMarked', async () => {
+  const f = new Fake();
+  const live = new FakeLive(f);
+  f.quiet(1000);
+  // Live text while nobody has the floor (the radio): shown, as not counted.
+  live.say('traffic news for the A3');
+  let h = f.session.heard();
+  assert.ok(h);
+  assert.equal(h.counted, false);
+  assert.equal(h.words, 'traffic news for the A3');
+  live.discard();
+  f.speak();
+  live.say('one two three four five six seven eight nine ten');
+  h = f.session.heard();
+  assert.equal(h.counted, true);
+  assert.equal(h.words, '…three four five six seven eight nine ten');
+  assert.equal(f.session.liveState(), Live.HEARING);
+});
+
+test('speechWithoutLiveWordsSaysSoUntilWordsCome', async () => {
+  const f = new Fake('');
+  const live = new FakeLive(f);
+  f.quiet(1000);
+  // Speech counts from when it took the turn (0.4 s in): 0.8 s, then 1.2 s each.
+  for (let i = 0; i < 4; i++) f.speak();
+  assert.equal(f.session.trouble(), '');
+  f.speak();
+  assert.ok(f.session.trouble().startsWith('No words for 5 s of sound'), f.session.trouble());
+  assert.equal(f.session.troubleShort(), 'No words for 5 s');
+  assert.ok(reasons(f).includes('No words came for 5 s of sound'), reasons(f));
+  live.say('Can you hear me');
+  assert.equal(f.session.trouble(), '');
+  assert.ok(f.logText().includes('live transcription: words again, after 5 s of speech without'));
+});
+
+test('failedLiveTranscriptionIsShownForTheWholeCall', async () => {
+  const f = new Fake();
+  const live = new FakeLive(f);
+  f.quiet(1000);
+  live.fail('connection lost');
+  assert.equal(f.session.trouble(), 'Live transcription failed: connection lost');
+  assert.equal(f.session.troubleShort(), 'No live text · words at pauses');
+  assert.equal(f.session.liveWords(), false);
+});
+
+test('aSendWordWithoutAPauseAfterItSaysWhyNothingWent', async () => {
+  // In the car: "over", but sound goes on (noise counted as speech) and the live text stays.
+  const f = new Fake();
+  const live = new FakeLive(f);
+  f.session.judge = async () => verdict('over', 0.95, 0);
+  f.quiet(1000);
+  f.speak();
+  live.say('Read me the message, over');
+  await until(() => f.session.checkStep() === 'pause');
+  assert.equal(f.session.liveState(), Live.WRITING);
+  assert.equal(f.session.phraseWaiting(), 'over');
+  const end = Date.now() + HandsFreeSession.PHRASE_WAIT_MS + 1000;
+  while (Date.now() < end && !reasons(f).includes('sound went on after it')) {
+    f.speak();
+    await sleep(50);
+  }
+  assert.ok(reasons(f).includes('Heard "over", but sound went on after it (noise?): not sent'), reasons(f));
+  assert.ok(f.logText().includes('no pause after the phrase in 3000 ms (sound went on: level'));
+  assert.equal(f.sent.length, 0);
+});
+
+test('aSendWordWhileYourVoiceDoesntCountIsOnScreen', async () => {
+  const f = new Fake();
+  const live = new FakeLive(f);
+  f.quiet(1000);
+  live.say('Read me the message. Over.');
+  assert.ok(reasons(f).includes('Heard "over", but your voice didn\'t count as speech'), reasons(f));
+  assert.equal(f.sent.length, 0);
+});
+
+test('thePauseThatEndsAStretchIsntYourVoiceNorSoundWithoutWords', async () => {
+  // A stretch goes on through the pause that ends it (here 1 s; 5 s by default): that silence
+  // mustn't show as your voice or count as sound without words.
+  const f = new Fake();
+  const live = new FakeLive(f);
+  f.quiet(1000);
+  f.speak();
+  live.say('Hello there');
+  f.quiet(900); // Still the same stretch.
+  assert.ok(f.session.speaking());
+  assert.notEqual(f.session.hearing(), Hearing.VOICE);
+  assert.notEqual(f.session.liveState(), Live.HEARING);
+  // More stretches, each with a pause just short of ending it, and the same words: only the
+  // voice counts, 1.2 s each.
+  for (let i = 0; i < 4; i++) {
+    f.speak();
+    live.say('Hello there'); // A repeat isn't new words.
+    f.quiet(900);
+  }
+  assert.equal(f.session.trouble(), '');
+  f.speak();
+  assert.ok(f.session.trouble().startsWith('No words for 6 s of sound'), f.session.trouble());
+});

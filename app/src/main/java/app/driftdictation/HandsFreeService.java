@@ -386,6 +386,7 @@ public final class HandsFreeService extends Service {
       }
     }
     main.post(ticker);
+    main.post(meterTicker);
     changed();
   }
 
@@ -487,8 +488,26 @@ public final class HandsFreeService extends Service {
           HandsFreeSession s = session;
           if (s == null) return;
           s.tick();
-          if (panel != null) panel.render(s);
+          if (panel != null) panel.render(s, true);
           main.postDelayed(this, 1000);
+        }
+      };
+
+  /**
+   * The call bar's level meter moves with the microphone, and its live line moves on by itself
+   * ("Hearing you" ends a moment after your voice): rendered ten times a second.
+   */
+  static final long METER_MS = 100;
+
+  private final Runnable meterTicker =
+      new Runnable() {
+        public void run() {
+          HandsFreeSession s = session;
+          if (s == null) return;
+          // With the screen off nobody sees it: only checked once a second then.
+          boolean on = getSystemService(PowerManager.class).isInteractive();
+          if (panel != null && on) panel.render(s);
+          main.postDelayed(this, on ? METER_MS : 1000);
         }
       };
 
@@ -737,9 +756,11 @@ public final class HandsFreeService extends Service {
     return switch (live) {
       case HEARING -> tr("Hearing you");
       case WRITING ->
-          s.checkStep().equals("asking")
-              ? tr("Checking whether you're done…")
-              : tr("Writing down… %1$d s", Math.max(1, (s.writingMs() + 999) / 1000));
+          switch (s.checkStep()) {
+            case "asking" -> tr("Checking whether you're done…");
+            case "pause" -> tr("Heard %1$s · waiting for a pause", "\"" + s.phraseWaiting() + "\"");
+            default -> tr("Writing down… %1$d s", Math.max(1, (s.writingMs() + 999) / 1000));
+          };
       case WAITING_SEND -> tr("Listening · not sent yet");
       case SENDING -> tr("Sending…");
       case SENT -> tr("Sent ✓");
@@ -758,17 +779,22 @@ public final class HandsFreeService extends Service {
     String failed = voiceFailure(s);
     if (failed != null) return tr("Voice failed · %1$s", brief(failed));
     if (liveOffShown(s)) return tr("Live off · no %1$s key", s.liveKeyMissing());
+    if (troubleShown(s)) return s.troubleShort();
     return switch (s.live()) {
       case HEARING -> tr("Hearing you");
       case WRITING ->
-          s.checkStep().equals("asking") ? tr("Checking…") : tr("Writing… %1$d s", Math.max(1, (s.writingMs() + 999) / 1000));
+          switch (s.checkStep()) {
+            case "asking" -> tr("Checking…");
+            case "pause" -> tr("Heard %1$s…", "\"" + s.phraseWaiting() + "\"");
+            default -> tr("Writing… %1$d s", Math.max(1, (s.writingMs() + 999) / 1000));
+          };
       case WAITING_SEND -> tr("Not sent yet");
       case SENDING -> tr("Sending…");
       case SENT -> tr("Sent ✓");
-      case WAITING_CHIEF -> tr("Working…");
+      case WAITING_CHIEF -> tr("Waiting for the reply");
       case REPLY_WAITING -> tr("Reply waiting");
       case REPLY_COMING -> tr("Reply coming");
-      case PLAYING -> tr("Reading");
+      case PLAYING -> tr("Playing the reply");
       case MUTED -> tr("Mic paused");
       case ENDED -> tr("Ended");
       default -> tr("Listening");
@@ -785,6 +811,31 @@ public final class HandsFreeService extends Service {
       case LISTENING, WAITING_CHIEF, REPLY_WAITING, REPLY_COMING, SENT -> true;
       default -> false;
     };
+  }
+
+  /**
+   * The call bar says why your words may not be coming through (HandsFreeSession.troubleShort)
+   * while it's listening or hearing you: not over a reply or a check, which say more.
+   */
+  static boolean troubleShown(HandsFreeSession s) {
+    if (s.troubleShort().isEmpty()) return false;
+    return switch (s.live()) {
+      case LISTENING, HEARING, WAITING_SEND, WAITING_CHIEF, SENT -> true;
+      default -> false;
+    };
+  }
+
+  /**
+   * The call bar's second line: the last words heard (also what live transcription hears that
+   * doesn't count as you), or, without live text, that your words come at your pause; "" none.
+   */
+  static String wordsLine(HandsFreeSession s) {
+    HandsFreeSession.Live live = s.live();
+    if (live == HandsFreeSession.Live.PLAYING || live == HandsFreeSession.Live.REPLY_COMING || live == HandsFreeSession.Live.ENDED) return "";
+    HandsFreeSession.Heard h = s.heard();
+    if (h != null) return h.counted() ? "“" + h.words() + "”" : tr("Not counted as you: %1$s", "“" + h.words() + "”");
+    if (live == HandsFreeSession.Live.HEARING && !s.liveWords()) return tr("Your words come at your pause");
+    return "";
   }
 
   /** In full, for TalkBack and the call bar's tooltip. */
@@ -819,10 +870,15 @@ public final class HandsFreeService extends Service {
   private Notification notification() {
     HandsFreeSession s = session;
     java.util.List<HandsFreeSession.Reason> why = s == null ? java.util.List.of() : s.reasons();
+    // Collapsed: the state and the last words heard; expanded also what's wrong, all your unsent
+    // words and the latest decision.
+    String words = s == null ? "" : wordsLine(s), trouble = s == null ? "" : s.trouble();
+    String first = s == null ? tr("Starting…") : liveLabel(s) + (words.isEmpty() ? "" : " · " + words);
     String text =
         s == null
-            ? tr("Starting…")
-            : liveLabel(s)
+            ? first
+            : first
+                + (trouble.isEmpty() ? "" : "\n⚠ " + trouble)
                 + (s.pending().isEmpty() ? "" : "\n" + tr("You: %1$s", s.pending()))
                 + (why.isEmpty() ? "" : "\n" + why.get(0).text());
     PendingIntent open =
@@ -835,7 +891,7 @@ public final class HandsFreeService extends Service {
         new Notification.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_mic)
             .setContentTitle(tr("Hands-free with your chief"))
-            .setContentText(text)
+            .setContentText(first)
             .setStyle(new Notification.BigTextStyle().bigText(text))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -899,6 +955,7 @@ public final class HandsFreeService extends Service {
     }
     if (wake != null && wake.isHeld()) wake.release();
     main.removeCallbacks(ticker);
+    main.removeCallbacks(meterTicker);
     if (ended == null) {
       stopForeground(STOP_FOREGROUND_REMOVE);
       stopSelf();

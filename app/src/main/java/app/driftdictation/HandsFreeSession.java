@@ -89,6 +89,37 @@ final class HandsFreeSession {
   record Reason(long at, String text, int times) {}
 
   /**
+   * What the microphone hears right now, for the meter on screen: quiet, a sound that doesn't count
+   * as your speech (too quiet against the background, or too short so far), or your voice.
+   */
+  enum Hearing {
+    QUIET,
+    SOUND,
+    VOICE
+  }
+
+  /**
+   * The last words heard, for the call bar: your unsent words (counted), or what live
+   * transcription hears while none of it counts as your speech (not counted: noise, the radio, or
+   * your voice too quiet against the background).
+   */
+  record Heard(String words, boolean counted) {}
+
+  /**
+   * With live transcription, this much of your speech (as the segmenter counts it) with no words
+   * coming back says so on screen: it isn't working, or what counts as speech is noise (Philipp,
+   * 6 November 2026, in the car: "if I talk for 10 minutes and nothing is picked up, that is quite
+   * frustrating").
+   */
+  static final long NO_WORDS_MS = 5000;
+
+  /** The live line says it hears you while your voice stopped less than this long ago. */
+  static final long HEARING_MS = 700;
+
+  /** How fast the meter falls back after a loud frame (each 20 ms frame: half in about 130 ms). */
+  static final double METER_FALL = 0.9;
+
+  /**
    * With live transcription, speech without words in the live text holds your turn this long at
    * most (the live text's delay for the first words): noise or a cough doesn't hold a reply.
    */
@@ -355,6 +386,17 @@ final class HandsFreeSession {
   private volatile boolean newTurn;
   private volatile boolean firstWordsLogged;
   private static final byte[] SILENCE = new byte[640];
+  /** The microphone's level for the meter: the loudest recent frame, falling back fast. */
+  private volatile double meterLevel;
+  /**
+   * Your voice since live transcription's words last changed, in ms: the microphone's thread adds
+   * to it, words and the turn's end reset it.
+   */
+  private final java.util.concurrent.atomic.AtomicLong speechSinceWords = new java.util.concurrent.atomic.AtomicLong();
+  /** The live text when it last brought words: a repeat of it isn't new words. */
+  private volatile String wordsSeen = "";
+  /** The send or end word a running phrase check is about (for the live line). */
+  private volatile String phraseWord = "";
 
   /**
    * Your turn: nothing is written down while you talk. Its audio is collected part by part (a
@@ -618,16 +660,97 @@ final class HandsFreeSession {
       voiceReady = held.isEmpty() || held.peekFirst().ready;
     }
     if (now < mutedUntil) return Live.MUTED;
-    if (segmenter.speaking()) return Live.HEARING;
+    // A send word or your pause being checked: shown even while the stretch it ended in goes on.
+    String step = checkStep();
+    if (step.equals("pause") || step.equals("asking")) return Live.WRITING;
+    // Your voice now; a stretch goes on through the pause that ends it, which isn't hearing you.
+    if (voiceNow()) return Live.HEARING;
     if (transcribing.get() > 0) return Live.WRITING;
     if (sendPressed || outgoing.get() > 0) return Live.SENDING;
     if (held() > 0) return voiceReady ? Live.REPLY_WAITING : Live.REPLY_COMING;
-    if (hasTurn()) return Live.WAITING_SEND;
+    if (hasTurn() || !pending.isEmpty()) return Live.WAITING_SEND;
+    if (segmenter.speaking()) return Live.HEARING;
     if (now - deliveredAt < SENT_SHOWN_MS) return Live.SENT;
     synchronized (this) {
       for (long[] w : working.values()) if (w[0] < 2 && now - w[1] < WORKING_MS) return Live.WAITING_CHIEF;
     }
     return Live.LISTENING;
+  }
+
+  /** What the microphone hears right now (the meter's colour). */
+  Hearing hearing() {
+    if (voiceNow()) return Hearing.VOICE;
+    // The same "clearly there" as the segmenter's too-quiet report: above its minimum and half
+    // again the background.
+    return meterLevel > Math.max(600, segmenter.background() * 1.5) ? Hearing.SOUND : Hearing.QUIET;
+  }
+
+  /**
+   * Your voice is heard now: speech, and not the pause that ends it (a stretch lasts through that
+   * pause, 5 s by default).
+   */
+  private boolean voiceNow() {
+    return segmenter.speaking() && segmenter.silentMs() < HEARING_MS;
+  }
+
+  /** The meter's height, 0 to 1: the microphone's recent level on a log scale (100 to 10,000). */
+  double meter() {
+    double l = meterLevel;
+    return l <= 100 ? 0 : Math.min(1, (Math.log10(l) - 2) / 2);
+  }
+
+  /** The last few words heard (see Heard), or null when there are none. */
+  Heard heard() {
+    String p = pending;
+    if (!p.isEmpty()) return new Heard(lastWords(p, HEARD_WORDS), true);
+    LiveText l = live;
+    if (l == null || !l.working() || state != State.LISTENING || batchTurn) return null;
+    String t = l.text();
+    return t.isEmpty() ? null : new Heard(lastWords(t, HEARD_WORDS), false);
+  }
+
+  /** How many of the last words the call bar shows. */
+  static final int HEARD_WORDS = 8;
+
+  /** Does live transcription bring your words as you speak (this turn)? Else they come at your pause. */
+  boolean liveWords() {
+    return streaming();
+  }
+
+  /**
+   * Why your words may not be coming through, in a few words, or "": live transcription failed or
+   * has no key (the whole call), or it brought no words for NO_WORDS_MS of your speech.
+   */
+  String trouble() {
+    LiveText l = live;
+    if (l != null && !l.working()) return tr("Live transcription failed: %1$s", l.failure());
+    if (!liveOff.isEmpty()) return tr("Live transcription is off: no %1$s key (Settings → Hands-free)", liveOff);
+    long ms = speechSinceWords.get();
+    if (streaming() && ms >= NO_WORDS_MS) return tr("No words for %1$d s of sound: live transcription may not be working", ms / 1000);
+    return "";
+  }
+
+  /**
+   * As trouble(), short, for the call bar; "" when there's none. A missing key isn't here: the
+   * call bar says that in the call's first minute (liveOffRecent).
+   */
+  String troubleShort() {
+    LiveText l = live;
+    if (l != null && !l.working()) return tr("No live text · words at pauses");
+    long ms = speechSinceWords.get();
+    if (streaming() && ms >= NO_WORDS_MS) return tr("No words for %1$d s", ms / 1000);
+    return "";
+  }
+
+  /** The send or end word a running check heard and waits for a pause after; "" otherwise. */
+  String phraseWaiting() {
+    return "pause".equals(checkStep()) ? phraseWord : "";
+  }
+
+  /** The text's last n words, "…" before them when there were more. */
+  static String lastWords(String text, int n) {
+    String[] w = text.trim().split("\\s+");
+    return (w.length > n ? "…" : "") + String.join(" ", java.util.Arrays.copyOfRange(w, Math.max(0, w.length - n), w.length));
   }
 
   /** The latest decisions with their reasons, newest first. */
@@ -867,6 +990,7 @@ final class HandsFreeSession {
    */
   void frame(byte[] frame) {
     boolean cue = inCue();
+    meterLevel = Math.max(HandsFree.Segmenter.level(frame, frame.length), meterLevel * METER_FALL);
     LiveText l = live;
     if (l != null && l.working() && state != State.ENDED) {
       // Live transcription hears everything you say (not only what the segmenter keeps); a reply
@@ -892,12 +1016,30 @@ final class HandsFreeSession {
     // A sound of ours just played: it can't start a stretch of speech (one going on goes on).
     if (cue && !segmenter.candidate()) return;
     segmenter.frame(frame);
+    // Only frames loud as your voice count (not the gaps between words or the pause after them):
+    // the warning rather comes late than when you're simply pausing.
+    if (segmenter.speaking() && segmenter.silentMs() == 0 && streaming()) noWords(HandsFree.Segmenter.FRAME_MS);
     // A waiting reply plays once your turn is over: checked a few times a second.
     if (++sinceCheck >= 10) {
       sinceCheck = 0;
       noteTurn();
       if (held() > 0) readNext();
     }
+  }
+
+  /**
+   * Your speech went on ms more without live transcription bringing words: past NO_WORDS_MS it's
+   * on screen (and once in the log and the reasons, with the levels, as it may be noise counted as
+   * speech) until words come.
+   */
+  private void noWords(long ms) {
+    long was = speechSinceWords.getAndAdd(ms), now = was + ms;
+    if (was < NO_WORDS_MS && now >= NO_WORDS_MS) {
+      LiveText l = live;
+      log(String.format(java.util.Locale.ROOT, "live transcription: no words for %d s of speech (background %.0f; it %s)", now / 1000, segmenter.background(),
+          l == null ? "isn't there" : l.working() ? "says it's working" : "failed"));
+      reason("No words came for %1$d s of sound: live transcription may not be working, or it's noise", now / 1000);
+    } else if (now >= NO_WORDS_MS && now / 1000 != was / 1000) listener.changed(); // The seconds on screen.
   }
 
   /**
@@ -1111,6 +1253,7 @@ final class HandsFreeSession {
    * phrase at its end acts at once (checked on the work queue: the model's final text decides).
    */
   void liveText(String text) {
+    if (!text.isEmpty() && !text.equals(wordsSeen)) words(text);
     String ending = text.isEmpty() ? null : HandsFree.endsWith(text, endWords) != null ? "end" : HandsFree.endsWith(text, sendWords) != null ? "send" : null;
     if (state != State.LISTENING || !streaming() || text.isEmpty() || !floorIsYours()) {
       if (ending != null)
@@ -1149,8 +1292,19 @@ final class HandsFreeSession {
     }
     keyword = true;
     keywordAt = clock.getAsLong();
+    phraseWord = matched(text, phrase.equals("end") ? endWords : sendWords);
     log("live text ends with the " + phrase + " phrase: \"" + tail(text) + "\"");
     check(phrase.equals("end") ? "end phrase" : "send phrase");
+  }
+
+  /** Live transcription brought words: it works (a warning that it brought none goes, and is logged). */
+  private void words(String text) {
+    wordsSeen = text;
+    long was = speechSinceWords.getAndSet(0);
+    if (was >= NO_WORDS_MS) {
+      log(String.format(java.util.Locale.ROOT, "live transcription: words again, after %d s of speech without", was / 1000));
+      listener.changed();
+    }
   }
 
   /** When the first tick came; whether live transcription's state was logged (LIVE_CHECK_MS in). */
@@ -1170,10 +1324,19 @@ final class HandsFreeSession {
         + (l == null ? "not used (off, or no key)" : !l.working() ? "failed (" + l.failure() + "): send words act at your pauses only" : "working"));
   }
 
+  /** Which of the words the text ends with ("" none), as set. */
+  static String matched(String text, List<String> words) {
+    for (String w : words) if (HandsFree.endsWith(text, List.of(w)) != null) return w.trim();
+    return "";
+  }
+
   /** The phrase skip logged last, so the live text's repeats don't fill the log. */
   private String lastSkip = "";
 
-  /** Logs why a send or end phrase at the end of the live text didn't act: every one says why. */
+  /**
+   * Logs why a send or end phrase at the end of the live text didn't act: every one says why. Not
+   * acting because your voice didn't count is on screen too: in the car "over" seemed ignored.
+   */
   private void phraseSkipped(String phrase, String text, String why) {
     String line = "live text ends with the " + phrase + " phrase, not acted on: " + why + " (\"" + tail(text) + "\")";
     synchronized (this) {
@@ -1181,6 +1344,12 @@ final class HandsFreeSession {
       lastSkip = line;
     }
     log(line);
+    if (why.startsWith("nobody had the floor"))
+      reason("Heard %1$s, but your voice didn't count as speech (too quiet against the background?): not sent", quote(matched(text, phrase.equals("end") ? endWords : sendWords)));
+  }
+
+  private static String quote(String word) {
+    return "\"" + word + "\"";
   }
 
   /** The last few words, for the log. */
@@ -2135,6 +2304,8 @@ final class HandsFreeSession {
   private void phrase(boolean end, LiveText l, Asked asked) {
     List<String> words = end ? endWords : sendWords;
     long need = end ? END_QUIET_MS : SEND_QUIET_MS, waited = System.nanoTime(), until = waited + PHRASE_WAIT_MS * 1_000_000;
+    checkStep = "pause";
+    listener.changed();
     while (segmenter.silentMs() < need) {
       if (state != State.LISTENING) return;
       if (HandsFree.endsWith(l.text(), words) == null) {
@@ -2142,7 +2313,12 @@ final class HandsFreeSession {
         return;
       }
       if (System.nanoTime() > until) {
-        log("no pause after the phrase: it's left to your next pause");
+        // The live text still ends with it, but sound went on: noise counted as speech (the car)
+        // looks like this, and so does talking on before its words came. Said on screen, with the
+        // levels in the log.
+        log(String.format(java.util.Locale.ROOT, "no pause after the phrase in %d ms (sound went on: level %.0f, background %.0f, gate ×%.1f): it's left to your next pause",
+            PHRASE_WAIT_MS, meterLevel, segmenter.background(), gate));
+        if (!end) reason("Heard %1$s, but sound went on after it (noise?): not sent. Pause a moment, or press Send", quote(phraseWord));
         return;
       }
       try {
@@ -2217,6 +2393,7 @@ final class HandsFreeSession {
       }
       dropStretch = segmenter.candidate(); // The stretch going on holds them too.
       log(notEnding + ": not " + (end ? "ended" : "sent") + ", the turn goes on");
+      if (!end) reason("Heard %1$s, but the final words went on after it: not sent", quote(phraseWord));
       return;
     }
     // Its audio went with this message: the stretch going on now is part of it.
@@ -2539,6 +2716,7 @@ final class HandsFreeSession {
    */
   private void endTurn(boolean forget) {
     pending = "";
+    speechSinceWords.set(0); // The sound without words was this turn's.
     takenByYou = false;
     heldBack = false;
     batchTurn = false;
@@ -2605,6 +2783,7 @@ final class HandsFreeSession {
     }
     letGo();
     pending = "";
+    speechSinceWords.set(0);
     takenByYou = more[0];
     heldPhrase = "";
     heldBack = false;

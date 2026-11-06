@@ -54,7 +54,6 @@
     <string name="t_0dd1e692" formatted="false">Dem Talker konnte nicht gesagt werden, seinen Skill zu nutzen: %1$s</string>
     <string name="t_0de44d68" formatted="false">1 Nachricht</string>
     <string name="t_0e1c0935" formatted="false">bb antwortet, bietet aber das run-Tool nicht an. Aktualisiere bb und prüfe, ob das MCP-Plugin aktiviert ist.</string>
-    <string name="t_0ea7c5dd" formatted="false">Liest vor</string>
     <string name="t_0fe6675c" formatted="false">Pause, nach der geprüft wird, ob du fertig bist (Sekunden)</string>
     <string name="t_1058bd61" formatted="false">Anruf nach %1$d s Stille beendet; nichts wurde gesendet</string>
     <string name="t_10aef2d8" formatted="false">Chief of Staff</string>
@@ -167,6 +166,7 @@
     <string name="t_33fdfd35" formatted="false">Hilft Dictate &amp; Delegate dabei, Namen korrekt zu schreiben und Notizen passend zu verarbeiten.</string>
     <string name="t_345d171c" formatted="false">Der Anmeldeserver von bb hat mit HTTP %1$d geantwortet.</string>
     <string name="t_34f63f9b" formatted="false">Bericht gesendet</string>
+    <string name="t_3519ffb2" formatted="false">Mikro: deine Stimme · Worte kommen bei deiner Pause</string>
     <string name="t_3575eb12" formatted="false">Bericht an deinen Chief senden</string>
     <string name="t_35b07608" formatted="false">Diese Aufnahme ist noch nicht aufgeschrieben. Ihr Audio ist gespeichert.</string>
     <string name="t_35c96237" formatted="false">Anweisungen fürs Verfeinern</string>
@@ -187,6 +187,7 @@
     <string name="t_3b9793b3" formatted="false">%1$s hat nicht rechtzeitig geantwortet. Versuche es erneut.</string>
     <string name="t_3b9938d1" formatted="false">Diese Vorlage löschen?</string>
     <string name="t_3c847f8f" formatted="false">Schwebendes Fenster · optional</string>
+    <string name="t_3cd9539d" formatted="false">Deine Worte kommen bei deiner Pause</string>
     <string name="t_3ce1b08b" formatted="false">beste Stimme</string>
     <string name="t_3d021462" formatted="false">Beim %1$d. Versuch ging es durch; der erste scheiterte um %2$s.</string>
     <string name="t_3d06124e" formatted="false">Dein OpenRouter-Key ist ungültig. Ändere ihn in den Einstellungen von Dictate &amp; Delegate.</string>
@@ -214,6 +215,8 @@
     <string name="t_41c5ed6f" formatted="false">Mikrofon erlaubt</string>
     <string name="t_421f0793" formatted="false">Gespeichertes Audio konnte nicht gelöscht werden. Starte Dictate &amp; Delegate neu und versuche es erneut.</string>
     <string name="t_42463e69" formatted="false">Antwort konnte nicht abgespielt werden (%1$s): erneuter Versuch</string>
+    <string name="t_426c07ff" formatted="false">%1$s gehört, aber danach ging der Ton weiter (Lärm?): nicht gesendet. Halte kurz inne oder tippe auf „Jetzt senden“</string>
+    <string name="t_4409a889" formatted="false">Kein Live-Text · Worte bei Pausen</string>
     <string name="t_446b3ccc" formatted="false">%1$d h %2$d min</string>
     <string name="t_449d8bae" formatted="false">%1$s entfernen</string>
     <string name="t_45a0c8fa" formatted="false">Über OpenRouter statt Anthropic verfeinert: %1$s</string>
@@ -230,6 +233,7 @@
     <string name="t_481510cc" formatted="false">Was OpenRouter für jeden Aufruf berechnet hat.</string>
     <string name="t_487286f2" formatted="false">Gesendet: du hast deine Frage gestellt (%1$d%%)</string>
     <string name="t_48b31da3" formatted="false">Das Update konnte nicht installiert werden: %1$s</string>
+    <string name="t_49d66dde" formatted="false">Mikro: ein Geräusch, zählt nicht als Sprache</string>
     <string name="t_49db38fb" formatted="false">Live aus · kein %1$s-Schlüssel</string>
     <string name="t_4a473e6c" formatted="false">Gespeicherte Daten konnten nicht geladen werden. Deine Daten wurden nicht gelöscht.</string>
     <string name="t_4a881de5" formatted="false">Beende erst Aufnahme oder Upload</string>
@@ -258,6 +262,7 @@
     <string name="t_51a8b5d9" formatted="false">Thread und Skills in bb werden geprüft…</string>
     <string name="t_51bac044" formatted="false">Abbrechen</string>
     <string name="t_51eabb10" formatted="false">Warte auf den Chef · du kannst sprechen</string>
+    <string name="t_51ec3385" formatted="false">Live-Transkription fehlgeschlagen: %1$s</string>
     <string name="t_523a6999" formatted="false">Die Verbindung zu bb wurde unterbrochen. Versuche es erneut.</string>
     <string name="t_525e2e9d" formatted="false">Vorheriger Monat</string>
     <string name="t_5265d3ae" formatted="false">Am genauesten</string>
@@ -272,6 +277,7 @@
     <string name="t_54964c79" formatted="false">Ein Sendewort oder eine längere Pause fragt Jev, ob du fertig bist; nur ein klares Ja sendet (ohne Jev das Sendewort allein). Mehrere mit Kommas trennen.</string>
     <string name="t_55026b0c" formatted="false">Aktivität</string>
     <string name="t_551d8c4b" formatted="false">Keine App zum Auswählen von Dateien vorhanden.</string>
+    <string name="t_5561cf2b" formatted="false">%1$s gehört, aber im endgültigen Text ging es danach weiter: nicht gesendet</string>
     <string name="t_55793fa6" formatted="false">Töne und Stimme</string>
     <string name="t_55cc6297" formatted="false">Hintergrund-Diktat</string>
     <string name="t_568a8214" formatted="false">Freisprech-Einstellungen</string>
@@ -299,7 +305,6 @@
     <string name="t_5cab269d" formatted="false">Dein Chief of Staff bearbeitet es in bb und benachrichtigt dich per ntfy, wenn er fertig ist oder dich braucht. Der Button öffnet den Thread.</string>
     <string name="t_5cacb072" formatted="false">Dieser Anruf bisher: %1$s</string>
     <string name="t_5d00536d" formatted="false">Kopiert</string>
-    <string name="t_5d04f79c" formatted="false">Arbeitet…</string>
     <string name="t_5d08e4c2" formatted="false">Gehört, gesendet, Antwort kommt, Fehler aufgetreten</string>
     <string name="t_5d3efd7d" formatted="false">Konnte nicht fragen, ob du fertig bist (%1$s): nicht gesendet; sag %2$s oder tippe auf Senden</string>
     <string name="t_5da707be" formatted="false">Nächster Monat</string>
@@ -348,9 +353,11 @@
     <string name="t_6dde3895" formatted="false">Anthropic ist gerade ausgelastet.</string>
     <string name="t_6df56c0c" formatted="false">Noch nicht gesendet</string>
     <string name="t_6f2c1806" formatted="false">Entfernen</string>
+    <string name="t_707aa7bf" formatted="false">%1$s gehört · warte auf eine Pause</string>
     <string name="t_714149a6" formatted="false">Bei Ansprache an Chief senden</string>
     <string name="t_71cc04b4" formatted="false">bb hat keinen Anmeldecode gesendet. Starte sie erneut.</string>
     <string name="t_721589c1" formatted="false">Heute</string>
+    <string name="t_722c6f22" formatted="false">%1$s gehört…</string>
     <string name="t_72ec293c" formatted="false">GitHub hat etwas Unerwartetes geschickt</string>
     <string name="t_72f939f7" formatted="false">Antwort wartet: deine Nachricht wird gesendet</string>
     <string name="t_7382e59f" formatted="false">Abmelden…</string>
@@ -443,7 +450,9 @@
     <string name="t_9153ca96" formatted="false">%1$s bisher</string>
     <string name="t_918020d9" formatted="false">Handle</string>
     <string name="t_918ca436" formatted="false">bb konnte den Anhang nicht annehmen (HTTP %1$d).</string>
+    <string name="t_918d74c3" formatted="false">Keine Worte seit %1$d s</string>
     <string name="t_91d100de" formatted="false">Angehängt</string>
+    <string name="t_92084019" formatted="false">Mikro: deine Stimme (sie pausiert die Antwort)</string>
     <string name="t_92773fbb" formatted="false">%1$s Sie ist in deinen Notizen gespeichert; ↻ schreibt sie auf.</string>
     <string name="t_92824f24" formatted="false">die Stimme versagte (%1$s)</string>
     <string name="t_93fe9d61" formatted="false">Nutze die Bubble oder öffne Dictate &amp; Delegate zur Steuerung der Diktierfunktion.</string>
@@ -554,6 +563,7 @@
     <string name="t_b1c2889b" formatted="false">Skills in bb prüfen</string>
     <string name="t_b203fda8" formatted="false">Eigene Adresse</string>
     <string name="t_b214280c" formatted="false">Vorlage löschen</string>
+    <string name="t_b2f0175f" formatted="false">Keine Worte für %1$d s Ton: die Live-Transkription funktioniert vielleicht nicht</string>
     <string name="t_b3410a1e" formatted="false">Nicht gesendet: du bist wohl mitten im Satz (%1$d%% fertig)</string>
     <string name="t_b36a2ca5" formatted="false">Antwort wartet</string>
     <string name="t_b3a08580" formatted="false">Nichts zu senden: es wurden keine Wörter aufgeschrieben</string>
@@ -564,6 +574,7 @@
     <string name="t_b561b378" formatted="false">1 · Kachel in den Schnelleinstellungen</string>
     <string name="t_b5ae1bae" formatted="false">bb</string>
     <string name="t_b60e80e5" formatted="false">zu groß, um so weitergeleitet zu werden</string>
+    <string name="t_b622655c" formatted="false">Für %1$d s Ton kamen keine Worte: die Live-Transkription funktioniert vielleicht nicht, oder es ist Lärm</string>
     <string name="t_b67d60c1" formatted="false">Vorlage konnte nicht gespeichert werden</string>
     <string name="t_b6a5c51b" formatted="false">Wird als Bearer-Token gesendet</string>
     <string name="t_b6cac25b_one" formatted="false">%1$d Datei</string>
@@ -586,6 +597,7 @@
     <string name="t_bbb4c248" formatted="false">Gibt es noch etwas, das Dictate &amp; Delegate wissen sollte?</string>
     <string name="t_bbfdd3ed" formatted="false">Dictate &amp; Delegate verbindet sich über den MCP-Server von bb (Plugin bb--mcp), der in bb aktiv sein muss.</string>
     <string name="t_bc1b2887" formatted="false">Der ntfy-Server hat mit HTTP %1$d geantwortet.</string>
+    <string name="t_bd62c852" formatted="false">Mikro: still</string>
     <string name="t_bdae2794" formatted="false">Für korrekte Namen und Begriffe bei Transkription und Überarbeitung.</string>
     <string name="t_be7f9242" formatted="false">Verlauf konnte nicht gespeichert werden.</string>
     <string name="t_bed11d96" formatted="false">Text deines Chiefs kopiert</string>
@@ -594,6 +606,7 @@
     <string name="t_c0d15569" formatted="false">Stimme fehlgeschlagen (%1$s): Keine andere Stimme auf diesem Smartphone verfügbar</string>
     <string name="t_c0da8988" formatted="false">Notizen</string>
     <string name="t_c0ee3e71" formatted="false">✨ Verfeinern…</string>
+    <string name="t_c17cebfc" formatted="false">%1$s gehört, aber deine Stimme zählte nicht als Sprache (zu leise gegen den Hintergrund?): nicht gesendet</string>
     <string name="t_c1829c8e_one" formatted="false">%1$d Wort</string>
     <string name="t_c1829c8e_other" formatted="false">%1$d Wörter</string>
     <string name="t_c21bafca" formatted="false">✨ Verfeinern geht über OpenRouter an das Modell, das du hier wählst. Trag unter Modelle &amp; Anbieter einen Anthropic-Schlüssel ein, um Claude über dein Anthropic-Guthaben zu nutzen.</string>
@@ -604,6 +617,7 @@
     <string name="t_c2ac4ac4" formatted="false">✓  Ein Schlüssel ist verschlüsselt auf diesem Gerät gespeichert.</string>
     <string name="t_c323cecd" formatted="false">Während des Diktierens</string>
     <string name="t_c3257368" formatted="false">Mit klügerem Modell wiederholen</string>
+    <string name="t_c3314cf1" formatted="false">Nicht als du gezählt: %1$s</string>
     <string name="t_c34fa500" formatted="false">Gib der Vorlage einen Namen und einen Text</string>
     <string name="t_c37118a8" formatted="false">Dictate &amp; Delegate konnte Dateien weder lesen noch schreiben. Prüfe den Speicherplatz und versuche es erneut.</string>
     <string name="t_c37292d9" formatted="false">etwa %1$s</string>
@@ -640,6 +654,7 @@
     <string name="t_cc9b594b" formatted="false">Änderungen konnten nicht gespeichert werden</string>
     <string name="t_ccd1bf1c" formatted="false">der Download ist beschädigt (Prüfsumme)</string>
     <string name="t_cd0cedae" formatted="false">Das Audio der nicht aufgeschriebenen Aufnahmen verwerfen?</string>
+    <string name="t_cd1464c6" formatted="false">Mikro: deine Stimme · Worte kommen live</string>
     <string name="t_cd782109" formatted="false">Füge zuerst deinen Schlüssel ein</string>
     <string name="t_cd7cb0fd" formatted="false">Ein einzelner bb-Thread empfängt jede per Sprache übergebene Aufgabe. Er erledigt Kleinigkeiten selbst, startet Unter-Threads für Größeres und benachrichtigt dich per ntfy, wenn er fertig ist oder dich braucht.</string>
     <string name="t_cd8737fa" formatted="false">Artikel</string>
@@ -714,6 +729,7 @@
     <string name="t_e2774654" formatted="false">In ntfy öffnen</string>
     <string name="t_e281d2a6" formatted="false">Die Anmeldung kam von einem unerwarteten Server zurück (%1$s).</string>
     <string name="t_e35e00df" formatted="false">Standard</string>
+    <string name="t_e36b69a2" formatted="false">Warte auf die Antwort</string>
     <string name="t_e3725a1f" formatted="false">✓  In bb installiert</string>
     <string name="t_e3d95fe1" formatted="false">Hierüber öffnen sich Thread-Links, meist https://&lt;handle&gt;.getbb.app.</string>
     <string name="t_e3e3bdf6" formatted="false">Noch kein Text</string>

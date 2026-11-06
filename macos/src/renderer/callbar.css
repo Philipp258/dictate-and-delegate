@@ -9,9 +9,18 @@ button { -webkit-app-region: no-drag; border: 0; height: 34px; border-radius: 17
 .state { background: transparent; padding: 0 10px 0 8px; max-width: 250px; }
 .state:hover { background: rgba(255,255,255,.1); }
 #label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dot { width: 9px; height: 9px; border-radius: 5px; background: #8a958f; flex: none; }
-.dot.you { background: #3ad6a8; } .dot.chief { background: #6aa8ff; } .dot.busy { background: #e0b341; }
-.dot.failed { background: var(--red); }
+.lines { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; max-width: 200px; line-height: 1.2; }
+#label, .words { max-width: 200px; }
+/* The newest words matter: cut at the start (rtl ellipsis on an ltr text). */
+.words { font-size: 11px; opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+.words[hidden] { display: none; }
+/* Three bars in the state's colour, moving with the microphone: full for your voice, faint for a
+   sound that doesn't count, low for quiet. */
+.meter { --c: #8a958f; display: inline-flex; align-items: center; gap: 2px; width: 13px; height: 16px; flex: none; }
+.meter i { display: block; width: 3px; min-height: 3px; height: 3px; border-radius: 2px; background: var(--c); opacity: .35; }
+.meter.sound i { opacity: .55; } .meter.voice i { opacity: 1; }
+.meter.you { --c: #3ad6a8; } .meter.chief { --c: #6aa8ff; } .meter.busy { --c: #e0b341; }
+.meter.failed { --c: var(--red); }
 .send { width: 34px; background: var(--teal); color: #fff; }
 .send[hidden] { display: none; }
 .end { width: 44px; background: var(--red); color: #fff; }

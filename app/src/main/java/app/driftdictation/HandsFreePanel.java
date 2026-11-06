@@ -14,10 +14,11 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 /**
- * The hands-free call over other apps, as a call bar: a status dot and short label of what's
- * happening (Listening, Hearing you, Sent ✓, Reply waiting, Reading…), send while you can talk,
- * and hang up. Never takes focus; drag it anywhere,
- * tap the status to open the full screen; it always stays whole on screen.
+ * The hands-free call over other apps, as a call bar: a level meter in the state's colour, a short
+ * label of what's happening (Listening, Hearing you, Checking…, Sent ✓, Waiting for the reply,
+ * Playing the reply) with the last words heard below it, send while you can talk, and hang up.
+ * Never takes focus; drag it anywhere, tap the status to open the full screen; it always stays
+ * whole on screen.
  */
 final class HandsFreePanel extends LinearLayout {
   interface Actions {
@@ -28,9 +29,12 @@ final class HandsFreePanel extends LinearLayout {
     void end();
   }
 
-  private final TextView state;
+  private final LinearLayout info;
+  private final TextView state, words;
+  private final LevelMeter meter;
   private final ImageView send, end;
-  private final GradientDrawable dot = new GradientDrawable();
+  /** The state's colour, for the meter (set by render). */
+  private int color = 0xff3fd6a1;
   private final WindowManager windows;
   private final WindowManager.LayoutParams layout;
   private final float density;
@@ -40,6 +44,9 @@ final class HandsFreePanel extends LinearLayout {
 
   /** Prefs: where the call panel was last dragged to. */
   static final String X = "hfPanelX", Y = "hfPanelY";
+
+  /** The label and the words under it are at most this wide (dp). */
+  static final int WIDEST = 200;
 
   private final android.content.SharedPreferences prefs;
 
@@ -59,20 +66,40 @@ final class HandsFreePanel extends LinearLayout {
     bg.setColor(0xf21b1f24);
     bg.setCornerRadius(dp(28));
     setBackground(bg);
+    // The status: the meter, then the label with the last words heard under it (only when there
+    // are some), kept narrow so the bar doesn't grow with them.
+    info = new LinearLayout(context);
+    info.setOrientation(HORIZONTAL);
+    info.setGravity(Gravity.CENTER_VERTICAL);
+    info.setPadding(dp(12), 0, dp(12), 0);
+    info.setMinimumHeight(dp(40));
+    info.setOnClickListener(v -> actions.open());
+    meter = new LevelMeter(context);
+    info.addView(meter, new LayoutParams(dp(13), dp(16)));
+    LinearLayout lines = new LinearLayout(context);
+    lines.setOrientation(VERTICAL);
+    lines.setGravity(Gravity.CENTER_VERTICAL);
+    LayoutParams at = new LayoutParams(-2, -2);
+    at.leftMargin = dp(8);
+    info.addView(lines, at);
     state = new TextView(context);
     state.setTextSize(13);
     state.setTextColor(0xffffffff);
     state.setTypeface(Ui.MEDIUM);
     state.setSingleLine(true);
-    state.setGravity(Gravity.CENTER_VERTICAL);
-    dot.setShape(GradientDrawable.OVAL);
-    dot.setSize(dp(9), dp(9));
-    state.setCompoundDrawablesRelativeWithIntrinsicBounds(dot, null, null, null);
-    state.setCompoundDrawablePadding(dp(8));
-    state.setPadding(dp(12), 0, dp(12), 0);
-    state.setMinHeight(dp(40));
-    state.setOnClickListener(v -> actions.open());
-    addView(state, new LayoutParams(-2, dp(40)));
+    state.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    state.setMaxWidth(dp(WIDEST));
+    lines.addView(state, new LayoutParams(-2, -2));
+    words = new TextView(context);
+    words.setTextSize(11);
+    words.setTextColor(0xbfffffff);
+    words.setSingleLine(true);
+    // The newest words matter: cut at the start.
+    words.setEllipsize(android.text.TextUtils.TruncateAt.START);
+    words.setMaxWidth(dp(WIDEST));
+    words.setVisibility(GONE);
+    lines.addView(words, new LayoutParams(-2, -2));
+    addView(info, new LayoutParams(-2, -2)); // At least 40 dp; two lines in a large font fit.
     send = round(R.drawable.ic_send, 0x33ffffff, tr("Send now"), v -> actions.send());
     end = round(R.drawable.ic_call_end, 0xffe5484d, tr("End hands-free"), v -> actions.end());
     windows = context.getSystemService(WindowManager.class);
@@ -136,7 +163,7 @@ final class HandsFreePanel extends LinearLayout {
   /** Whether every button shows whole on screen (for the device tests). */
   boolean fits() {
     android.graphics.Rect bounds = windows.getCurrentWindowMetrics().getBounds();
-    for (View t : new View[] {state, send, end}) {
+    for (View t : new View[] {info, send, end}) {
       if (t.getVisibility() != VISIBLE) continue;
       int[] at = new int[2];
       t.getLocationOnScreen(at);
@@ -154,24 +181,49 @@ final class HandsFreePanel extends LinearLayout {
    * only the buttons that fit it.
    */
   void render(HandsFreeSession s) {
+    render(s, false);
+  }
+
+  /**
+   * As above; fitted (once a second) lays it out and moves it on screen again even when nothing
+   * changed, as after the screen turned.
+   */
+  void render(HandsFreeSession s, boolean fitted) {
     HandsFreeSession.Phase phase = s.phase();
     HandsFreeSession.Live live = s.live();
-    state.setText(HandsFreeService.shortLabel(s));
+    boolean trouble = HandsFreeService.liveOffShown(s) || HandsFreeService.troubleShown(s);
+    String label = HandsFreeService.shortLabel(s), heard = HandsFreeService.wordsLine(s);
     String full =
-        HandsFreeService.voiceFailure(s) == null && HandsFreeService.liveOffShown(s) ? HandsFreeService.liveOffText(s) : HandsFreeService.liveLabel(s);
-    state.setContentDescription(full);
-    state.setTooltipText(full);
-    // Green: you can talk; amber: you can talk, something's on its way or waiting; violet: a
-    // reply plays; grey: the microphone is paused a moment.
-    dot.setColor(
+        HandsFreeService.voiceFailure(s) != null ? HandsFreeService.liveLabel(s)
+            : HandsFreeService.liveOffShown(s) ? HandsFreeService.liveOffText(s)
+            : trouble ? s.trouble()
+            : HandsFreeService.liveLabel(s);
+    if (!heard.isEmpty()) full += ". " + heard;
+    // Green: you can talk; amber: you can talk, something's on its way or waiting, or your words
+    // may not be coming through; violet: a reply plays; grey: the microphone is paused a moment.
+    color =
         live == HandsFreeSession.Live.MUTED
             ? 0xff9aa0a6
+            : trouble ? 0xfff5b84a
             : switch (phase) {
               case READING -> 0xffb197fc;
               case SENDING, WORKING -> 0xfff5b84a;
               default -> live == HandsFreeSession.Live.REPLY_WAITING ? 0xfff5b84a : 0xff3fd6a1;
-            });
-    send.setVisibility(HandsFreeService.canSend(s) ? VISIBLE : GONE);
+            };
+    boolean sendable = HandsFreeService.canSend(s);
+    boolean resized = !label.equals(state.getText().toString()) || heard.isEmpty() != (words.getVisibility() != VISIBLE)
+        || !heard.equals(words.getText().toString()) || sendable != (send.getVisibility() == VISIBLE);
+    meter.show(s.meter(), s.hearing(), color);
+    if (!full.equals(info.getContentDescription() == null ? "" : info.getContentDescription().toString())) {
+      info.setContentDescription(full);
+      info.setTooltipText(full);
+    }
+    // Rendered ten times a second for the meter: the bar is laid out again only when it changed.
+    if (!resized && !fitted) return;
+    state.setText(label);
+    words.setText(heard);
+    words.setVisibility(heard.isEmpty() ? GONE : VISIBLE);
+    send.setVisibility(sendable ? VISIBLE : GONE);
     if (getParent() != null) {
       fit();
       windows.updateViewLayout(this, layout);
