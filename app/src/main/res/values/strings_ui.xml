@@ -27,7 +27,6 @@
     <string name="t_064b8a10" formatted="false">Couldn\'t refine this note: %1$s Below is what you said.</string>
     <string name="t_0656ff35" formatted="false">Dictate &amp; Delegate</string>
     <string name="t_066ab8b4" formatted="false">This recording didn\'t finish (%1$s).</string>
-    <string name="t_067329ed" formatted="false">this app only takes pastes, so it\'s on the clipboard too</string>
     <string name="t_068966f6" formatted="false">Refine: Anthropic credits ≈%1$s</string>
     <string name="t_07ee7593" formatted="false">Talking about something? Add it, like an offer you reply to.</string>
     <string name="t_083e8bd0" formatted="false">bb didn\'t install the talker\'s skill. It\'s tried again next time.</string>
@@ -384,6 +383,7 @@
     <string name="t_76010d0f" formatted="false">Nothing yet.</string>
     <string name="t_76692d71" formatted="false">🎧 Hands-free is on</string>
     <string name="t_77083f49" formatted="false">What leaves your phone</string>
+    <string name="t_772ae93b" formatted="false">it\'s on the clipboard too</string>
     <string name="t_772f8ccc" formatted="false">Your name</string>
     <string name="t_7787a5b2" formatted="false">Sending to %1$s…</string>
     <string name="t_77a2a807" formatted="false">Delete note</string>

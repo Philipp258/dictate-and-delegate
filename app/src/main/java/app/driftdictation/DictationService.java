@@ -847,7 +847,7 @@ public final class DictationService extends Service {
                   s.insertedKind = kind;
                   s.message =
                       (swapped ? tr("Replaced with the refined text") : tr("Inserted"))
-                          + (done.clipboard() ? " · " + tr("this app only takes pastes, so it's on the clipboard too") : "");
+                          + (done.clipboard() ? " · " + tr("it's on the clipboard too") : "");
                 }
                 if (session == s) {
                   renderBubble();

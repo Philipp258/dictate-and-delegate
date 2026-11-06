@@ -26,7 +26,6 @@
     <string name="t_064b8a10" formatted="false">No se pudo pulir esta nota: %1$s Abajo está lo que dijiste.</string>
     <string name="t_0656ff35" formatted="false">Dictate &amp; Delegate</string>
     <string name="t_066ab8b4" formatted="false">Esta grabación no terminó (%1$s).</string>
-    <string name="t_067329ed" formatted="false">esta app solo admite pegar, así que también está en el portapapeles</string>
     <string name="t_068966f6" formatted="false">Mejorar: créditos de Anthropic ≈%1$s</string>
     <string name="t_07ee7593" formatted="false">¿Hablas de algo? Añádelo, como una oferta a la que respondes.</string>
     <string name="t_083e8bd0" formatted="false">bb no instaló la habilidad del interlocutor. Se volverá a intentar la próxima vez.</string>
@@ -859,4 +858,5 @@
     <string name="t_ff769841" formatted="false">Dejar de intentarlo</string>
     <string name="t_ff770e18" formatted="false">Costes y actividad</string>
     <string name="t_ffd9a681" formatted="false">Rehaciendo con un modelo mejor… Puedes salir de esta pantalla.</string>
+    <string name="t_772ae93b" formatted="false">también está en el portapapeles</string>
 </resources>

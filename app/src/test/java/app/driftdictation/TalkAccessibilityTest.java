@@ -39,13 +39,15 @@ public class TalkAccessibilityTest {
   }
 
   @Test
-  public void aWebFieldsTextIsOnlyRewrittenWhenItCantBeAPlaceholder() {
-    // A web editor with a CSS placeholder: its "text" may be the placeholder, so paste instead.
-    assertFalse(TalkAccessibility.trusted(true, "", "Ask for a follow-up. @ to mention files\n"));
-    // A web field naming its hint, an empty one, a native one: spliced as before.
-    assertTrue(TalkAccessibility.trusted(true, "Ask for a follow-up", "Hi Jana,"));
-    assertTrue(TalkAccessibility.trusted(true, "", ""));
-    assertTrue(TalkAccessibility.trusted(false, "", "Dear Jana,"));
+  public void refinedTextOnlyPastesOverAConfirmedSelectionOfTheEarlierText() {
+    String field = "Dear Jana, um see you thanks.";
+    assertTrue(TalkAccessibility.selects(field, 11, 21, 11, 21, "um see you"));
+    // The app moved or ignored the selection, or reports other text there: don't paste over it.
+    assertFalse(TalkAccessibility.selects(field, 0, 0, 11, 21, "um see you"));
+    assertFalse(TalkAccessibility.selects("Ask for a follow-up. " + field, 11, 21, 11, 21, "um see you"));
+    assertFalse(TalkAccessibility.selects("short", 11, 21, 11, 21, "um see you"));
+    // Web editors turn edge spaces into non-breaking ones.
+    assertTrue(TalkAccessibility.selects("Hi\u00a0there", 2, 8, 2, 8, " there"));
   }
 
   @Test
