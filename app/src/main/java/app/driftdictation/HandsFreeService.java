@@ -417,7 +417,7 @@ public final class HandsFreeService extends Service {
               },
               atX,
               atY);
-      panel.with(withName, Assistants.bright(assistant));
+      panel.with(withName, Assistants.initials(Assistants.names(this))[Assistants.clamp(assistant)], Assistants.bright(assistant));
       try {
         panel.show();
       } catch (RuntimeException ex) {

@@ -19,7 +19,7 @@ import android.widget.TextView;
  * Playing the reply) with the last words heard below it, send while you can talk, and hang up.
  * Never takes focus; drag it anywhere, tap the status to open the full screen; it always stays
  * whole on screen. With two assistants set up, it has the call's assistant's colour around it and
- * its name before the label.
+ * its initial (as on the dictation panel) in a small round badge before the meter.
  */
 final class HandsFreePanel extends LinearLayout {
   interface Actions {
@@ -31,7 +31,7 @@ final class HandsFreePanel extends LinearLayout {
   }
 
   private final LinearLayout info;
-  private final TextView state, words;
+  private final TextView state, words, badge;
   private final LevelMeter meter;
   private final ImageView send, end;
   /** The state's colour, for the meter (set by render). */
@@ -51,7 +51,7 @@ final class HandsFreePanel extends LinearLayout {
 
   private final android.content.SharedPreferences prefs;
 
-  /** The call's assistant's name and colour with two assistants ("" and 0 with one). */
+  /** The call's assistant's name with two assistants ("" with one), for TalkBack and a long press. */
   private String with = "";
 
   /**
@@ -78,6 +78,17 @@ final class HandsFreePanel extends LinearLayout {
     info.setPadding(dp(12), 0, dp(12), 0);
     info.setMinimumHeight(dp(40));
     info.setOnClickListener(v -> actions.open());
+    badge = new TextView(context);
+    badge.setTextSize(11);
+    badge.setTypeface(Ui.MEDIUM, android.graphics.Typeface.BOLD);
+    badge.setGravity(Gravity.CENTER);
+    badge.setSingleLine(true);
+    badge.setMinWidth(dp(22));
+    badge.setPadding(dp(4), 0, dp(4), 0);
+    badge.setVisibility(GONE);
+    LayoutParams bl = new LayoutParams(-2, dp(22));
+    bl.rightMargin = dp(8);
+    info.addView(badge, bl);
     meter = new LevelMeter(context);
     info.addView(meter, new LayoutParams(dp(13), dp(16)));
     LinearLayout lines = new LinearLayout(context);
@@ -203,10 +214,7 @@ final class HandsFreePanel extends LinearLayout {
             : trouble ? s.trouble()
             : HandsFreeService.liveLabel(s);
     if (!heard.isEmpty()) full += ". " + heard;
-    if (!with.isEmpty()) {
-      label = with + " · " + label;
-      full = with + ": " + full;
-    }
+    if (!with.isEmpty()) full = with + ": " + full;
     // Green: you can talk; amber: you can talk, something's on its way or waiting, or your words
     // may not be coming through; violet: a reply plays; grey: the microphone is paused a moment.
     color =
@@ -238,15 +246,25 @@ final class HandsFreePanel extends LinearLayout {
     }
   }
 
-  /** The call is with this assistant (name, colour); shown only when there are several (name not ""). */
-  void with(String name, int color) {
-    with = FloatingPanel.shortName(name);
+  /**
+   * The call is with this assistant (name, its initial on the dictation panel, colour); shown only
+   * when there are several (name not "").
+   */
+  void with(String name, String initial, int color) {
+    with = name;
     if (name.isEmpty()) return;
     GradientDrawable bg = new GradientDrawable();
     bg.setColor(0xf21b1f24);
     bg.setCornerRadius(dp(28));
     bg.setStroke(dp(2), color);
     setBackground(bg);
+    GradientDrawable dot = new GradientDrawable();
+    dot.setColor(color);
+    dot.setCornerRadius(dp(11));
+    badge.setBackground(dot);
+    badge.setTextColor(0xff182420);
+    badge.setText(initial);
+    badge.setVisibility(VISIBLE);
   }
 
   // Dragging: a move past the touch slop anywhere on the panel moves it; taps still reach buttons.

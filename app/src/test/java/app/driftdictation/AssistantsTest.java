@@ -34,6 +34,21 @@ public class AssistantsTest {
     assertEquals(1, Assistants.of(new JSONObject().put("assistant", 1)));
   }
 
+  /** Each assistant's mark on the panel: never the same for both, whatever they're called. */
+  @Test
+  public void theTwoAssistantsNeverShareAMark() {
+    assertArrayEquals(new String[] {"P", "W"}, Assistants.initials(new String[] {"Personal", "Work"}));
+    assertArrayEquals(new String[] {"H", "U"}, Assistants.initials(new String[] {" home", "userlike"}));
+    // Both start alike: two letters, then numbers.
+    assertArrayEquals(new String[] {"Pe", "Pr"}, Assistants.initials(new String[] {"Personal", "Private"}));
+    assertArrayEquals(new String[] {"1", "2"}, Assistants.initials(new String[] {"Work", "Workshop"}));
+    assertArrayEquals(new String[] {"1", "2"}, Assistants.initials(new String[] {"", "Work"}));
+    // A letter made of several characters stays whole.
+    String[] emoji = Assistants.initials(new String[] {"🏠 Home", "💼 Work"});
+    assertEquals("🏠", emoji[0]);
+    assertEquals("💼", emoji[1]);
+  }
+
   /**
    * A call with the first assistant reads only that assistant's topic. The second assistant's chief
    * answering on its own topic, even with the call's request ID (or for a note sent to it), is

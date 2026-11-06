@@ -880,6 +880,38 @@ public class HandsFreeFlowTest {
     assertEquals(300, prefs.getInt(HandsFreePanel.Y, 0));
   }
 
+  /**
+   * With two assistants, each is one round button with its initial (no 📞 of its own): holding
+   * Work's while recording starts a call with Work, keeping what was said, its W on the call bar.
+   */
+  @Test
+  public void holdingAnAssistantsButtonWhileRecordingCallsIt() throws Exception {
+    work();
+    TestServer.transcripts("I was dictating about the deploy");
+    device.executeShellCommand("appops set app.driftdictation SYSTEM_ALERT_WINDOW allow");
+    prefs.edit().putString("bubbleMode", "recording").commit();
+    DictationService.send(context, DictationService.RECORD);
+    long deadline = SystemClock.elapsedRealtime() + 10_000;
+    while (!"recording".equals(prefs.getString("state", "")) && SystemClock.elapsedRealtime() < deadline) Thread.sleep(100);
+    Thread.sleep(1200);
+    UiObject2 workButton = device.wait(Until.findObject(By.desc("Send to Work")), 8000);
+    assertNotNull("Work's button on the dictation panel", workButton);
+    assertEquals("W", workButton.getText());
+    assertEquals("P", device.findObject(By.desc("Send to Personal")).getText());
+    // One row, as with one assistant: no 📞 buttons.
+    assertNull(device.findObject(By.text("📞")));
+    assertEquals(workButton.getVisibleBounds().centerY(), device.findObject(By.desc("Stop recording")).getVisibleBounds().centerY());
+    workButton.longClick();
+    until(() -> HandsFreeService.session() != null, "the call started by holding Work");
+    assertEquals(1, HandsFreeService.callWith());
+    until(() -> "I was dictating about the deploy".equals(HandsFreeService.session().pending()), "the dictation became the first turn");
+    // Nothing went to Work as a note: the tap wasn't taken.
+    assertTrue(tellsTo(WORK_CHIEF).stream().noneMatch(t -> t.contains("I was dictating")));
+    assertNotNull("the call bar's W", device.wait(Until.findObject(By.text("W")), 5000));
+    HandsFreeService.send(context, HandsFreeService.END);
+    until(() -> HandsFreeService.instance == null, "ended");
+  }
+
   @Test
   public void startedFromHomeTheCallPanelIsWhereItWasLastDragged() throws Exception {
     device.executeShellCommand("appops set app.driftdictation SYSTEM_ALERT_WINDOW allow");

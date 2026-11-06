@@ -59,8 +59,45 @@ final class Assistants {
     return name(context.getSharedPreferences("settings", Context.MODE_PRIVATE), assistant);
   }
 
+  /** Every assistant's name, in order. */
+  static String[] names(Context context) {
+    String[] out = new String[COUNT];
+    for (int a = 0; a < COUNT; a++) out[a] = name(context, a);
+    return out;
+  }
+
   static void setName(Context context, int assistant, String name) {
     context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit().putString(key(assistant, NAME), name.trim()).apply();
+  }
+
+  /**
+   * Each assistant's mark on the panel's button: the first letter of its name (P, W), or the first two
+   * when both start alike (Pe, Pr), or its number when even those match, so the two never look
+   * the same.
+   */
+  static String[] initials(String[] names) {
+    String[] one = new String[names.length], two = new String[names.length];
+    for (int i = 0; i < names.length; i++) {
+      String n = names[i] == null ? "" : names[i].trim();
+      java.text.BreakIterator letters = java.text.BreakIterator.getCharacterInstance();
+      letters.setText(n);
+      int a = letters.first(), b = letters.next(), c = b == java.text.BreakIterator.DONE ? b : letters.next();
+      one[i] = b == java.text.BreakIterator.DONE ? "" : n.substring(a, b).toUpperCase(java.util.Locale.ROOT);
+      two[i] = c == java.text.BreakIterator.DONE ? one[i] : one[i] + n.substring(b, c).toLowerCase(java.util.Locale.ROOT);
+    }
+    return distinct(one) ? one : distinct(two) ? two : numbers(names.length);
+  }
+
+  private static boolean distinct(String[] marks) {
+    java.util.Set<String> seen = new java.util.HashSet<>();
+    for (String m : marks) if (m == null || m.isEmpty() || !seen.add(m)) return false;
+    return true;
+  }
+
+  private static String[] numbers(int n) {
+    String[] out = new String[n];
+    for (int i = 0; i < n; i++) out[i] = String.valueOf(i + 1);
+    return out;
   }
 
   /** What the network log calls an assistant's bb: "bb" for the first, "bb2" for the second. */

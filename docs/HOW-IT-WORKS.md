@@ -12,7 +12,7 @@ The short version is in the [README](../README.md). This page has the details: e
 | **Templates** | Texts you write again and again (an application, a standard reply). Say "use my apartment application for…", tap ✨ Refine, and it fills it in. |
 | **📎 Attach** | Talking about something, like a listing you're replying to? While you record, add what you copied, an image or a PDF. Refine reads it, and the chief gets it too. |
 | **🧑‍💼 Chief of staff** | Sends what you said, plus anything you attached with 📎 (copied text, images, PDFs), to a bb thread on your computer that acts for you: small things itself, bigger work in parallel child threads. It notifies you through [ntfy](https://ntfy.sh) when it's done or needs you. |
-| **Two assistants** | A second bb with its own sign-in, chief, ntfy topic and skills, say "Personal" and "Work". The panel then has a 🧑‍💼 and 📞 for each, with its name and colour; holding the other volume key starts a dictation for the second (it only puts its buttons first). Calls, notes and failure reports stay with their assistant. |
+| **Two assistants** | A second bb with its own sign-in, chief, ntfy topic and skills, say "Personal" and "Work". The panel then has one round button for each, its initial in its colour (tap: send to it, hold while recording: call it), so it stays one row; holding the other volume key starts a dictation for the second (it only puts its buttons first). Calls, notes and failure reports stay with their assistant. |
 | **Text back** | When the chief writes something for you to paste, **Insert from chief** appears on the panel (or **Copy** on the notification). |
 | **Costs in view** | Every note shows what it cost, usually a fraction of a cent. Activity shows which model did what and how long it took. |
 | **Notes** | Every dictation is kept on the phone, in the app's private storage: what you said and the refined version. Redo a note with a more accurate speech model. |
@@ -34,7 +34,7 @@ flowchart LR
     c -.->|"text to paste,<br/>via ntfy"| back["📥 Insert from chief"]
 ```
 
-You choose where the transcript goes: nothing is refined or sent because of what you said (saying your chief's name sent a dictation there by itself until 3.7.0). If you have templates, Jev (about 0.3 s, a tiny fraction of a cent) answers one question after the transcript: which template does it name? A Refine you tap then uses it; if Jev fails, Refine runs without one. With two assistants, the panel has a 🧑‍💼 for each, and the dictation goes to the one you tap.
+You choose where the transcript goes: nothing is refined or sent because of what you said (saying your chief's name sent a dictation there by itself until 3.7.0). If you have templates, Jev (about 0.3 s, a tiny fraction of a cent) answers one question after the transcript: which template does it name? A Refine you tap then uses it; if Jev fails, Refine runs without one. With two assistants, the panel has a button for each (its initial), and the dictation goes to the one you tap.
 
 ## Who talks to whom
 

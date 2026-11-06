@@ -13,9 +13,10 @@ import android.widget.*;
  * The floating panel over other apps, icon buttons named for accessibility (long press shows the
  * name). While recording: the timer with stop, Refine and Chief to choose ahead, 📞 to go on as a
  * call, ✕ to cancel, and 📎. Afterwards: ✕, Insert, Refine (then Insert refined), Chief (then Open
- * chat ↗), and Insert from chief when the chief sent text back. With two assistants set up, Chief
- * and 📞 are there for each, with its name and in its colour, the one whose volume key started the
- * dictation first. While it's written down: ✕ stops
+ * chat ↗), and Insert from chief when the chief sent text back. With two assistants set up, each
+ * is one round button with its initial in its colour (P, W) instead of Chief and 📞: a tap sends to
+ * it, holding it while recording starts a call with it; the one whose volume key started the
+ * dictation comes first, so the row is as short as with one. While it's written down: ✕ stops
  * trying (the recording stays in the notes) and 🎙 records something new; when it couldn't be,
  * ↻ tries again. Ready, error and empty show the small icon instead. Its window never takes focus, so the cursor stays in the app you're in; drag it
  * anywhere.
@@ -82,6 +83,8 @@ final class FloatingPanel extends FrameLayout {
   private final TextView attach, timer, close, insert, refine, fromChief, status, mic, retry;
   /** Each assistant's Chief and 📞. */
   private final TextView[] chiefs = new TextView[Assistants.COUNT], calls = new TextView[Assistants.COUNT];
+  /** What holding an assistant's button does: the call's name, null when holding only shows its name. */
+  private final String[] holdCall = new String[Assistants.COUNT];
   private final Row row;
   private final Actions actions;
   private final Drag drag;
@@ -130,6 +133,25 @@ final class FloatingPanel extends FrameLayout {
     for (int a = 0; a < Assistants.COUNT; a++) {
       int assistant = a;
       chiefs[a] = pill(row, "", v -> actions.chief(assistant));
+      // With two assistants, holding one while recording calls it (there's no 📞 of its own).
+      chiefs[a].setOnLongClickListener(
+          v -> {
+            if (holdCall[assistant] == null) return false; // Shows its name.
+            v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+            actions.call(assistant);
+            return true;
+          });
+      chiefs[a].setAccessibilityDelegate(
+          new View.AccessibilityDelegate() {
+            @Override
+            public void onInitializeAccessibilityNodeInfo(View host, android.view.accessibility.AccessibilityNodeInfo info) {
+              super.onInitializeAccessibilityNodeInfo(host, info);
+              if (holdCall[assistant] != null)
+                info.addAction(
+                    new android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction(
+                        android.view.accessibility.AccessibilityNodeInfo.ACTION_LONG_CLICK, holdCall[assistant]));
+            }
+          });
     }
     extra = new LinearLayout(context);
     extra.setGravity(Gravity.CENTER_VERTICAL);
@@ -279,8 +301,8 @@ final class FloatingPanel extends FrameLayout {
       return;
     }
     setAlpha(1f);
-    // While recording: ■ ✨ 🧑‍💼 📞 (each assistant's pair) 📎 ✕; afterwards: 📥 ✨ 🧑‍💼 ✕. The ✕ is
-    // always last, on the outer edge where close and cancel usually are.
+    // While recording: ■ ✨ 🧑‍💼 📞 📎 ✕ (with two assistants ■ ✨ P W 📎 ✕); afterwards: 📥 ✨ 🧑‍💼 ✕
+    // (📥 ✨ P W ✕). The ✕ is always last, on the outer edge where close and cancel usually are.
     java.util.List<Integer> first = new java.util.ArrayList<>();
     if (m.keyAssistant() >= 0) first.add(m.keyAssistant());
     for (int a = 0; a < Assistants.COUNT; a++) if (!first.contains(a)) first.add(a);
@@ -347,18 +369,19 @@ final class FloatingPanel extends FrameLayout {
         m.refine().equals(DictationService.QUEUED) || m.refine().equals(DictationService.RUNNING) ? TEAL : 0);
     refine.setVisibility(unfinished ? GONE : VISIBLE);
     boolean several = m.assistants().size() > 1;
+    String[] initials = Assistants.initials(m.names());
     // Once the dictation is on its way (or kept to try again) it belongs to its assistant: the
     // other's Chief goes.
     boolean bound = !m.chief().equals(DictationService.IDLE) && !m.chief().equals(DictationService.QUEUED);
     for (int a = 0; a < Assistants.COUNT; a++) {
       boolean offered = m.assistants().contains(a);
-      String label = several ? " " + shortName(m.names()[a]) : "";
       chiefs[a].setVisibility(offered && !unfinished && (!bound || a == m.assistant()) ? VISIBLE : GONE);
-      calls[a].setVisibility(offered && recording ? VISIBLE : GONE);
+      // With two, the call is holding the assistant's button: no 📞 of its own.
+      calls[a].setVisibility(offered && recording && !several ? VISIBLE : GONE);
+      holdCall[a] = several && offered && recording ? tr("Hands-free call with %1$s", m.names()[a]) : null;
       String state = a == m.assistant() ? m.chief() : DictationService.IDLE;
       chiefs[a].setText(
-          "🧑‍💼"
-              + label
+          (several ? initials[a] : "🧑‍💼")
               + switch (state) {
                 case DictationService.QUEUED -> " ✓";
                 case DictationService.RUNNING -> " …";
@@ -384,23 +407,20 @@ final class FloatingPanel extends FrameLayout {
                 default -> tr("🧑‍💼 Chief");
               });
       boolean busy = state.equals(DictationService.QUEUED) || state.equals(DictationService.RUNNING);
-      // With two, each in its colour (filled while it's chosen or on its way); alone, as always.
-      if (several) style(chiefs[a], busy ? tint(Assistants.bright(a)) : PILL, Assistants.bright(a));
+      // With two, each its initial in its colour: half see-through, solid with dark ink once it's
+      // chosen or on its way, so it's plain which one it goes to; alone, as always.
+      chiefs[a].setTypeface(Ui.MEDIUM, several ? Typeface.BOLD : Typeface.NORMAL);
+      chiefs[a].setTextSize(several ? 16 : 14);
+      chiefs[a].setTextColor(several && busy ? INK | 0xff000000 : 0xffffffff);
+      if (several) style(chiefs[a], busy ? Assistants.bright(a) : tint(Assistants.bright(a)), Assistants.bright(a));
       else style(chiefs[a], PILL, busy ? TEAL : 0);
-      calls[a].setText("📞" + label);
-      name(calls[a], several ? tr("Hands-free call with %1$s", m.names()[a]) : tr("Hands-free call with your chief"));
-      style(calls[a], PILL, several ? Assistants.bright(a) : 0);
+      calls[a].setText("📞");
+      name(calls[a], tr("Hands-free call with your chief"));
     }
     extra.setVisibility(m.reply() ? VISIBLE : GONE);
     style(fromChief, TEAL, 0);
     status.setText(m.message());
     status.setVisibility(m.message().isEmpty() ? GONE : VISIBLE);
-  }
-
-  /** An assistant's name on a button: short enough for the panel. */
-  static String shortName(String name) {
-    String n = name.trim();
-    return n.length() <= 10 ? n : n.substring(0, 9) + "…";
   }
 
   /** A colour, half see-through over the panel's dark background. */

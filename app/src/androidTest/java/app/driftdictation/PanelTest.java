@@ -779,8 +779,9 @@ public class PanelTest {
       assertTrue(key(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_VOLUME_UP));
       waitFor("recording");
       assertEquals(1, DictationService.session().keyAssistant);
-      find("Send to Work");
-      find("Hands-free call with Work");
+      // Work's W first, before Personal's P.
+      android.graphics.Rect w = find("Send to Work").getVisibleBounds(), p = find("Send to Personal").getVisibleBounds();
+      assertTrue(w + " before " + p, w.centerX() < p.centerX());
       shot("0b-volume-up-work");
       // Its own key stops it too.
       Thread.sleep(800);

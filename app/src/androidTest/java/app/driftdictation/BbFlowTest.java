@@ -511,9 +511,10 @@ public class BbFlowTest {
     waitFor("recording");
     assertEquals(1, DictationService.session().keyAssistant);
     assertEquals(java.util.List.of(0, 1), DictationService.session().assistants);
-    find("Send to Personal");
-    find("Hands-free call with Work");
-    find("Hands-free call with Personal");
+    // One round button each, its initial in its colour: a tap sends, holding it calls.
+    assertEquals("P", find("Send to Personal").getText());
+    assertEquals("W", find("Send to Work").getText());
+    assertNull(device.findObject(By.text("📞")));
     Thread.sleep(1200);
     send(DictationService.STOP);
     waitFor("copied");
