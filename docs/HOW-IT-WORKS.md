@@ -5,14 +5,14 @@ The short version is in the [README](../README.md). This page has the details: e
 ## Features
 | | |
 |---|---|
-| **Start anywhere** | Hold volume down or up (Accessibility), tap the Quick Settings tile, or use the button in the app. A short press still changes the volume. |
-| **Floating panel** | Appears over any app, never takes focus, and can be dragged anywhere. While you record: ■ stop, ✨ Refine, 🧑‍💼 Chief, ✕ cancel, 📎 attach. Tap ✨ or 🧑‍💼 while still talking, and it runs as soon as the transcript is ready. |
+| **Start anywhere** | Hold volume down or up (Accessibility), tap the Quick Settings tile, or use the button in the app. A short press still changes the volume. With a second assistant, the other volume key starts a dictation for it. |
+| **Floating panel** | Appears over any app, never takes focus, and can be dragged anywhere. While you record: ■ stop, ✨ Refine, 🧑‍💼 Chief, ✕ cancel, 📎 attach. Tap ✨ or 🧑‍💼 while still talking, and it runs as soon as the transcript is ready. Nothing runs or goes anywhere unless you tap it. |
 | **📥 Insert** | Puts the text at the cursor of the app you're in. Dictate & Delegate never puts anything on your clipboard by itself; only if Insert can't reach a field does it copy instead, and the panel tells you. |
 | **✨ Refine** | One call to Claude Sonnet 5.5 (or the model you pick) works out what the text is for (message, email, note, reply), follows what you asked, fills in a template you named, and keeps your language and facts. **Insert refined** then replaces the raw transcript in place, if you haven't changed it. Runs through OpenRouter, or through Anthropic directly with your own Anthropic key. |
-| **Templates** | Texts you write again and again (an application, a standard reply). Say "use my apartment application for…" and Refine fills it in. |
+| **Templates** | Texts you write again and again (an application, a standard reply). Say "use my apartment application for…", tap ✨ Refine, and it fills it in. |
 | **📎 Attach** | Talking about something, like a listing you're replying to? While you record, add what you copied, an image or a PDF. Refine reads it, and the chief gets it too. |
 | **🧑‍💼 Chief of staff** | Sends what you said, plus anything you attached with 📎 (copied text, images, PDFs), to a bb thread on your computer that acts for you: small things itself, bigger work in parallel child threads. It notifies you through [ntfy](https://ntfy.sh) when it's done or needs you. |
-| **Say its name** | Give your chief a name, say "Ada, …" or "this is for Ada", and the dictation goes there by itself. "Say hi to Ada" stays with you: a fast decision model (Jev) tells the two apart. |
+| **Two assistants** | A second bb with its own sign-in, chief, ntfy topic and skills, say "Personal" and "Work". The panel then has a 🧑‍💼 and 📞 for each, with its name and colour; holding the other volume key starts a dictation for the second (it only puts its buttons first). Calls, notes and failure reports stay with their assistant. |
 | **Text back** | When the chief writes something for you to paste, **Insert from chief** appears on the panel (or **Copy** on the notification). |
 | **Costs in view** | Every note shows what it cost, usually a fraction of a cent. Activity shows which model did what and how long it took. |
 | **Notes** | Every dictation is kept on the phone, in the app's private storage: what you said and the refined version. Redo a note with a more accurate speech model. |
@@ -26,16 +26,15 @@ Eight languages in the app: English, German, French, Spanish, Italian, Portugues
 flowchart LR
     rec["🎙️ You talk<br/>(volume key or tile, over any app)"] --> stt["Speech model<br/>MAI-Transcribe 2"]
     stt --> panel["Floating panel<br/>✕ · 📥 Insert · ✨ Refine · 🧑‍💼 Chief"]
-    stt --> jev{"Jev<br/>decision model"}
-    jev -->|"'make this an email',<br/>'use my template…'"| x
-    jev -->|"your chief's name, and<br/>it's meant for them"| c
+    stt -.->|"only with templates"| jev{"Jev<br/>decision model"}
+    jev -.->|"the template<br/>you named"| x
     panel -->|"📥 Insert"| t["📝 Transcript<br/>at the cursor"]
     panel -->|"✨ Refine"| x["✍️ Refined text<br/>Claude Sonnet 5.5<br/>→ Insert refined"]
     panel -->|"🧑‍💼 Chief"| c["🧑‍💼 Your chief<br/>a bb thread on your computer<br/>→ Open chat ↗"]
     c -.->|"text to paste,<br/>via ntfy"| back["📥 Insert from chief"]
 ```
 
-After the transcript, Jev (about 0.3 s and $0.00003) answers a few questions: did you ask for a text or name a template? Then Refine starts by itself. Did your chief's name come up, and is the dictation meant for them? Then it goes to the chief by itself, as you said it. If Jev isn't sure, 🧑‍💼 is only highlighted; if Jev fails, nothing happens by itself and the buttons still work.
+You choose where the transcript goes: nothing is refined or sent because of what you said (saying your chief's name sent a dictation there by itself until 3.7.0). If you have templates, Jev (about 0.3 s, a tiny fraction of a cent) answers one question after the transcript: which template does it name? A Refine you tap then uses it; if Jev fails, Refine runs without one. With two assistants, the panel has a 🧑‍💼 for each, and the dictation goes to the one you tap.
 
 ## Who talks to whom
 
@@ -75,6 +74,7 @@ flowchart TB
 - **OpenRouter** runs speech, Jev and Refine. You pay OpenRouter directly for what you use; a one-minute note usually costs well under a cent. With your own **Anthropic** key, Refine goes to Anthropic directly on your Anthropic credits, with OpenRouter as the fallback.
 - **bb** is an agentic IDE that runs coding agents (Claude Code, Codex, …) on your own computer. Dictate & Delegate uses bb's built-in MCP server to create the chief-of-staff thread and send it your dictations. The chief's instructions are two bb skills that Dictate & Delegate installs and keeps up to date by itself: **chief-of-staff** (how to work for you: small things itself, bigger work split into child threads with context, intent and what done looks like) and **dictate-and-delegate** (how to read dictations, notify you and send text back).
 - **ntfy** carries the chief's notification (one per request, with a summary and a link to the thread) and text meant for you to paste. Your topic is a long random name only you know. Dictate & Delegate itself sends no notifications.
+- **A second assistant** is a second copy of the bb part: its own bb (another computer, or the same with another handle), sign-in, chief-of-staff thread, the same skills filled with its own topic and links, and its own ntfy topic. A hands-free call reads only the topic of the assistant it's with, so the other's replies are never read out in it.
 
 ## Handing off a task
 
@@ -86,9 +86,9 @@ sequenceDiagram
     participant BB as bb (MCP)
     participant CoS as Chief of staff
     participant N as ntfy
-    You->>TR: "Ada, find three Italian places near the office"
-    TR->>OR: transcribe, then ask Jev (the name came up)
-    OR-->>TR: meant for the chief: 0.98
+    You->>TR: "Find three Italian places near the office", tap 🧑‍💼
+    TR->>OR: transcribe
+    OR-->>TR: the transcript
     TR->>BB: bb thread tell (what you said + attachments + [request: k3x9qa])
     BB->>CoS: new message
     TR-->>You: panel: "Open chat ↗"
@@ -104,7 +104,7 @@ sequenceDiagram
 
 If the speech model can't be reached or the connection breaks off while the recording is going up (mobile data does this), the app tries again by itself for about a minute and a half, only while that can't cost twice: once OpenRouter could have the whole recording, a break isn't retried, since the model may already be working. A recording that still isn't written down stays in your notes with its audio and **Retry** / **Discard**. None of this holds you up: each recording is written down on its own, so you can record the next one at once, and ✕ on the panel stops trying.
 
-If bb can't be reached, the app tries again a few times within seconds (bb Connect's tunnel to your computer drops now and then and is back quickly). If that isn't enough, the note keeps what you said and the request ID, says why, and sends it again by itself, further apart each time (15 s up to every 15 min, for two days), also after a restart or once the network is back. A try after one whose answer got lost checks the thread first, so the chief never gets a note twice. **Retry now** and **Send report** are on the note; once bb takes messages again, the chief gets an `[app failure report]` with what failed, when, and the network log around it.
+If bb can't be reached, the app tries again a few times within seconds (bb Connect's tunnel to your computer drops now and then and is back quickly). If that isn't enough, the note keeps what you said and the request ID, says why, and sends it again by itself, further apart each time (15 s up to every 15 min, for two days), also after a restart or once the network is back. A try after one whose answer got lost checks the thread first, so the chief never gets a note twice. **Retry now** and **Send report** are on the note; once bb takes messages again, the chief gets an `[app failure report]` with what failed, when, and the network log around it. With two assistants, each note is tried again with the assistant it was meant for, also days later, one bb being down doesn't hold up the other's notes, and each failure is reported to its own assistant's chief; one that belongs to neither (a recording that wasn't written down) goes to the first assistant that takes messages.
 
 ## Signing in to bb
 
@@ -129,5 +129,5 @@ sequenceDiagram
     TR->>BB: MCP calls with the token, refreshed when it expires
 ```
 
-The redirect goes through a page on GitHub Pages because bb only accepts an `https` address next to the client file. The code is useless without the verifier, which never leaves the phone. Instead of bb Connect you can enter any address of bb's MCP server yourself, for example one on your tailnet, with an optional token.
+The redirect goes through a page on GitHub Pages because bb only accepts an `https` address next to the client file. The code is useless without the verifier, which never leaves the phone. With two assistants, each signs in on its own and keeps its own tokens; the sign-in waiting for the browser remembers which assistant it's for. Instead of bb Connect you can enter any address of bb's MCP server yourself, for example one on your tailnet, with an optional token.
 

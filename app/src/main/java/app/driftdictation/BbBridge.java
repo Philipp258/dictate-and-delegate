@@ -54,57 +54,71 @@ final class BbBridge {
   private final SharedPreferences prefs;
   private final Vault vault;
 
+  /** Which assistant (bb) this is: 0 the first, 1 the second (Assistants). */
+  final int assistant;
+
+  /** The first assistant's bb. */
   BbBridge(Context context) {
+    this(context, 0);
+  }
+
+  BbBridge(Context context, int assistant) {
     this.context = context.getApplicationContext();
+    this.assistant = assistant;
     prefs = this.context.getSharedPreferences("settings", Context.MODE_PRIVATE);
     vault = new Vault(this.context);
+  }
+
+  /** This assistant's name for a setting or vault entry (Assistants.key). */
+  private String k(String name) {
+    return Assistants.key(assistant, name);
   }
 
   // ------------------------------------------------------------------ settings
 
   String mode() {
-    return prefs.getString(MODE, CONNECT);
+    return prefs.getString(k(MODE), CONNECT);
   }
 
   String handle() {
-    return prefs.getString(HANDLE, "");
+    return prefs.getString(k(HANDLE), "");
   }
 
   /** The MCP address in use: bb Connect's for the handle, or the custom one. */
   String url() {
-    return mode().equals(CUSTOM) ? prefs.getString(URL, "") : handle().isEmpty() ? "" : BbOAuth.resource(handle());
+    return mode().equals(CUSTOM) ? prefs.getString(k(URL), "") : handle().isEmpty() ? "" : BbOAuth.resource(handle());
   }
 
   /** Where thread links point: the bb web app (PWA), e.g. https://<handle>.getbb.app. */
   String linkBase() {
-    String custom = prefs.getString(LINK_BASE, "");
+    String custom = prefs.getString(k(LINK_BASE), "");
     if (mode().equals(CUSTOM) && !custom.isEmpty()) return custom;
     if (!handle().isEmpty()) return BbOAuth.origin(handle());
-    return mode().equals(CUSTOM) ? linkBaseFor(prefs.getString(URL, "")) : "";
+    return mode().equals(CUSTOM) ? linkBaseFor(prefs.getString(k(URL), "")) : "";
   }
 
   /** bb Connect signed in, or a custom address saved. */
   boolean connected() {
     return mode().equals(CUSTOM)
-        ? !prefs.getString(URL, "").isEmpty()
-        : !handle().isEmpty() && BbOAuth.signedIn(context);
+        ? !prefs.getString(k(URL), "").isEmpty()
+        : !handle().isEmpty() && BbOAuth.signedIn(context, assistant);
   }
 
   String chiefId() {
-    return prefs.getString(CHIEF_ID, "");
+    return prefs.getString(k(CHIEF_ID), "");
   }
 
   String chiefTitle() {
-    return prefs.getString(CHIEF_NAME, "");
+    return prefs.getString(k(CHIEF_NAME), "");
   }
 
   /** The talker thread as saved (Settings → Hands-free), on or off; "" for none. */
   String savedTalker() {
-    return prefs.getString(TALKER_ID, "");
+    return prefs.getString(k(TALKER_ID), "");
   }
 
   boolean talkerOn() {
-    return prefs.getBoolean(TALKER_ON, false);
+    return prefs.getBoolean(k(TALKER_ON), false);
   }
 
   /**
@@ -116,30 +130,35 @@ final class BbBridge {
     return talkerOn() && !t.equals(chiefId()) ? t : "";
   }
 
-  /** The chief can get requests: bb is connected and a chief is set. */
+  /** The first assistant's chief can get requests: bb is connected and a chief is set. */
   static boolean ready(Context context) {
-    BbBridge b = new BbBridge(context);
+    return ready(context, 0);
+  }
+
+  /** This assistant's chief can get requests. */
+  static boolean ready(Context context, int assistant) {
+    BbBridge b = new BbBridge(context, assistant);
     return b.connected() && !b.chiefId().isEmpty();
   }
 
   void useConnect(String handle) {
-    prefs.edit().putString(MODE, CONNECT).putString(HANDLE, handle).apply();
+    prefs.edit().putString(k(MODE), CONNECT).putString(k(HANDLE), handle).apply();
   }
 
   void useCustom(String url, String token, String linkBase) throws Exception {
     prefs
         .edit()
-        .putString(MODE, CUSTOM)
-        .putString(URL, url.trim())
-        .putString(LINK_BASE, linkBase.trim().replaceAll("/+$", ""))
+        .putString(k(MODE), CUSTOM)
+        .putString(k(URL), url.trim())
+        .putString(k(LINK_BASE), linkBase.trim().replaceAll("/+$", ""))
         .apply();
-    if (token.isBlank()) vault.remove(TOKEN);
-    else vault.put(TOKEN, token.trim());
+    if (token.isBlank()) vault.remove(k(TOKEN));
+    else vault.put(k(TOKEN), token.trim());
   }
 
   String customToken() {
     try {
-      return vault.get(TOKEN);
+      return vault.get(k(TOKEN));
     } catch (Exception ex) {
       return "";
     }
@@ -148,48 +167,50 @@ final class BbBridge {
   void setChief(ThreadInfo t) {
     prefs
         .edit()
-        .putString(CHIEF_ID, t.id())
-        .putString(CHIEF_NAME, t.title())
-        .putBoolean(ChiefSkills.CHIEF_TOLD, true)
+        .putString(k(CHIEF_ID), t.id())
+        .putString(k(CHIEF_NAME), t.title())
+        .putBoolean(k(ChiefSkills.CHIEF_TOLD), true)
         .apply();
   }
 
   void forgetChief() {
-    prefs.edit().remove(CHIEF_ID).remove(CHIEF_NAME).remove(ChiefSkills.CHIEF_TOLD).apply();
+    prefs.edit().remove(k(CHIEF_ID)).remove(k(CHIEF_NAME)).remove(k(ChiefSkills.CHIEF_TOLD)).apply();
   }
 
   /** Signs out of bb Connect (revoking the tokens) or forgets the custom address. */
   void disconnect() {
     if (mode().equals(CUSTOM)) {
-      prefs.edit().remove(URL).remove(LINK_BASE).apply();
-      vault.remove(TOKEN);
-    } else BbOAuth.signOut(context);
+      prefs.edit().remove(k(URL)).remove(k(LINK_BASE)).apply();
+      vault.remove(k(TOKEN));
+    } else BbOAuth.signOut(context, assistant);
   }
 
-  /** Forgets everything about bb on this phone (Delete local data); revokes in the background. */
+  /** Forgets everything about every assistant's bb on this phone (Delete local data); revokes in the background. */
   static void forgetAll(Context context) {
-    String tokens = BbOAuth.forget(context);
-    new java.lang.Thread(() -> BbOAuth.revoke(tokens)).start();
     Vault v = new Vault(context);
-    v.remove(TOKEN);
-    v.remove(NTFY_TOPIC);
+    for (int a = 0; a < Assistants.COUNT; a++) {
+      String tokens = BbOAuth.forget(context, a);
+      new java.lang.Thread(() -> BbOAuth.revoke(tokens)).start();
+      v.remove(Assistants.key(a, TOKEN));
+      v.remove(Assistants.key(a, NTFY_TOPIC));
+    }
   }
 
   String ntfyServer() {
-    return prefs.getString(NTFY_SERVER, NTFY_DEFAULT);
+    return prefs.getString(k(NTFY_SERVER), NTFY_DEFAULT);
   }
 
   void setNtfyServer(String server) {
     String s = server.trim().replaceAll("/+$", "");
-    prefs.edit().putString(NTFY_SERVER, s.isEmpty() ? NTFY_DEFAULT : s).apply();
+    prefs.edit().putString(k(NTFY_SERVER), s.isEmpty() ? NTFY_DEFAULT : s).apply();
   }
 
   /** The ntfy topic, made once: whoever knows it can read the notifications. */
   synchronized String ntfyTopic() throws Exception {
-    String topic = vault.get(NTFY_TOPIC);
+    String topic = vault.get(k(NTFY_TOPIC));
     if (topic.isEmpty()) {
       topic = newTopic();
-      vault.put(NTFY_TOPIC, topic);
+      vault.put(k(NTFY_TOPIC), topic);
     }
     return topic;
   }
@@ -326,7 +347,7 @@ final class BbBridge {
   /** Checks that bb answers and offers the run tool. */
   void test() throws Exception {
     call(
-        "bb check",
+        Assistants.logName(assistant) + " check",
         false,
         (c, round) -> {
           for (Mcp.Tool t : c.tools()) if (t.name().equals("run")) return null;
@@ -339,7 +360,7 @@ final class BbBridge {
    * and dictate-and-delegate skills, installed first; the thread itself only gets one line.
    */
   ThreadInfo createChief() throws Exception {
-    ChiefSkills.ensure(context, ChiefSkills.filled(context));
+    ChiefSkills.ensure(context, assistant, ChiefSkills.filled(context, assistant));
     JSONObject r = run(spawnSnippet(ChiefSkills.START));
     ThreadInfo t = new ThreadInfo(r.optString("id"), r.optString("title", CHIEF_TITLE), r.optString("status"));
     if (t.id().isEmpty()) throw new IOException(tr("bb didn't say which thread it created."));
@@ -395,7 +416,7 @@ final class BbBridge {
     if (r.optBoolean("archived"))
       throw new IOException(tr("That thread is archived in bb. Unarchive it or pick another."));
     ThreadInfo t = new ThreadInfo(r.optString("id", id), r.optString("title"), r.optString("status"));
-    ChiefSkills.ensure(context, ChiefSkills.filled(context));
+    ChiefSkills.ensure(context, assistant, ChiefSkills.filled(context, assistant));
     send(t.id(), ChiefSkills.START);
     setChief(t);
     return t;
@@ -580,9 +601,9 @@ final class BbBridge {
     if (refuseUploads) throw new UploadRefused(401);
     boolean connect = mode().equals(CONNECT);
     for (int attempt = 0; ; attempt++) {
-      String token = connect ? BbOAuth.accessToken(context, attempt > 0) : customToken();
+      String token = connect ? BbOAuth.accessToken(context, assistant, attempt > 0) : customToken();
       String address = apiBase() + "/api/v1/projects/" + PROJECT + "/attachments";
-      NetLog.Call net = NetLog.begin("bb upload", "POST", address).retry(attempt);
+      NetLog.Call net = NetLog.begin(Assistants.logName(assistant) + " upload", "POST", address).retry(attempt);
       java.net.HttpURLConnection c = (java.net.HttpURLConnection) new java.net.URL(address).openConnection();
       try {
         String boundary = "talkrouter" + BbOAuth.random(12);
@@ -697,7 +718,7 @@ final class BbBridge {
       if (s.length() > CODE_LIMIT)
         throw new IOException(tr("This is too long for bb (%1$d characters, at most %2$d).", s.length(), CODE_LIMIT));
     return call(
-        "bb " + what(code, tool, chiefId(), talkerId()),
+        Assistants.logName(assistant) + " " + what(code, tool, chiefId(), talkerId()),
         again != null,
         (c, round) -> {
           JSONObject result = c.callResult(tool, new JSONObject().put("code", round > 0 && again != null ? again : code));
@@ -780,7 +801,7 @@ final class BbBridge {
 
   private <T> T session(String url, boolean connect, String what, Call<T> work, int round, boolean[] opened) throws Exception {
     for (int attempt = 0; ; attempt++) {
-      String token = connect ? BbOAuth.accessToken(context, attempt > 0) : customToken();
+      String token = connect ? BbOAuth.accessToken(context, assistant, attempt > 0) : customToken();
       Mcp.Connection c = new Mcp.Connection(new Mcp.Server("bb", url, token));
       c.what = what;
       c.retry = round + attempt;

@@ -48,7 +48,7 @@ function refineName(state) {
   }
 }
 
-function chiefName(state, hinted) {
+function chiefName(state) {
   switch (state) {
     case D.QUEUED:
       return tr('🧑‍💼 Chief ✓');
@@ -59,7 +59,7 @@ function chiefName(state, hinted) {
     case D.FAILED:
       return tr('🧑‍💼 Send again');
     default:
-      return hinted ? tr('Chief, suggested: this may be a task for your chief of staff') : tr('🧑‍💼 Chief');
+      return tr('🧑‍💼 Chief');
   }
 }
 
@@ -68,7 +68,7 @@ function chiefName(state, hinted) {
  * { mode: 'hidden'|'message'|'recording'|'processing'|'result', opacity,
  *   icon: { state, name } (message mode), detail (the state's line, e.g. for message mode),
  *   timer: { elapsed: '00:12', label: '● 00:12  ■' } | null,
- *   buttons: [{ id, label, name, enabled, fill: 'pill'|'teal'|'red', ring: null|'teal'|'amber', state?, hinted? }],
+ *   buttons: [{ id, label, name, enabled, fill: 'pill'|'teal'|'red', ring: null|'teal', state? }],
  *   extra: the second row ([] or Insert from chief), status: the status line ('' = none) }.
  * Button ids: stop, refine, chief, call, attach, insert, close, insertFromChief; the action each
  * stands for is the Dictation method stop(), tapRefine(), tapChief(), call(), attach(), insert(),
@@ -93,7 +93,6 @@ function panelModel(snapshot) {
 
   const refine = session.refine || D.IDLE;
   const chief = session.chief || D.IDLE;
-  const hinted = !!session.hint && chief === D.IDLE;
   const chiefBusy = chief === D.QUEUED || chief === D.RUNNING;
   const time = D.elapsed(s.elapsedMs || 0);
 
@@ -110,12 +109,11 @@ function panelModel(snapshot) {
   const chiefButton = {
     id: 'chief',
     label: CHIEF_LABEL[chief] || '🧑‍💼',
-    name: chiefName(chief, hinted),
+    name: chiefName(chief),
     enabled: true,
     fill: 'pill',
-    ring: chiefBusy ? 'teal' : hinted ? 'amber' : null,
+    ring: chiefBusy ? 'teal' : null,
     state: chief,
-    hinted,
   };
   const call = { id: 'call', label: '📞', name: tr('Hands-free call with your chief'), enabled: true, fill: 'pill', ring: null };
   const attach = {

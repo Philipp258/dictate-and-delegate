@@ -70,6 +70,92 @@ public class HandsFreeFlowTest {
     HandsFreeService.send(context, HandsFreeService.END);
     until(() -> HandsFreeService.instance == null, "hands-free ended");
     HandsFreeService.noMicrophone = false;
+    BbBridge work = new BbBridge(context, 1);
+    work.disconnect();
+    work.forgetChief();
+    prefs.edit().remove(Assistants.key(1, BbBridge.MODE)).remove(Assistants.key(1, BbBridge.NTFY_SERVER)).remove(Assistants.key(1, Assistants.NAME)).commit();
+  }
+
+  static final String WORK_CHIEF = "thr_workchief";
+
+  /** A second assistant ("Work") at the same fake bb and ntfy, with its own chief (and its own topic). */
+  BbBridge work() throws Exception {
+    BbBridge work = new BbBridge(context, 1);
+    work.useCustom(TestServer.bbUrl(), "", LINKS);
+    work.setChief(new BbBridge.ThreadInfo(WORK_CHIEF, "Chief of staff", "idle"));
+    work.setNtfyServer(TestServer.ntfyRoot());
+    Assistants.setName(context, 1, "Work");
+    // Its skills count as installed, so no install thread runs at the fake bb meanwhile.
+    prefs.edit().putString(Assistants.key(1, ChiefSkills.INSTALLED), ChiefSkills.summary(ChiefSkills.filled(context, 1))).putInt(Assistants.key(1, ChiefSkills.CHECKED_VERSION), BuildConfig.VERSION_CODE).commit();
+    assertNotEquals(new BbBridge(context).ntfyTopic(), work.ntfyTopic());
+    return work;
+  }
+
+  /**
+   * Two assistants: in a call with the first, the second's chief answering, even with the call's
+   * request ID, isn't spoken; the first's answer is. A call with the second goes to its chief.
+   */
+  @Test
+  public void aReplyFromTheSecondAssistantIsNotSpokenInACallWithTheFirst() throws Exception {
+    BbBridge work = work();
+    HandsFreeService.logFile(context).delete();
+    TestServer.transcripts("Is the table booked? Over.", "Is the table booked? Over.");
+    HandsFreeService.start(context, 0);
+    until(() -> HandsFreeService.session() != null, "the call with the first started");
+    assertEquals(0, HandsFreeService.callWith());
+    talk();
+    until(() -> lastTell().contains("[hands-free]"), "the message sent");
+    assertTrue(lastTell(), lastTell().contains(org.json.JSONObject.quote(TestServer.CHIEF)));
+    Matcher m = Pattern.compile("\\[request: ([a-z0-9]+)\\]").matcher(lastTell());
+    assertTrue(m.find());
+    String request = m.group(1);
+    // The work chief posts to its own topic: tagged with this call's request, and for a note of its own.
+    TestServer.ntfySpeak(work.ntfyTopic(), request, "Work: the deploy is done.");
+    TestServer.ntfySpeak(work.ntfyTopic(), "workq1", "The work build is green.");
+    Thread.sleep(4000);
+    String log = HandsFreeService.log(context);
+    assertFalse(log, log.contains("chief message " + request));
+    assertFalse(log, log.contains("chief message workq1"));
+    // The personal chief's answer on its topic is the one heard.
+    TestServer.ntfySpeak(new BbBridge(context).ntfyTopic(), request, "Yes, the table is booked for eight.");
+    until(() -> HandsFreeService.log(context).contains("chief message " + request), "the first assistant's reply");
+    HandsFreeService.send(context, HandsFreeService.END);
+    until(() -> HandsFreeService.instance == null, "ended");
+    assertTrue(tellsTo(WORK_CHIEF).isEmpty());
+  }
+
+  @Test
+  public void aCallWithTheSecondAssistantGoesToItsChiefAndHearsItsReplies() throws Exception {
+    BbBridge work = work();
+    HandsFreeService.logFile(context).delete();
+    TestServer.transcripts("Is the deploy done? Over.", "Is the deploy done? Over.");
+    HandsFreeService.start(context, 1);
+    until(() -> HandsFreeService.session() != null, "the call with the second started");
+    assertEquals(1, HandsFreeService.callWith());
+    until(() -> toldTo(WORK_CHIEF, HandsFree.CALL_STARTED), "the work chief told the call started");
+    talk();
+    until(() -> !messagesTo(WORK_CHIEF).isEmpty(), "the message sent to the work chief");
+    assertTrue(messagesTo(TestServer.CHIEF).isEmpty());
+    Matcher m = Pattern.compile("\\[request: ([a-z0-9]+)\\]").matcher(messagesTo(WORK_CHIEF).get(0));
+    assertTrue(m.find());
+    String request = m.group(1);
+    // The personal chief's topic isn't read in this call.
+    TestServer.ntfySpeak(new BbBridge(context).ntfyTopic(), request, "Personal: wrong call.");
+    Thread.sleep(3000);
+    assertFalse(HandsFreeService.log(context).contains("chief message " + request));
+    TestServer.ntfySpeak(work.ntfyTopic(), request, "Yes, the deploy is done.");
+    until(() -> HandsFreeService.log(context).contains("chief message " + request), "the work reply");
+    // The message's note belongs to the second assistant.
+    HistoryEntry note;
+    try (HistoryStore h = new HistoryStore(context)) {
+      note = h.list(1, 0).get(0);
+    }
+    assertEquals(1, note.json.optInt("assistant"));
+    assertEquals(WORK_CHIEF, note.json.optString("chiefThread"));
+    HandsFreeService.send(context, HandsFreeService.END);
+    until(() -> HandsFreeService.instance == null, "ended");
+    until(() -> toldTo(WORK_CHIEF, HandsFree.CALL_ENDED), "the work chief told the call ended");
+    assertFalse(toldTo(TestServer.CHIEF, HandsFree.CALL_STARTED));
   }
 
   void until(Callable<Boolean> c, String what) throws Exception {
@@ -272,7 +358,7 @@ public class HandsFreeFlowTest {
     bb.useCustom(args.getString("realMcp"), "", args.getString("realLinks"));
     bb.setNtfyServer(args.getString("realNtfy"));
     TestServer.skillsCurrent(context);
-    java.util.Map<String, String> files = ChiefSkills.filled(context);
+    java.util.Map<String, String> files = ChiefSkills.filled(context, 0);
     String prompt =
         "For this test, follow these two skills as if they were installed, then reply \"ready\".\n\n"
             + files.get(ChiefSkills.CHIEF)
@@ -320,7 +406,7 @@ public class HandsFreeFlowTest {
     bb.useCustom(args.getString("realMcp"), "", args.getString("realLinks"));
     bb.setNtfyServer(args.getString("realNtfy"));
     TestServer.skillsCurrent(context);
-    java.util.Map<String, String> files = ChiefSkills.filled(context);
+    java.util.Map<String, String> files = ChiefSkills.filled(context, 0);
     String prompt =
         "For this test, follow these two skills as if they were installed, then reply \"ready\".\n\n"
             + files.get(ChiefSkills.CHIEF)
@@ -366,9 +452,9 @@ public class HandsFreeFlowTest {
         .remove(ChiefSkills.TALKER_TOLD)
         .remove(ChiefSkills.INSTALLED)
         .commit();
-    java.util.Map<String, String> files = ChiefSkills.filled(context);
+    java.util.Map<String, String> files = ChiefSkills.filled(context, 0);
     long start = SystemClock.elapsedRealtime();
-    ChiefSkills.ensure(context, files);
+    ChiefSkills.ensure(context, 0, files);
     android.util.Log.i("TalkRouterSkills", "installed and checked in " + (SystemClock.elapsedRealtime() - start) + " ms");
     JSONObject installed = bb.read(ChiefSkills.checkSnippet()).getJSONObject("skills");
     for (String name : ChiefSkills.NAMES) {
@@ -376,7 +462,7 @@ public class HandsFreeFlowTest {
       assertEquals(name, ChiefSkills.marker(files.get(name)), installed.optString(name));
     }
     prefs.edit().putString(ChiefSkills.INSTALLED, ChiefSkills.summary(files)).commit();
-    ChiefSkills.tellTalker(context);
+    ChiefSkills.tellTalker(context, 0);
     assertEquals(ChiefSkills.talkerToldValue(args.getString("realTalker"), files), prefs.getString(ChiefSkills.TALKER_TOLD, ""));
     android.util.Log.i("TalkRouterSkills", "talker told: " + prefs.getString(ChiefSkills.TALKER_TOLD, ""));
   }
@@ -1114,7 +1200,7 @@ public class HandsFreeFlowTest {
       if (start < 0 && told.get(i).contains("[hands-free call started]")) start = i;
     }
     assertTrue(told.toString(), skill >= 0 && skill < start);
-    assertEquals(ChiefSkills.talkerToldValue(TALKER, ChiefSkills.filled(context)), prefs.getString(ChiefSkills.TALKER_TOLD, ""));
+    assertEquals(ChiefSkills.talkerToldValue(TALKER, ChiefSkills.filled(context, 0)), prefs.getString(ChiefSkills.TALKER_TOLD, ""));
     // The chief isn't told it.
     assertFalse(String.join("\n", tellsTo(TestServer.CHIEF)).contains("dictate-and-delegate-talker"));
   }
@@ -1215,7 +1301,7 @@ public class HandsFreeFlowTest {
     bb.useCustom(args.getString("realMcp"), "", args.getString("realLinks"));
     bb.setNtfyServer(args.getString("realNtfy"));
     TestServer.skillsCurrent(context);
-    java.util.Map<String, String> files = ChiefSkills.filled(context);
+    java.util.Map<String, String> files = ChiefSkills.filled(context, 0);
     String title = args.getString("realTitle");
     String chiefPrompt =
         "For this test, follow these two skills as if they were installed, then reply \"ready\".\n\n"

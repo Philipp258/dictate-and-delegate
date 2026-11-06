@@ -43,7 +43,7 @@ function seed(ctx) {
     processingMs: 2400,
     steps: [
       { kind: 'speech', model: 'microsoft/mai-transcribe-2', ms: 1700, cost: '0.00082' },
-      { kind: 'jev', model: '~typesafe/jev-latest', ms: 400, cost: '0.00002', answer: 'refine 0.06' },
+      { kind: 'jev', model: '~typesafe/jev-latest', ms: 400, cost: '0.00002', answer: '' },
     ],
     jevCost: '0.00002',
     ...extra,
@@ -62,13 +62,13 @@ function seed(ctx) {
       textCost: '0.000323',
       steps: [
         { kind: 'speech', model: 'microsoft/mai-transcribe-2', ms: 1900, cost: '0.000727' },
-        { kind: 'jev', model: '~typesafe/jev-latest', ms: 400, cost: '0.00002', answer: 'refine 0.97' },
+        { kind: 'jev', model: '~typesafe/jev-latest', ms: 400, cost: '0.00002', answer: '' },
         { kind: 'refine', model: 'anthropic/claude-sonnet-5.5', ms: 2100, cost: '0.000323', provider: 'openrouter' },
       ],
     }),
   );
   save(
-    base('33333333-3333-4333-8333-333333333333', 26 * 60, 'Ada, look at the flat listing I attached and tell me whether the rent is fair for the area.', {
+    base('33333333-3333-4333-8333-333333333333', 26 * 60, 'Look at the flat listing I attached and tell me whether the rent is fair for the area.', {
       route: 'chief',
       chiefThread: 'thr_chief1',
       chiefLink: 'https://example.getbb.app/threads/thr_chief1',
@@ -77,7 +77,7 @@ function seed(ctx) {
       chiefReply: 'The rent is about 8% above the median for the street. Ask for €1,150 instead.',
       steps: [
         { kind: 'speech', model: 'microsoft/mai-transcribe-2', ms: 1500, cost: '0.0008' },
-        { kind: 'jev', model: '~typesafe/jev-latest', ms: 380, cost: '0.00002', answer: 'chief 0.97' },
+        { kind: 'jev', model: '~typesafe/jev-latest', ms: 380, cost: '0.00002', answer: '' },
         { kind: 'bb', model: 'chief of staff', ms: 900, files: 2, filesHow: 'upload' },
       ],
     }),
@@ -89,7 +89,6 @@ function seed(ctx) {
   ctx.profile.addWord('Dictate & Delegate');
   ctx.profile.addWord('Jana');
   ctx.profile.setTopics(['Messages', 'Emails']);
-  ctx.profile.setChiefName('Ada');
   ctx.prefs.set('onboarded', true);
   ctx.prefs.set('bbMode', 'custom');
   ctx.prefs.set('bbUrl', 'http://127.0.0.1:9/mcp');
@@ -258,7 +257,7 @@ async function main() {
     if (expectPage) await waitPage(expectPage);
   }
 
-  const PAGES = ['welcome', 'key1', 'allow1', 'how1', 'start1', 'insert1', 'try1', 'bb1', 'chief1', 'ntfy1', 'home', 'notes', 'activity', 'usage', 'handsfree', 'hfsettings', 'live', 'settings', 'key', 'anthropic', 'models', 'voices', 'decisions', 'refineModel', 'refine', 'templates', 'template', 'words', 'aboutyou', 'bb', 'chief', 'ntfy', 'start'];
+  const PAGES = ['welcome', 'key1', 'allow1', 'how1', 'start1', 'insert1', 'try1', 'bb1', 'chief1', 'ntfy1', 'home', 'notes', 'activity', 'usage', 'handsfree', 'hfsettings', 'live', 'settings', 'key', 'anthropic', 'models', 'voices', 'refineModel', 'refine', 'templates', 'template', 'words', 'aboutyou', 'bb', 'chief', 'ntfy', 'start'];
 
   for (const mode of ['light', 'dark']) {
     nativeTheme.themeSource = mode;

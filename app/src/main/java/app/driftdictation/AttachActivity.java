@@ -49,7 +49,7 @@ public final class AttachActivity extends Activity {
     paste.setMinHeight(ui.dp(52));
     ui.add(root, ui.button(tr("Attach a file"), Ui.Kind.OUTLINE, v -> pick()), 10);
     ui.add(root, ui.text(tr("Images, PDFs or text files, up to 10 MB."), 12, Ui.MUTED), 4);
-    if (BbBridge.ready(this))
+    if (!Assistants.ready(this).isEmpty())
       ui.add(
           root,
           ui.text(

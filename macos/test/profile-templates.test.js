@@ -8,16 +8,17 @@ const { Templates, INSTRUCTIONS, MAX_TEXT } = require('../src/core/templates');
 const TextModel = require('../src/core/text-model');
 
 test('theProfileKeepsAndroidsKeysAndDefaults', () => {
-  const prefs = new MemoryPrefs({ model: 'deepgram/nova-3', processing: false, consent: true });
+  const prefs = new MemoryPrefs({ model: 'deepgram/nova-3', processing: false, consent: true, autoRefine: true, chiefName: 'Henry' });
   const p = new Profile(prefs);
   assert.equal(p.fixedModel(), DEFAULT_MODEL);
   assert.equal(p.refinePrompt(), TextModel.DEFAULT_PROMPT);
-  assert.equal(p.chiefName(), '');
   p.forgetRetired();
   assert.equal(prefs.has('processing'), false);
   assert.equal(prefs.has('consent'), false);
-  assert.equal(p.autoRefine(), false);
-  assert.equal(p.autoChief(), false);
+  // What used to route by content is gone, its settings too.
+  for (const k of ['autoRefine', 'chiefName']) assert.equal(prefs.has(k), false, k);
+  assert.equal(typeof p.autoRefine, 'undefined');
+  assert.equal(typeof p.chiefName, 'undefined');
   p.addWord(' Kubernetes ');
   p.addWord('kubernetes');
   p.addWord('Ljubljana');
@@ -25,8 +26,6 @@ test('theProfileKeepsAndroidsKeysAndDefaults', () => {
   assert.equal(prefs.get('profileWords'), '["Kubernetes"]'); // A JSON string, as on Android.
   p.setTopics(['Emails']);
   p.setAbout(' Product manager. ');
-  p.setChiefName(' Henry ');
-  assert.equal(p.chiefName(), 'Henry');
   assert.equal(p.context(), 'Usually dictates: Emails.\nProduct manager.\nSpell these as written: Kubernetes.');
   prefs.set('profileTopics', '{broken');
   assert.deepEqual(p.topics(), []);

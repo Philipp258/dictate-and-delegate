@@ -84,7 +84,7 @@ class FakeMic {
 }
 
 function harness(opt = {}) {
-  const prefs = new MemoryPrefs({ model: 'microsoft/mai-transcribe-2', autoRefine: true, autoChief: true, ...(opt.prefs || {}) });
+  const prefs = new MemoryPrefs({ model: 'microsoft/mai-transcribe-2', ...(opt.prefs || {}) });
   const vault = new MemoryVault();
   const notes = new Map();
   const timers = new FakeTimers();
@@ -96,7 +96,7 @@ function harness(opt = {}) {
     transcripts: ['um hi Jana see you at ten'],
     transcribeError: null,
     speechCost: SPEECH,
-    jev: { refine: 0.1, template: 'none', chief: null, cost: JEV }, // an answer, an Error or a promise
+    jev: { template: 'none', cost: JEV }, // an answer, an Error or a promise; asked only with templates
     templates: [],
     replies: ['Hi Jana, see you at ten.'], // Refine's texts, or an Error / promise
     anthropic: false,
@@ -226,7 +226,7 @@ function harness(opt = {}) {
     panel() {
       return panelModel(d.snapshot());
     },
-    /** Record for ms of speech, stop, wait for the transcript and whatever Jev starts. */
+    /** Record for ms of speech, stop, wait for the transcript and Jev's template (if asked). */
     async dictate(ms = 1200) {
       await d.start();
       assert.equal(d.state, D.RECORDING, d.detail);
@@ -244,10 +244,15 @@ const close = (a, b) => Math.abs(a - b) < 1e-12;
 
 // ---------------------------------------------------------------- MvpFlowTest
 
-test('askedForATextRefineStartsByItselfCostsWhatOpenRouterReportedAndKeepsWhatYouSaid', async () => {
+test('tappedRefineCostsWhatOpenRouterReportedAndKeepsWhatYouSaid', async () => {
   const h = harness({ prefs: { profileWords: '["Jana"]' } });
-  h.fx.jev = { refine: 0.95, template: 'none', cost: JEV };
+  h.fx.templates = ['Weekly update'];
   await h.dictate();
+  // Nothing starts by itself.
+  assert.equal(h.calls.refine.length, 0);
+  assert.equal(h.d.session.refine, D.IDLE);
+  h.d.tapRefine();
+  await h.d.idle();
   const e = h.note();
   assert.equal(e.processed, 'Hi Jana, see you at ten.');
   assert.equal(e.original, 'um hi Jana see you at ten');
@@ -265,22 +270,22 @@ test('askedForATextRefineStartsByItselfCostsWhatOpenRouterReportedAndKeepsWhatYo
   assert.ok(close(e.textCost, TEXT));
   assert.equal(e.textModel, 'anthropic/claude-sonnet-5.5');
   assert.equal(e.status, 'complete');
-  // The activity log: speech, Jev's answer, then Refine.
+  // The activity log: speech, Jev's template answer, then Refine.
   assert.deepEqual(steps(e), ['speech', 'jev', 'refine']);
   assert.equal(e.steps[0].model, 'microsoft/mai-transcribe-2');
   assert.ok(close(e.steps[0].cost, SPEECH));
   assert.equal(e.steps[1].model, D.JEV_MODEL);
-  assert.equal(e.steps[1].answer, 'refine 0.95');
+  assert.equal(e.steps[1].answer, '');
   assert.ok(close(e.steps[1].cost, JEV));
   assert.equal(e.steps[2].provider, 'openrouter');
   assert.ok(!('detail' in e.steps[2]));
-  // What went out: WAV audio with the words, Jev with the dictation (no chief, no templates).
+  // What went out: WAV audio with the words, Jev with the dictation and the template names only.
   const speech = h.calls.transcribe[0];
   assert.equal(speech.wav.subarray(0, 4).toString('ascii'), 'RIFF');
   assert.equal(speech.wav.subarray(8, 12).toString('ascii'), 'WAVE');
   assert.equal(speech.model, 'microsoft/mai-transcribe-2');
   assert.deepEqual(speech.words, ['Jana']);
-  assert.deepEqual(h.calls.decide[0], { transcript: 'um hi Jana see you at ten', templates: [], refine: true, chiefName: '' });
+  assert.deepEqual(h.calls.decide[0], { transcript: 'um hi Jana see you at ten', templates: ['Weekly update'] });
   assert.equal(h.calls.refine[0].text, 'um hi Jana see you at ten');
   assert.equal(h.calls.refine[0].template, '');
   // The panel offers Insert refined; nothing touched the clipboard.
@@ -290,46 +295,104 @@ test('askedForATextRefineStartsByItselfCostsWhatOpenRouterReportedAndKeepsWhatYo
   assert.deepEqual(h.calls.insert, []);
 });
 
-test('aNamedTemplateGoesToRefine', async () => {
+test('aNamedTemplateGoesToATappedRefine', async () => {
   const h = harness();
   h.fx.templates = ['Weekly update'];
   h.fx.transcripts = ['fill in my weekly update, shipped the panel'];
-  h.fx.jev = { refine: 0.2, template: 'Weekly update', cost: JEV };
+  h.fx.jev = { template: 'Weekly update', cost: JEV };
   h.fx.replies = ['Done: the panel\nNext: tests'];
   await h.dictate();
-  assert.equal(h.note().template, 'Weekly update');
+  // Named, but not refined until you tap ✨.
+  assert.equal(h.calls.refine.length, 0);
+  assert.equal(h.d.session.refine, D.IDLE);
+  assert.equal(h.d.session.template, 'Weekly update');
   assert.deepEqual(h.calls.decide[0].templates, ['Weekly update']);
+  assert.equal(h.note().steps[1].answer, 'Weekly update');
+  h.d.tapRefine();
+  await h.d.idle();
+  assert.equal(h.note().template, 'Weekly update');
   assert.equal(h.calls.refine[0].template, 'Weekly update');
-  assert.equal(h.note().steps[1].answer, 'refine 0.20 · Weekly update');
+  // Tapped while recording: Refine waits for Jev's answer, then uses the template.
+  const r = harness();
+  r.fx.templates = ['Weekly update'];
+  const gate = deferred();
+  r.fx.jev = gate.promise;
+  await r.d.start();
+  r.d.tapRefine();
+  r.mic.speak(600);
+  await r.d.stop();
+  await waitFor(() => r.calls.decide.length === 1);
+  assert.equal(r.d.session.refine, D.QUEUED);
+  assert.equal(r.calls.refine.length, 0);
+  gate.resolve({ template: 'Weekly update', cost: JEV });
+  await r.d.idle();
+  assert.equal(r.calls.refine[0].template, 'Weekly update');
 });
 
-test('aDictationWithoutRequestStaysTheTranscript', async () => {
+test('aTappedChiefDoesntWaitForJevsTemplateAnswer', async () => {
   const h = harness();
-  h.fx.transcripts = ['Call Jana tomorrow at ten.'];
+  withChief(h);
+  h.fx.templates = ['Weekly update'];
+  const gate = deferred();
+  h.fx.jev = gate.promise;
+  await h.d.start();
+  h.d.tapChief();
+  h.mic.speak(600);
+  await h.d.stop();
+  await waitFor(() => h.calls.decide.length === 1);
+  // Jev hasn't answered yet, and the chief already has it.
+  await waitFor(() => h.calls.chief.length === 1);
+  assert.ok(!h.d.session.decided);
+  gate.resolve({ template: 'none', cost: JEV });
+  await h.d.idle();
+  assert.equal(h.calls.chief.length, 1);
+});
+
+test('nothingIsRefinedOrSentUntilYouChoose', async () => {
+  // Even when the dictation asks for a text and names the chief, and older versions' routing
+  // settings are still stored (they're no longer read).
+  const h = harness({ prefs: { autoRefine: true, autoChief: true, chiefName: 'Henry' } });
+  h.fx.chief = true;
+  h.fx.templates = ['Weekly update'];
+  h.fx.transcripts = ['Henry, make this a polite email to Jana'];
+  h.fx.jev = { refine: 0.97, chief: 0.99, template: 'none', cost: JEV };
   await h.dictate();
-  assert.equal(h.vault.get('transcript'), 'Call Jana tomorrow at ten.');
+  assert.equal(h.vault.get('transcript'), 'Henry, make this a polite email to Jana');
   const e = h.note();
   assert.ok(close(e.knownCost, SPEECH + JEV));
   assert.ok(!('processed' in e));
   assert.equal(h.calls.refine.length, 0);
+  assert.equal(h.calls.chief.length, 0);
   assert.equal(h.d.session.refine, D.IDLE);
+  assert.equal(h.d.session.chief, D.IDLE);
   assert.equal(h.d.session.message, '');
   assert.equal(h.d.detail, 'Your text is ready to insert');
+  // Jev was asked only which template: nothing about refining or the chief.
+  assert.deepEqual(h.calls.decide[0], { transcript: 'Henry, make this a polite email to Jana', templates: ['Weekly update'] });
+  // 🧑‍💼 is plain, never highlighted; one tap sends it.
+  const chief = h.panel().buttons.find((b) => b.id === 'chief');
+  assert.deepEqual([chief.name, chief.ring], ['🧑‍💼 Chief', null]);
+  h.d.tapChief();
+  await h.d.idle();
+  assert.equal(h.calls.chief.length, 1);
+  assert.equal(h.d.session.chief, D.DONE);
 });
 
-test('withBothSwitchesOffJevIsntAskedAndNothingStarts', async () => {
-  const h = harness({ prefs: { autoRefine: false, autoChief: false } });
+test('withoutTemplatesJevIsntAsked', async () => {
+  const h = harness();
   await h.dictate();
   assert.equal(h.vault.get('transcript'), 'um hi Jana see you at ten');
   assert.ok(close(h.note().knownCost, SPEECH));
+  assert.deepEqual(steps(h.note()), ['speech']);
   assert.equal(h.calls.decide.length, 0);
   assert.equal(h.calls.refine.length, 0);
   assert.ok(h.d.session.decided);
 });
 
-test('whenJevFailsOrIsSlowNothingStartsByItself', async () => {
+test('whenJevFailsOrIsSlowNoTemplateIsUsed', async () => {
   const h = harness();
-  h.fx.transcripts = ['make this an email'];
+  h.fx.templates = ['Weekly update'];
+  h.fx.transcripts = ['use my weekly update'];
   h.fx.jev = new Error('Jev is unavailable right now.');
   await h.dictate();
   let e = h.note();
@@ -338,6 +401,11 @@ test('whenJevFailsOrIsSlowNothingStartsByItself', async () => {
   assert.ok(!('processed' in e));
   assert.equal(h.calls.refine.length, 0);
   assert.ok(h.d.session.decided);
+  assert.equal(h.d.session.template, '');
+  // A tapped Refine still runs, without a template.
+  h.d.tapRefine();
+  await h.d.idle();
+  assert.equal(h.calls.refine[0].template, '');
   // Slower than Jev's timeout counts as no answer, too (the adapter's call throws a timeout).
   h.d.close();
   const { TimeoutError } = require('../src/core/util');
@@ -348,18 +416,19 @@ test('whenJevFailsOrIsSlowNothingStartsByItself', async () => {
   assert.equal(e.steps[e.steps.length - 1].kind, 'jev');
   assert.ok(e.steps[e.steps.length - 1].detail);
   assert.ok(!('processed' in e));
-  assert.equal(h.calls.refine.length, 0);
+  assert.equal(h.calls.refine.length, 1);
 });
 
 test('failedProcessingStillDeliversWhatYouSaid', async () => {
   const h = harness();
-  h.fx.jev = { refine: 0.95, template: 'none', cost: JEV };
   h.fx.replies = [new Error('The text model is overloaded. Try again.'), 'Hi Jana, see you at ten.'];
   await h.dictate();
+  h.d.tapRefine();
+  await h.d.idle();
   let e = h.note();
   assert.equal(e.processingFailed, 'The text model is overloaded. Try again.');
-  assert.equal(e.steps[2].detail, 'The text model is overloaded. Try again.');
-  assert.equal(e.steps[2].model, 'anthropic/claude-sonnet-5.5');
+  assert.equal(e.steps[1].detail, 'The text model is overloaded. Try again.');
+  assert.equal(e.steps[1].model, 'anthropic/claude-sonnet-5.5');
   assert.equal(h.vault.get('transcript'), 'um hi Jana see you at ten');
   assert.equal(h.d.session.refine, D.FAILED);
   assert.equal(h.d.session.message, "Couldn't refine: The text model is overloaded. Try again.");
@@ -376,7 +445,7 @@ test('failedProcessingStillDeliversWhatYouSaid', async () => {
 });
 
 test('anUnknownCostIsNeverShownAsFree', async () => {
-  const h = harness({ prefs: { autoRefine: false, autoChief: false } });
+  const h = harness();
   h.fx.speechCost = null;
   await h.dictate();
   const e = h.note();
@@ -429,10 +498,10 @@ test('withoutAKeyNothingIsRecorded', async () => {
 test('pastedTextGoesWithTheRequestAndStaysWithTheNote', async () => {
   const h = harness({ attached: [{ kind: 'text', name: 'pasted' }] });
   h.fx.transcripts = ['write a short application for this flat'];
-  h.fx.jev = { refine: 0.97, template: 'none', cost: JEV };
   h.fx.replies = ['Application for Hauptstraße 5.'];
   await h.d.start();
   assert.equal(h.panel().buttons.find((b) => b.id === 'attach').label, '📎 1');
+  h.d.tapRefine();
   h.mic.speak(1000);
   await h.d.stop();
   await h.d.idle();
@@ -449,7 +518,6 @@ test('pastedTextGoesWithTheRequestAndStaysWithTheNote', async () => {
 test('insertPutsTheTranscriptAtTheCursorThenRefinedReplacesItInPlace', async () => {
   const h = harness();
   h.fx.transcripts = ['um so see you at ten I mean eleven'];
-  h.fx.jev = { refine: 0.93, template: 'none', cost: JEV };
   h.fx.replies = ['See you at eleven.'];
   h.fx.field = { text: 'Hi Jana, ' };
   await h.d.start();
@@ -457,6 +525,7 @@ test('insertPutsTheTranscriptAtTheCursorThenRefinedReplacesItInPlace', async () 
   assert.equal(p.mode, 'recording');
   assert.equal(p.buttons[0].name, 'Stop recording');
   assert.ok(p.buttons.some((b) => b.name === '✨ Refine'));
+  h.d.tapRefine();
   h.mic.speak(1200);
   await h.d.stop();
   assert.equal(h.panel().buttons[0].name, 'Insert');
@@ -464,7 +533,7 @@ test('insertPutsTheTranscriptAtTheCursorThenRefinedReplacesItInPlace', async () 
   assert.equal(h.fx.field.text, 'Hi Jana, um so see you at ten I mean eleven');
   await h.d.idle();
   assert.equal(h.d.session.message, 'Refined');
-  // Refine started by itself (Jev 0.93) and its button became Insert refined.
+  // Refine (tapped while recording) ran and its button became Insert refined.
   p = h.panel();
   assert.equal(p.buttons.find((b) => b.id === 'refine').name, 'Insert refined');
   await h.d.tapRefine();
@@ -477,7 +546,7 @@ test('insertPutsTheTranscriptAtTheCursorThenRefinedReplacesItInPlace', async () 
 });
 
 test('insertMessageSaysInsertedOrThatAPasteLeftItOnTheClipboard', async () => {
-  const h = harness({ prefs: { autoRefine: false } });
+  const h = harness();
   await h.dictate();
   await h.d.insert();
   assert.equal(h.d.session.message, 'Inserted');
@@ -508,7 +577,7 @@ test('editedMeanwhileTheRefinedTextGoesAtTheCursorInstead', async () => {
 });
 
 test('refineChosenWhileRecordingRunsOnceTheTranscriptIsReady', async () => {
-  const h = harness({ prefs: { autoRefine: false, autoChief: false } });
+  const h = harness();
   h.fx.transcripts = ['hello there'];
   const gate = deferred();
   h.fx.replies = [gate.promise];
@@ -529,7 +598,7 @@ test('refineChosenWhileRecordingRunsOnceTheTranscriptIsReady', async () => {
 });
 
 test('choicesWhileRecordingTapAgainUndoes', async () => {
-  const h = harness({ prefs: { autoRefine: false, autoChief: false } });
+  const h = harness();
   h.fx.chief = true;
   await h.d.start();
   h.d.tapRefine();
@@ -547,7 +616,7 @@ test('choicesWhileRecordingTapAgainUndoes', async () => {
 });
 
 test('withoutTheServiceInsertCopiesInstead', async () => {
-  const h = harness({ prefs: { autoRefine: false } });
+  const h = harness();
   h.fx.transcripts = ['copy me please'];
   h.fx.insert = 'permission';
   await h.dictate();
@@ -598,19 +667,19 @@ test('closeHidesThePanelAndTheNoteStays', async () => {
   assert.equal(h.latest().text, 'a note to keep');
 });
 
-/** bb with its chief, and the chief's name. */
+/** bb with its chief. */
 function withChief(h) {
   h.fx.chief = true;
-  h.prefs.set('chiefName', 'Henry');
 }
 
 test('theChiefsTextBackAppearsInThePanelAndInserts', async () => {
   const h = harness();
   withChief(h);
-  h.fx.transcripts = ["Henry, write Tom that I'm running late"];
-  h.fx.jev = { refine: 0.3, template: 'none', chief: 0.96, cost: JEV };
+  h.fx.transcripts = ["write Tom that I'm running late"];
   h.fx.field = { text: '' };
   await h.dictate();
+  h.d.tapChief();
+  await h.d.idle();
   assert.equal(h.panel().buttons.find((b) => b.id === 'chief').name, 'Open chat ↗');
   const request = h.note().chiefRequest;
   assert.ok(request);
@@ -640,7 +709,6 @@ test('refineThenChiefWrapsWholeButtonsInsteadOfSqueezingThem', async () => {
   const h = harness();
   withChief(h);
   h.fx.transcripts = ['sag Tom, dass ich mich verspäte, und mach es höflich'];
-  h.fx.jev = { refine: 0.1, template: 'none', chief: 0.2, cost: JEV };
   h.fx.replies = ['Hallo Tom, ich verspäte mich etwas. Entschuldige!'];
   await h.dictate();
   h.d.tapRefine();
@@ -660,7 +728,7 @@ test('refineThenChiefWrapsWholeButtonsInsteadOfSqueezingThem', async () => {
 });
 
 test('aVolumeKeyStartAfterAnotherDictationShowsTheRecordingPanel', async () => {
-  const h = harness({ prefs: { autoRefine: false, autoChief: false } });
+  const h = harness();
   h.fx.transcripts = ['the first one', 'the second one'];
   await h.d.toggle();
   h.mic.speak(600);
@@ -681,8 +749,6 @@ test('aVolumeKeyStartAfterAnotherDictationShowsTheRecordingPanel', async () => {
 
 test('theHotkeyDoesNothingWhileTranscribing', async () => {
   const h = harness();
-  const gate = deferred();
-  h.fx.jev = gate.promise;
   await h.d.start();
   h.mic.speak(400);
   let release;
@@ -706,7 +772,6 @@ test('theHotkeyDoesNothingWhileTranscribing', async () => {
   assert.equal(h.mic.starts, 1);
   release();
   await stopping;
-  gate.resolve({ refine: 0 });
   await h.d.idle();
   assert.equal(h.d.state, D.COPIED);
 });
@@ -714,7 +779,7 @@ test('theHotkeyDoesNothingWhileTranscribing', async () => {
 // ---------------------------------------------------------------- ControlsTest
 
 test('smallRecordingIconCanBeHiddenWithoutStoppingCapture', async () => {
-  const h = harness({ prefs: { autoRefine: false, autoChief: false } });
+  const h = harness();
   h.fx.transcripts = ['Quick Settings works.'];
   await h.d.toggle();
   assert.equal(h.panel().mode, 'recording');
@@ -732,92 +797,13 @@ test('smallRecordingIconCanBeHiddenWithoutStoppingCapture', async () => {
 
 // ---------------------------------------------------------------- BbFlowTest (the dictation parts)
 
-test('sayingItsForTheChiefByNameSendsItThereInsteadOfRefining', async () => {
-  const h = harness();
-  withChief(h);
-  h.fx.transcripts = ['Okay, so I want to talk to Henry about the hotel booking'];
-  h.fx.jev = { refine: 0.92, template: 'none', chief: 0.97, cost: JEV };
-  h.fx.replies = ['Should not be refined.'];
-  await h.dictate();
-  assert.equal(h.d.session.chief, D.DONE);
-  assert.equal(h.calls.refine.length, 0);
-  assert.equal(h.d.session.refine, D.IDLE);
-  assert.equal(h.calls.decide[0].chiefName, 'Henry');
-  assert.equal(h.calls.chief[0].text, 'Okay, so I want to talk to Henry about the hotel booking');
-  assert.equal(h.calls.chief[0].chiefId, CHIEF);
-  assert.equal(h.d.session.message, 'Sent to your chief of staff');
-  assert.equal(h.panel().buttons.find((b) => b.id === 'chief').label, '🧑‍💼 ↗');
-});
-
-test('theNameOnlyMentionedInTheMessageStaysHere', async () => {
-  const h = harness();
-  withChief(h);
-  h.fx.transcripts = ['hey Tom, Henry will send you the contract tomorrow'];
-  h.fx.jev = { refine: 0.05, template: 'none', chief: 0.04, cost: JEV };
-  await h.dictate();
-  assert.equal(h.calls.decide[0].chiefName, 'Henry');
-  assert.equal(h.d.session.chief, D.IDLE);
-  assert.equal(h.d.session.hint, false);
-  assert.equal(h.calls.chief.length, 0);
-});
-
-test('withoutTheNameTheChiefIsntAskedAbout', async () => {
-  const h = harness();
-  withChief(h);
-  h.fx.transcripts = ['chief of staff, book a table for four'];
-  h.fx.jev = { refine: 0.05, template: 'none', chief: 0.99, cost: JEV };
-  await h.dictate();
-  assert.equal(h.calls.decide[0].chiefName, '');
-  assert.equal(h.d.session.chief, D.IDLE);
-  assert.equal(h.d.session.hint, false);
-  assert.equal(h.calls.chief.length, 0);
-});
-
-test('whenJevFailsWithTheNameChiefIsOnlySuggested', async () => {
-  const h = harness();
-  withChief(h);
-  h.fx.transcripts = ['Henry, book a table for four'];
-  h.fx.jev = new Error('provider');
-  await h.dictate();
-  assert.equal(h.d.session.chief, D.IDLE);
-  assert.equal(h.d.session.hint, true);
-  assert.equal(h.calls.chief.length, 0);
-  const chief = h.panel().buttons.find((b) => b.id === 'chief');
-  assert.equal(chief.name, 'Chief, suggested: this may be a task for your chief of staff');
-  assert.equal(chief.ring, 'amber');
-});
-
-test('tappingChiefWhileJevsRefineRunsDropsTheRefine', async () => {
-  const h = harness();
-  withChief(h);
-  h.fx.transcripts = ['um so the hotel booking for Lisbon, can you sort that out'];
-  h.fx.jev = { refine: 0.9, template: 'none', cost: JEV };
-  const gate = deferred();
-  h.fx.replies = [gate.promise];
-  await h.d.start();
-  h.mic.speak(600);
-  await h.d.stop();
-  await waitFor(() => h.d.session.refine === D.RUNNING);
-  h.d.tapChief();
-  assert.equal(h.d.session.refine, D.IDLE);
-  await waitFor(() => h.d.session.chief === D.DONE);
-  gate.resolve('Refined, should be dropped.'); // The refine call ends and is ignored.
-  await h.d.idle();
-  assert.equal(h.d.session.refine, D.IDLE);
-  const e = h.note();
-  assert.equal(e.version, 'original');
-  assert.equal(e.text, 'um so the hotel booking for Lisbon, can you sort that out');
-  assert.equal(e.processed, 'Refined, should be dropped.'); // Stays a version.
-  assert.ok(!h.calls.chief[0].text.includes('should be dropped'));
-  assert.equal(h.panel().buttons.find((b) => b.id === 'chief').name, 'Open chat ↗');
-});
-
-test('addressedExplicitlyTheTaskGoesToTheChiefWithThePastedText', async () => {
+test('aTappedChiefGetsTheTaskWithThePastedText', async () => {
   const h = harness({ attached: [{ kind: 'text', name: 'Flights' }] });
   withChief(h);
-  h.fx.transcripts = ['Henry, find the cheapest of these flights'];
-  h.fx.jev = { refine: 0.05, template: 'none', chief: 0.97, cost: JEV };
+  h.fx.transcripts = ['find the cheapest of these flights'];
   await h.dictate();
+  h.d.tapChief();
+  await h.d.idle();
   assert.equal(h.calls.refine.length, 0);
   assert.equal(h.calls.chief.length, 1);
   const e = h.note();
@@ -827,48 +813,14 @@ test('addressedExplicitlyTheTaskGoesToTheChiefWithThePastedText', async () => {
   assert.equal(e.chiefLink, CHIEF_LINK);
   assert.equal(e.route, 'chief');
   assert.ok(!('chiefFailed' in e));
-  assert.ok(close(e.knownCost, SPEECH + JEV));
+  assert.ok(close(e.knownCost, SPEECH));
   const bb = e.steps[e.steps.length - 1];
   assert.equal(bb.kind, 'bb');
   assert.equal(bb.model, 'chief of staff');
   assert.ok(!('cost' in bb));
   assert.ok(!('detail' in bb));
-  assert.equal(e.steps[e.steps.length - 2].answer, 'refine 0.05 · chief 0.97');
   // Nothing was copied by itself.
   assert.equal(h.clipboard.text, 'something I still need');
-});
-
-test('unsureAboutTheNameItIsNotSentButChiefIsSuggested', async () => {
-  const h = harness();
-  withChief(h);
-  h.fx.transcripts = ['Henry could look into why the nightly build failed'];
-  h.fx.jev = { refine: 0.05, template: 'none', chief: 0.62, cost: JEV };
-  await h.dictate();
-  assert.equal(h.d.session.hint, true);
-  assert.equal(h.d.session.chief, D.IDLE);
-  assert.equal(h.calls.chief.length, 0);
-  // One tap sends it.
-  h.d.tapChief();
-  await h.d.idle();
-  assert.equal(h.calls.chief.length, 1);
-  assert.equal(h.d.session.chief, D.DONE);
-});
-
-test('belowTheHintTheChiefButtonIsPlain', async () => {
-  const h = harness();
-  withChief(h);
-  h.fx.transcripts = ['Henry could look into it'];
-  h.fx.jev = { refine: 0.05, template: 'none', chief: 0.49, cost: JEV };
-  await h.dictate();
-  assert.equal(h.d.session.hint, false);
-  // Sure, but sending by itself is off: only suggested.
-  const h2 = harness({ prefs: { autoChief: false } });
-  withChief(h2);
-  h2.fx.transcripts = ['Henry, book it'];
-  h2.fx.jev = { refine: 0.05, template: 'none', chief: 0.99, cost: JEV };
-  await h2.dictate();
-  assert.equal(h2.d.session.chief, D.IDLE);
-  assert.equal(h2.d.session.hint, true);
 });
 
 test('chosenWhileRecordingTheChiefGetsItOnceTheTranscriptIsReady', async () => {
@@ -889,9 +841,10 @@ test('whenBbFailsTheNoteKeepsWhatYouSaidAndSendsAgain', async () => {
   const h = harness();
   withChief(h);
   h.fx.chiefError = new Error("bb isn't reachable right now (HTTP 503).");
-  h.fx.transcripts = ['Henry, book the table for Friday'];
-  h.fx.jev = { refine: 0, template: 'none', chief: 0.95, cost: JEV };
+  h.fx.transcripts = ['book the table for Friday'];
   await h.dictate();
+  h.d.tapChief();
+  await h.d.idle();
   let e = h.note();
   assert.match(e.chiefFailed, /isn't reachable right now \(HTTP 503\)/);
   assert.match(e.steps[e.steps.length - 1].detail, /HTTP 503/);
@@ -912,7 +865,7 @@ test('whenBbFailsTheNoteKeepsWhatYouSaidAndSendsAgain', async () => {
   assert.ok(!('chiefQueued' in e));
   assert.equal(e.chiefTries, 1); // It says it took a second try.
   assert.equal(e.chiefLink, CHIEF_LINK);
-  assert.equal(h.calls.chief[1].text, 'Henry, book the table for Friday');
+  assert.equal(h.calls.chief[1].text, 'book the table for Friday');
   // The same request, and bb checks first whether the first try arrived after all.
   assert.equal(h.calls.chief[1].request, h.calls.chief[0].request);
   assert.equal(h.calls.chief[1].again, true);
@@ -922,20 +875,16 @@ test('whenBbFailsTheNoteKeepsWhatYouSaidAndSendsAgain', async () => {
   const h2 = harness();
   withChief(h2);
   h2.fx.chiefError = new TypeError('fetch failed');
-  h2.fx.jev = { refine: 0, chief: 0, cost: JEV };
   await h2.dictate();
   h2.d.tapChief();
   await h2.d.idle();
   assert.equal(h2.note().chiefFailed, "bb couldn't be reached. Try again.");
 });
 
-test('withoutAChiefJevIsNotAskedAboutIt', async () => {
+test('withoutAChiefThereIsNoChiefButton', async () => {
   const h = harness();
-  h.prefs.set('chiefName', 'Henry');
-  h.fx.transcripts = ['tell Henry, my chief of staff, to call the plumber'];
-  h.fx.jev = { refine: 0, template: 'none', chief: 0.99, cost: JEV };
+  h.fx.transcripts = ['tell my chief of staff to call the plumber'];
   await h.dictate();
-  assert.equal(h.calls.decide[0].chiefName, '');
   assert.equal(h.calls.chief.length, 0);
   assert.ok(!h.panel().buttons.some((b) => b.id === 'chief'));
   // Tapping it anyway (no button, but the action) says how to set it up.
@@ -946,7 +895,7 @@ test('withoutAChiefJevIsNotAskedAboutIt', async () => {
 // ---------------------------------------------------------------- the panel stays, then goes
 
 test('thePanelHidesAfterAMinuteOrFiveWhileRefineRunsOrTheChiefsTextIsAwaited', async () => {
-  const h = harness({ prefs: { autoRefine: false, autoChief: false } });
+  const h = harness();
   await h.dictate();
   assert.equal(h.timers.pending(), D.PANEL_IDLE_MS);
   h.advance(D.PANEL_IDLE_MS - 1000);
@@ -956,11 +905,11 @@ test('thePanelHidesAfterAMinuteOrFiveWhileRefineRunsOrTheChiefsTextIsAwaited', a
   h.advance(1000);
   assert.equal(h.panel().mode, 'hidden');
 
-  const r = harness({ prefs: { autoChief: false } });
-  r.fx.jev = { refine: 0.9, cost: JEV };
+  const r = harness();
   const gate = deferred();
   r.fx.replies = [gate.promise];
   await r.d.start();
+  r.d.tapRefine();
   r.mic.speak(400);
   await r.d.stop();
   await waitFor(() => r.d.session.refine === D.RUNNING);
@@ -973,9 +922,10 @@ test('thePanelHidesAfterAMinuteOrFiveWhileRefineRunsOrTheChiefsTextIsAwaited', a
   // Hidden while the chief's text was awaited: the listener stops.
   const c = harness();
   withChief(c);
-  c.fx.transcripts = ['Henry, draft it'];
-  c.fx.jev = { refine: 0, chief: 0.99, cost: JEV };
+  c.fx.transcripts = ['draft it'];
   await c.dictate();
+  c.d.tapChief();
+  await c.d.idle();
   assert.equal(c.timers.pending(), D.PANEL_WAIT_MS);
   c.advance(D.PANEL_WAIT_MS);
   assert.equal(c.panel().mode, 'hidden');
@@ -1021,15 +971,8 @@ test('autoInsertInsertsTheTranscriptAsSoonAsItIsReady', async () => {
 });
 
 test('autoInsertWaitsForRefineAndInsertsTheRefinedText', async () => {
-  // Started by Jev.
-  const h = harness({ prefs: { autoInsert: true } });
-  h.fx.jev = { refine: 0.95, cost: JEV };
-  h.fx.field = { text: '' };
-  await h.dictate();
-  assert.deepEqual(h.calls.insert, ['Hi Jana, see you at ten.']);
-  assert.equal(h.fx.field.text, 'Hi Jana, see you at ten.');
   // Chosen while recording.
-  const t = harness({ prefs: { autoInsert: true, autoRefine: false, autoChief: false } });
+  const t = harness({ prefs: { autoInsert: true } });
   t.fx.field = { text: '' };
   await t.d.start();
   t.d.tapRefine();
@@ -1039,18 +982,42 @@ test('autoInsertWaitsForRefineAndInsertsTheRefinedText', async () => {
   assert.deepEqual(t.calls.insert, ['Hi Jana, see you at ten.']);
   // Refine fails: the transcript instead.
   const f = harness({ prefs: { autoInsert: true } });
-  f.fx.jev = { refine: 0.95, cost: JEV };
   f.fx.replies = [new Error('overloaded')];
-  await f.dictate();
+  await f.d.start();
+  f.d.tapRefine();
+  f.mic.speak(400);
+  await f.d.stop();
+  await f.d.idle();
   assert.deepEqual(f.calls.insert, ['um hi Jana see you at ten']);
+});
+
+test('autoInsertDoesNotWaitForJev', async () => {
+  // Jev only names the template for a Refine you tap, so the transcript goes in right away.
+  const h = harness({ prefs: { autoInsert: true } });
+  h.fx.templates = ['Weekly update'];
+  const gate = deferred();
+  h.fx.jev = gate.promise;
+  h.fx.field = { text: '' };
+  await h.d.start();
+  h.mic.speak(400);
+  await h.d.stop();
+  await waitFor(() => h.calls.insert.length === 1);
+  assert.equal(h.calls.decide.length, 1);
+  assert.equal(h.fx.field.text, 'um hi Jana see you at ten');
+  gate.resolve({ template: 'none', cost: JEV });
+  await h.d.idle();
+  assert.equal(h.calls.insert.length, 1);
 });
 
 test('autoInsertLeavesWhatGoesToTheChiefOut', async () => {
   const h = harness({ prefs: { autoInsert: true } });
   withChief(h);
-  h.fx.transcripts = ['Henry, book a table'];
-  h.fx.jev = { refine: 0.9, chief: 0.97, cost: JEV };
-  await h.dictate();
+  h.fx.transcripts = ['book a table'];
+  await h.d.start();
+  h.d.tapChief();
+  h.mic.speak(400);
+  await h.d.stop();
+  await h.d.idle();
   assert.equal(h.d.session.chief, D.DONE);
   assert.equal(h.calls.insert.length, 0);
 });
@@ -1084,7 +1051,7 @@ test('aChunkIsCutAtTheQuietestFrameOfItsLastTwoSeconds', () => {
 });
 
 test('aLongRecordingIsTranscribedInChunksAndResumesAfterAFailure', async () => {
-  const h = harness({ prefs: { autoRefine: false, autoChief: false } });
+  const h = harness();
   h.fx.transcripts = ['first part', 'second part', 'third part'];
   await h.d.start();
   h.mic.speak(250_000); // over two chunks
@@ -1118,7 +1085,7 @@ test('anInterruptedRecordingIsFoundAtStartAndCanBeRetriedOrDiscarded', async () 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dictation-'));
   try {
     const file = path.join(dir, 'pending.pcm');
-    const first = harness({ pending: new D.FilePendingAudio(file), prefs: { autoRefine: false, autoChief: false } });
+    const first = harness({ pending: new D.FilePendingAudio(file) });
     await first.d.start();
     first.mic.speak(1000);
     await first.d.destroy(); // The app quit mid-recording.
@@ -1201,16 +1168,6 @@ test('theTimerTicksWhileRecording', async () => {
   assert.equal(h.panel().timer.elapsed, '01:12');
 });
 
-test('theChiefsNameMatchesAsAWordWithMishearingsAndPossessives', () => {
-  for (const said of ['Henry, book it', "ask henry's team", 'Henrys plan', 'Henri, please', 'Henrie look', 'HENREY!'])
-    assert.ok(D.mentions(said, 'Henry'), said);
-  for (const said of ['Henryk is here', 'the henhouse', '']) assert.ok(!D.mentions(said, 'Henry'), said);
-  assert.ok(D.mentions('ask the chief-of-staff', 'chief of staff'));
-  assert.ok(D.mentions('Jürgen, hilf mir', 'Jürgen'));
-  assert.ok(!D.mentions('xJürgen', 'Jürgen'));
-  assert.ok(!D.mentions('Henry', ' '));
-});
-
 test('costsAddUpExactlyAsDecimalStrings', () => {
   assert.equal(D.sum('0.1', '0.2'), '0.3');
   assert.equal(D.sum('0.00060', 0.00003), '0.00063');
@@ -1218,17 +1175,11 @@ test('costsAddUpExactlyAsDecimalStrings', () => {
   assert.equal(D.sum(undefined, '2'), '2');
 });
 
-test('jevsDecisionFollowsItsThresholds', () => {
-  const a = (refine, chief, template = '') => ({ refine, chief, template, cost: 0 });
-  assert.deepEqual(D.jevDecision(null, true, true, true, true), { refine: false, template: '', chief: false, hint: true });
-  assert.deepEqual(D.jevDecision(null, true, true, true, false), { refine: false, template: '', chief: false, hint: false });
-  assert.equal(D.jevDecision(a(0.5, null), true, true, false, false).refine, true);
-  assert.equal(D.jevDecision(a(0.49, null), true, true, false, false).refine, false);
-  assert.equal(D.jevDecision(a(0.1, null, 'T'), true, true, false, false).refine, true);
-  assert.equal(D.jevDecision(a(0.9, null), false, true, false, false).refine, false);
-  const sent = D.jevDecision(a(0.9, 0.8), true, true, true, true);
-  assert.deepEqual([sent.chief, sent.refine, sent.hint], [true, false, false]);
-  assert.equal(D.jevDecision(a(0, 0.5), true, true, true, true).hint, true);
-  assert.equal(D.jevDecision(a(0, 0.79), true, true, true, true).chief, false);
-  assert.equal(D.jevDecision(a(0, null), true, true, true, true).hint, true);
+test('jevsAnswerIsOnlyTheTemplate', () => {
+  // Anything else in the answer (an older Jev's refine or chief) is ignored.
+  assert.deepEqual(D.readAnswers({ refine: 0.9, chief: 0.9, template: 'T', cost: 0.00002 }), { template: 'T', cost: '0.00002' });
+  assert.deepEqual(D.readAnswers({ template: 'none' }), { template: '', cost: null });
+  assert.deepEqual(D.readAnswers(null), { template: '', cost: null });
+  assert.equal(D.jevDetail({ template: 'Weekly update' }), 'Weekly update');
+  assert.equal(D.jevDetail({ template: '' }), '');
 });

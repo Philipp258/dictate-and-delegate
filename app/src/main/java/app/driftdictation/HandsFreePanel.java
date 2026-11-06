@@ -18,7 +18,8 @@ import android.widget.TextView;
  * label of what's happening (Listening, Hearing you, Checking…, Sent ✓, Waiting for the reply,
  * Playing the reply) with the last words heard below it, send while you can talk, and hang up.
  * Never takes focus; drag it anywhere, tap the status to open the full screen; it always stays
- * whole on screen.
+ * whole on screen. With two assistants set up, it has the call's assistant's colour around it and
+ * its name before the label.
  */
 final class HandsFreePanel extends LinearLayout {
   interface Actions {
@@ -49,6 +50,9 @@ final class HandsFreePanel extends LinearLayout {
   static final int WIDEST = 200;
 
   private final android.content.SharedPreferences prefs;
+
+  /** The call's assistant's name and colour with two assistants ("" and 0 with one). */
+  private String with = "";
 
   /**
    * A call bar: a status dot with a short label (tap: the full screen), send (paper plane) while
@@ -199,6 +203,10 @@ final class HandsFreePanel extends LinearLayout {
             : trouble ? s.trouble()
             : HandsFreeService.liveLabel(s);
     if (!heard.isEmpty()) full += ". " + heard;
+    if (!with.isEmpty()) {
+      label = with + " · " + label;
+      full = with + ": " + full;
+    }
     // Green: you can talk; amber: you can talk, something's on its way or waiting, or your words
     // may not be coming through; violet: a reply plays; grey: the microphone is paused a moment.
     color =
@@ -228,6 +236,17 @@ final class HandsFreePanel extends LinearLayout {
       fit();
       windows.updateViewLayout(this, layout);
     }
+  }
+
+  /** The call is with this assistant (name, colour); shown only when there are several (name not ""). */
+  void with(String name, int color) {
+    with = FloatingPanel.shortName(name);
+    if (name.isEmpty()) return;
+    GradientDrawable bg = new GradientDrawable();
+    bg.setColor(0xf21b1f24);
+    bg.setCornerRadius(dp(28));
+    bg.setStroke(dp(2), color);
+    setBackground(bg);
   }
 
   // Dragging: a move past the touch slop anywhere on the panel moves it; taps still reach buttons.

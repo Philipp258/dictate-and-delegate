@@ -68,8 +68,6 @@ public class DeviceFlowTest {
         .edit()
         .putString("model", "openai/whisper-1")
         .putString("bubbleMode", "recording")
-        .putBoolean(Profile.AUTO_REFINE, false)
-        .putBoolean(Profile.AUTO_CHIEF, false)
         .commit();
     TestServer.useKey(context);
   }

@@ -49,8 +49,15 @@ final class BbOAuth {
   /** bb's authorization server, used when its metadata can't be read. */
   static final String ISSUER = "https://getbb.app";
 
-  /** Vault entries: the tokens, and the sign-in waiting for the browser to come back. */
+  /**
+   * Vault entries: the tokens (each assistant its own, Assistants.key), and the one sign-in
+   * waiting for the browser to come back, which says whose it is.
+   */
   static final String TOKENS = "bbAuth", PENDING = "bbPending";
+
+  private static String tokens(int assistant) {
+    return Assistants.key(assistant, TOKENS);
+  }
 
   record Endpoints(String issuer, String authorize, String token, String revoke) {
     static final Endpoints DEFAULT =
@@ -135,7 +142,7 @@ final class BbOAuth {
    * Finds bb's endpoints for a handle and remembers the sign-in; returns the address to open in
    * the browser. Throws with a readable message when there is no bb at that handle.
    */
-  static String begin(Context context, String handle) throws Exception {
+  static String begin(Context context, int assistant, String handle) throws Exception {
     JSONObject meta;
     try {
       meta = getJson(origin(handle) + "/.well-known/oauth-protected-resource/mcp");
@@ -156,6 +163,7 @@ final class BbOAuth {
             PENDING,
             new JSONObject()
                 .put("handle", handle)
+                .put("assistant", assistant)
                 .put("resource", resource)
                 .put("issuer", endpoints.issuer())
                 .put("token", endpoints.token())
@@ -186,12 +194,15 @@ final class BbOAuth {
     }
   }
 
+  /** A finished sign-in: the handle, and the assistant it's for. */
+  record SignedIn(String handle, int assistant) {}
+
   /**
    * The browser came back with talkrouter://oauth/callback?code=…&state=…&iss=… (or ?error=…).
-   * Checks it belongs to the sign-in we started, exchanges the code and saves the tokens; returns
-   * the handle.
+   * Checks it belongs to the sign-in we started, exchanges the code and saves the tokens for the
+   * assistant the sign-in was started for; returns the handle and that assistant.
    */
-  static String complete(Context context, Map<String, String> query) throws Exception {
+  static SignedIn complete(Context context, Map<String, String> query) throws Exception {
     Vault vault = new Vault(context);
     String saved = vault.get(PENDING);
     if (saved.isEmpty())
@@ -222,17 +233,28 @@ final class BbOAuth {
     body.put("resource", p.optString("resource"));
     JSONObject tokens = postForm(p.optString("token"), body);
     vault.remove(PENDING);
-    save(vault, p, tokens, null);
-    return p.optString("handle");
+    int assistant = Math.max(0, Math.min(Assistants.COUNT - 1, p.optInt("assistant", 0)));
+    save(vault, tokens(assistant), p, tokens, null);
+    return new SignedIn(p.optString("handle"), assistant);
   }
 
-  private static void save(Vault vault, JSONObject endpoints, JSONObject tokens, String oldRefresh)
+  /** The assistant a sign-in waiting for the browser is for; -1 without one. */
+  static int pendingAssistant(Context context) {
+    try {
+      String saved = new Vault(context).get(PENDING);
+      return saved.isEmpty() ? -1 : new JSONObject(saved).optInt("assistant", 0);
+    } catch (Exception ex) {
+      return -1;
+    }
+  }
+
+  private static void save(Vault vault, String entry, JSONObject endpoints, JSONObject tokens, String oldRefresh)
       throws Exception {
     String access = tokens.optString("access_token");
     if (access.isEmpty()) throw new IOException(tr("bb's sign-in answer had no token."));
     long expiresIn = tokens.optLong("expires_in", 0);
     vault.put(
-        TOKENS,
+        entry,
         new JSONObject()
             .put("handle", endpoints.optString("handle"))
             .put("resource", endpoints.optString("resource"))
@@ -246,18 +268,18 @@ final class BbOAuth {
             .toString());
   }
 
-  static boolean signedIn(Context context) {
+  static boolean signedIn(Context context, int assistant) {
     try {
-      return !new Vault(context).get(TOKENS).isEmpty();
+      return !new Vault(context).get(tokens(assistant)).isEmpty();
     } catch (Exception ex) {
       return false;
     }
   }
 
   /** The handle the saved tokens belong to, or "". */
-  static String signedInHandle(Context context) {
+  static String signedInHandle(Context context, int assistant) {
     try {
-      String s = new Vault(context).get(TOKENS);
+      String s = new Vault(context).get(tokens(assistant));
       return s.isEmpty() ? "" : new JSONObject(s).optString("handle");
     } catch (Exception ex) {
       return "";
@@ -284,9 +306,19 @@ final class BbOAuth {
   }
 
   /** An access token, refreshed first when it expires within a minute or when forced (after 401). */
-  static synchronized String accessToken(Context context, boolean forceRefresh) throws Exception {
+  /** One refresh at a time per assistant: one bb's slow sign-in server doesn't hold up the other's calls. */
+  private static final Object[] REFRESHING = {new Object(), new Object()};
+
+  static String accessToken(Context context, int assistant, boolean forceRefresh) throws Exception {
+    synchronized (REFRESHING[Assistants.clamp(assistant)]) {
+      return accessTokenLocked(context, assistant, forceRefresh);
+    }
+  }
+
+  private static String accessTokenLocked(Context context, int assistant, boolean forceRefresh) throws Exception {
     Vault vault = new Vault(context);
-    String saved = vault.get(TOKENS);
+    String entry = tokens(assistant);
+    String saved = vault.get(entry);
     if (saved.isEmpty()) throw new SignedOut();
     JSONObject t = new JSONObject(saved);
     long expires = t.optLong("expires");
@@ -294,7 +326,7 @@ final class BbOAuth {
     if (!forceRefresh && !stale) return t.optString("access");
     String refresh = t.optString("refresh");
     if (refresh.isEmpty()) {
-      vault.remove(TOKENS);
+      vault.remove(entry);
       throw new SignedOut();
     }
     Map<String, String> body = refreshBody(t);
@@ -304,31 +336,31 @@ final class BbOAuth {
     } catch (HttpError ex) {
       if (ex.status == 400 || ex.status == 401) {
         // The refresh token was revoked or expired: signed out for good.
-        vault.remove(TOKENS);
+        vault.remove(entry);
         throw new SignedOut();
       }
       throw ex;
     }
-    save(vault, t, tokens, refresh);
+    save(vault, entry, t, tokens, refresh);
     return tokens.optString("access_token");
   }
 
   /** Revokes the tokens at bb (best effort) and forgets them. Network: not on the main thread. */
-  static void signOut(Context context) {
-    revoke(forget(context));
+  static void signOut(Context context, int assistant) {
+    revoke(forget(context, assistant));
   }
 
-  /** Forgets the tokens on this phone right away; returns them for revoke(). */
-  static String forget(Context context) {
+  /** Forgets an assistant's tokens on this phone right away (and its sign-in under way); returns them for revoke(). */
+  static String forget(Context context, int assistant) {
     Vault vault = new Vault(context);
     String saved;
     try {
-      saved = vault.get(TOKENS);
+      saved = vault.get(tokens(assistant));
     } catch (Exception ex) {
       saved = "";
     }
-    vault.remove(TOKENS);
-    vault.remove(PENDING);
+    vault.remove(tokens(assistant));
+    if (pendingAssistant(context) == assistant) vault.remove(PENDING);
     return saved;
   }
 

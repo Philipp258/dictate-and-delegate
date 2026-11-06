@@ -145,8 +145,33 @@ public class BbFlowTest {
     BbBridge bb = new BbBridge(context);
     bb.useCustom(TestServer.bbUrl(), "", LINKS);
     bb.setChief(new BbBridge.ThreadInfo(TestServer.CHIEF, "Chief of staff", "idle"));
-    prefs.edit().putString(Profile.CHIEF_NAME, "Henry").commit();
     TestServer.skillsCurrent(context);
+  }
+
+  static final String WORK_CHIEF = "thr_workchief";
+
+  /** A second assistant ("Work") at the same fake bb, with a chief of its own and its own topic. */
+  BbBridge connectSecond() throws Exception {
+    BbBridge work = new BbBridge(context, 1);
+    work.useCustom(TestServer.bbUrl(), "", LINKS);
+    work.setChief(new BbBridge.ThreadInfo(WORK_CHIEF, "Chief of staff", "idle"));
+    Assistants.setName(context, 1, "Work");
+    Assistants.setName(context, 0, "Personal");
+    prefs
+        .edit()
+        .putString(Assistants.key(1, ChiefSkills.INSTALLED), ChiefSkills.summary(ChiefSkills.filled(context, 1)))
+        .putInt(Assistants.key(1, ChiefSkills.CHECKED_VERSION), BuildConfig.VERSION_CODE)
+        .commit();
+    return work;
+  }
+
+  /** Forgets the second assistant. */
+  void forgetSecond() {
+    new BbBridge(context, 1).disconnect();
+    SharedPreferences.Editor e = prefs.edit();
+    for (String k : new String[] {BbBridge.MODE, BbBridge.HANDLE, BbBridge.URL, BbBridge.LINK_BASE, BbBridge.CHIEF_ID, BbBridge.CHIEF_NAME, BbBridge.NTFY_SERVER, ChiefSkills.INSTALLED, ChiefSkills.CHECKED_VERSION, ChiefSkills.CHIEF_TOLD, Assistants.NAME})
+      e.remove(Assistants.key(1, k));
+    e.remove(Assistants.NAME).remove(Assistants.OTHER_KEY).commit();
   }
 
   @Before
@@ -163,13 +188,12 @@ public class BbFlowTest {
     TestServer.bbReset();
     TestServer.useKey(context);
     new BbBridge(context).disconnect();
+    forgetSecond();
     prefs
         .edit()
         .putString("model", "microsoft/mai-transcribe-2")
         .putString("bubbleMode", "recording")
         .putBoolean("onboarded", true)
-        .putBoolean(Profile.AUTO_REFINE, true)
-        .putBoolean(Profile.AUTO_CHIEF, true)
         .remove(BbBridge.MODE)
         .remove(BbBridge.HANDLE)
         .remove(BbBridge.URL)
@@ -197,6 +221,7 @@ public class BbFlowTest {
     TestServer.reset();
     TestServer.bbReset();
     new BbBridge(context).disconnect();
+    forgetSecond();
     prefs.edit().remove(BbBridge.CHIEF_ID).remove(BbBridge.CHIEF_NAME).remove(BbBridge.MODE).commit();
     new Attachments(context).clearPending();
     device.pressHome();
@@ -259,113 +284,6 @@ public class BbFlowTest {
     tap("Notifications");
     find(topic);
     find("Open in ntfy");
-  }
-
-  @Test
-  public void sayingItsForTheChiefByNameSendsItThereInsteadOfRefining() throws Exception {
-    connectFake();
-    // The user's own phrasing; Jev also thinks it reads like a text to refine.
-    TestServer.transcripts("Okay, so I want to talk to Henry about the hotel booking");
-    TestServer.decide(0.92, 0.97, "none");
-    TestServer.replies("Should not be refined.");
-    dictate("copied");
-    HistoryEntry e = latestOnce(n -> n.json.has("chiefThread"), "the chief");
-    // The note is saved a moment before the panel's state flips.
-    until(() -> DictationService.DONE.equals(DictationService.session().chief), "the chief sent");
-    assertTrue(sent("text").isEmpty());
-    assertEquals(DictationService.IDLE, DictationService.session().refine);
-    // Jev was asked about Henry by name.
-    assertTrue(
-        sent("decide").get(0).getJSONObject("questions").getJSONObject("chief").getString("instructions").contains("is called Henry."));
-    List<String> snippets = TestServer.bbSnippets();
-    String tell = snippets.get(snippets.size() - 1);
-    assertTrue(tell, tell.contains("I want to talk to Henry about the hotel booking"));
-    assertTrue(tell, tell.contains("[request: " + e.json.optString("chiefRequest") + "]"));
-    find("Open chat ↗");
-  }
-
-  @Test
-  public void theNameOnlyMentionedInTheMessageStaysHere() throws Exception {
-    connectFake();
-    TestServer.transcripts("hey Tom, Henry will send you the contract tomorrow");
-    TestServer.decide(0.05, 0.04, "none");
-    dictate("copied");
-    waitDecided();
-    assertTrue(sent("decide").get(0).getJSONObject("questions").has("chief"));
-    assertEquals(DictationService.IDLE, DictationService.session().chief);
-    assertFalse(DictationService.session().hint);
-    assertTrue(TestServer.bbSnippets().isEmpty());
-  }
-
-  @Test
-  public void withoutTheNameTheChiefIsntAskedAbout() throws Exception {
-    connectFake();
-    TestServer.transcripts("chief of staff, book a table for four");
-    TestServer.decide(0.05, 0.99, "none");
-    dictate("copied");
-    waitDecided();
-    assertFalse(sent("decide").get(0).getJSONObject("questions").has("chief"));
-    assertEquals(DictationService.IDLE, DictationService.session().chief);
-    assertFalse(DictationService.session().hint);
-    assertTrue(TestServer.bbSnippets().isEmpty());
-  }
-
-  @Test
-  public void whenJevFailsWithTheNameChiefIsOnlySuggested() throws Exception {
-    connectFake();
-    TestServer.transcripts("Henry, book a table for four");
-    TestServer.error("decide", "provider");
-    dictate("copied");
-    waitDecided();
-    assertEquals(DictationService.IDLE, DictationService.session().chief);
-    assertTrue(DictationService.session().hint);
-    assertTrue(TestServer.bbSnippets().isEmpty());
-    find(By.desc("Chief, suggested: this may be a task for your chief of staff"), "the hint");
-  }
-
-  @Test
-  public void tappingChiefWhileJevsRefineRunsDropsTheRefine() throws Exception {
-    connectFake();
-    // No name: Jev starts Refine by itself (slowly), then the chief is tapped.
-    TestServer.transcripts("um so the hotel booking for Lisbon, can you sort that out");
-    TestServer.decide(0.9, 0, "none");
-    TestServer.script("text", new JSONObject().put("text", "Refined, should be dropped.").put("delay", 3));
-    dictate("copied");
-    long deadline = SystemClock.elapsedRealtime() + 8000;
-    while (!DictationService.RUNNING.equals(DictationService.session().refine) && SystemClock.elapsedRealtime() < deadline)
-      Thread.sleep(100);
-    assertEquals(DictationService.RUNNING, DictationService.session().refine);
-    find("🧑‍💼 Chief").click();
-    HistoryEntry e = latestOnce(n -> n.json.has("chiefThread"), "the chief");
-    assertEquals(DictationService.IDLE, DictationService.session().refine);
-    Thread.sleep(3500); // The refine call ends and is ignored.
-    assertEquals(DictationService.IDLE, DictationService.session().refine);
-    e = latest();
-    assertEquals("original", e.json.optString("version"));
-    assertEquals("um so the hotel booking for Lisbon, can you sort that out", e.text());
-    String tell = TestServer.bbSnippets().get(TestServer.bbSnippets().size() - 1);
-    assertFalse(tell, tell.contains("should be dropped"));
-    find("Open chat ↗");
-  }
-
-  @Test
-  public void theChiefsNameIsSetOnTheChiefPageAndSaysSaved() throws Exception {
-    connectFake();
-    prefs.edit().remove(Profile.CHIEF_NAME).commit();
-    launch();
-    tap("Settings");
-    tap("Chief of staff");
-    find("Your chief's name");
-    UiObject2 field = find(By.text("For example: Ada"), "the name field");
-    field.setText("Alex");
-    find("✓ Saved");
-    assertEquals("Alex", new Profile(prefs).chiefName());
-    if ("true".equals(InstrumentationRegistry.getArguments().getString("shots"))) {
-      Thread.sleep(700);
-      java.io.File dir = new java.io.File(context.getExternalFilesDir(null), "panel");
-      dir.mkdirs();
-      device.takeScreenshot(new java.io.File(dir, "settings-3-chief-name.png"));
-    }
   }
 
   static String sha256(byte[] data) throws Exception {
@@ -502,18 +420,18 @@ public class BbFlowTest {
   }
 
   @Test
-  public void addressedExplicitlyTheTaskGoesToTheChiefWithThePastedText() throws Exception {
+  public void tappedChiefTheTaskGoesToTheChiefWithThePastedText() throws Exception {
     connectFake();
     new Attachments(context).addText("Flights: TP 1234 on 3 May, FR 88 on 4 May");
     TestServer.transcripts("Henry, find the cheapest of these flights");
-    TestServer.decide(0.05, 0.97, "none");
     dictate("copied");
+    find("🧑‍💼 Chief").click();
     HistoryEntry e = latestOnce(n -> n.json.has("chiefThread"), "the chief");
     // The note is saved a moment before the panel's state flips.
     until(() -> DictationService.DONE.equals(DictationService.session().chief), "the chief sent");
 
-    // Jev was asked about the chief; Refine didn't run. The transcript is copied (checked below).
-    assertTrue(sent("decide").get(0).getJSONObject("questions").has("chief"));
+    // Jev wasn't asked (no templates); Refine didn't run.
+    assertTrue(sent("decide").isEmpty());
     assertTrue(sent("text").isEmpty());
 
     // One tell to the chief, queued, with what was said, the pasted text and a request ID.
@@ -530,14 +448,13 @@ public class BbFlowTest {
     assertEquals(TestServer.CHIEF, e.json.optString("chiefThread"));
     assertEquals(CHIEF_LINK, e.json.optString("chiefLink"));
     assertFalse(e.json.has("chiefFailed"));
-    assertEquals(0, TestServer.SPEECH.add(TestServer.JEV).compareTo(e.cost()));
+    assertEquals(0, TestServer.SPEECH.compareTo(e.cost()));
     JSONArray steps = e.json.getJSONArray("steps");
     JSONObject bb = steps.getJSONObject(steps.length() - 1);
     assertEquals("bb", bb.getString("kind"));
     assertEquals("chief of staff", bb.getString("model"));
     assertFalse(bb.has("cost"));
     assertFalse(bb.has("detail"));
-    assertEquals("refine 0.05 · chief 0.97", steps.getJSONObject(steps.length() - 2).getString("answer"));
 
     // The panel's Chief button became Open chat ↗.
     find("Open chat ↗");
@@ -553,7 +470,6 @@ public class BbFlowTest {
     launch();
     tap("Settings");
     tap("Activity");
-    find(By.text(Pattern.compile("Jev · .* → refine 0\\.05 · chief 0\\.97")), "Jev's step");
     find(By.text(Pattern.compile("bb · Chief of staff · \\d+[.,]\\d s")), "the bb step");
 
     // The link opens the thread in the browser.
@@ -567,23 +483,79 @@ public class BbFlowTest {
   }
 
   @Test
-  public void unsureAboutTheNameItIsNotSentButChiefIsSuggested() throws Exception {
+  public void nothingGoesToTheChiefOrIsRefinedByWhatWasSaid() throws Exception {
     connectFake();
-    TestServer.transcripts("Henry could look into why the nightly build failed");
-    TestServer.decide(0.05, 0.62, "none");
+    // Addressed by name and asking for a text: still nothing happens until a button is tapped.
+    TestServer.transcripts("Henry, turn this into an email about the hotel booking");
+    TestServer.decide(0.95, 0.99, "none");
     dictate("copied");
-    long deadline = SystemClock.elapsedRealtime() + 8000;
-    while (!DictationService.session().decided && SystemClock.elapsedRealtime() < deadline) Thread.sleep(100);
-    Thread.sleep(500);
-    assertTrue(DictationService.session().hint);
+    waitDecided();
+    Thread.sleep(1000);
     assertEquals(DictationService.IDLE, DictationService.session().chief);
+    assertEquals(DictationService.IDLE, DictationService.session().refine);
+    // Without templates Jev isn't even asked.
+    assertTrue(sent("decide").isEmpty());
+    assertTrue(sent("text").isEmpty());
     assertTrue(TestServer.bbSnippets().isEmpty());
-    UiObject2 hinted = find(By.desc("Chief, suggested: this may be a task for your chief of staff"), "the hint");
-    // One tap sends it.
-    hinted.click();
-    latestOnce(n -> n.json.has("chiefThread"), "the chief");
-    assertEquals(1, TestServer.bbSnippets().size());
-    find("Open chat ↗");
+    find("🧑‍💼 Chief");
+  }
+
+  @Test
+  public void withTwoAssistantsEachHasItsButtonAndTheDictationGoesWhereTapped() throws Exception {
+    connectFake();
+    connectSecond();
+    TestServer.transcripts("check why the work build is red");
+    // The volume key of the second assistant started it: its buttons come first.
+    context.startForegroundService(
+        new Intent(context, DictationService.class).setAction(DictationService.RECORD).putExtra(DictationService.ASSISTANT, 1));
+    waitFor("recording");
+    assertEquals(1, DictationService.session().keyAssistant);
+    assertEquals(java.util.List.of(0, 1), DictationService.session().assistants);
+    find("Send to Personal");
+    find("Hands-free call with Work");
+    find("Hands-free call with Personal");
+    Thread.sleep(1200);
+    send(DictationService.STOP);
+    waitFor("copied");
+    find("Send to Work").click();
+    HistoryEntry e = latestOnce(n -> n.json.has("chiefThread"), "the work chief");
+    until(() -> DictationService.DONE.equals(DictationService.session().chief), "sent");
+    assertEquals(1, e.json.optInt("assistant"));
+    assertEquals(WORK_CHIEF, e.json.optString("chiefThread"));
+    List<String> snippets = TestServer.bbSnippets();
+    String tell = snippets.get(snippets.size() - 1);
+    assertTrue(tell, tell.contains("\"thread\",\"tell\",\"" + WORK_CHIEF + "\""));
+    assertFalse(tell, tell.contains(TestServer.CHIEF));
+    find("Open the chat with Work ↗");
+    // Once it went to Work, the Personal button is gone.
+    assertNull(device.findObject(By.desc("Send to Personal")));
+    find("Sent to Work");
+  }
+
+  @Test
+  public void aNoteThatFailedGoesToItsOwnAssistantWhenTriedAgain() throws Exception {
+    connectFake();
+    connectSecond();
+    long[] waits = BbBridge.AGAIN_MS;
+    BbBridge.AGAIN_MS = new long[0];
+    try {
+      TestServer.transcripts("the work deploy needs a look");
+      TestServer.bbFail("tell", "http503");
+      dictate("copied");
+      find("Send to Work").click();
+      HistoryEntry e = latestOnce(n -> n.json.optBoolean("chiefQueued"), "queued");
+      assertEquals(1, e.json.optInt("assistant"));
+      String request = e.json.optString("chiefRequest");
+      // Later, from the outbox: to the second assistant's chief, with the same request ID.
+      assertTrue(Outbox.flush(context, true));
+      e = latestOnce(n -> n.json.has("chiefThread") && !n.json.has("chiefFailed"), "sent");
+      assertEquals(WORK_CHIEF, e.json.optString("chiefThread"));
+      assertEquals(request, e.json.optString("chiefRequest"));
+      for (String code : TestServer.bbSnippets())
+        if (code.contains("[request: " + request + "]")) assertTrue(code, code.contains(WORK_CHIEF) && !code.contains(TestServer.CHIEF));
+    } finally {
+      BbBridge.AGAIN_MS = waits;
+    }
   }
 
   @Test
@@ -620,10 +592,10 @@ public class BbFlowTest {
       // bb leaves out the talker's skill: the chief's are installed, and that's said apart.
       TestServer.bbSkipSkills("dictate-and-delegate-talker");
       ChiefSkills.sync(context, true);
-      until(() -> ChiefSkills.state == ChiefSkills.State.INSTALLED && !ChiefSkills.talkerSkillProblem.isEmpty(), "installed, the talker's skill missing");
-      assertEquals("", ChiefSkills.problem);
+      until(() -> ChiefSkills.state(0) == ChiefSkills.State.INSTALLED && !ChiefSkills.talkerSkillProblem.isEmpty(), "installed, the talker's skill missing");
+      assertEquals("", ChiefSkills.problem(0));
       JSONObject installed = TestServer.bbSkills().getJSONObject("installed");
-      java.util.Map<String, String> files = ChiefSkills.filled(context);
+      java.util.Map<String, String> files = ChiefSkills.filled(context, 0);
       assertEquals(ChiefSkills.marker(files.get("dictate-and-delegate")), installed.getString("dictate-and-delegate"));
       assertEquals("", installed.optString("dictate-and-delegate-talker"));
       assertEquals("not told to use a skill that isn't there", "", prefs.getString(ChiefSkills.TALKER_TOLD, ""));
@@ -631,8 +603,8 @@ public class BbFlowTest {
       TestServer.bbSkipSkills();
       TestServer.bbFail("tell", "tool", "thr_faketalker");
       ChiefSkills.sync(context, true);
-      until(() -> ChiefSkills.state == ChiefSkills.State.INSTALLED && ChiefSkills.talkerSkillProblem.isEmpty() && !ChiefSkills.talkerTellProblem.isEmpty(), "installed, the talker not told");
-      assertEquals("", ChiefSkills.problem);
+      until(() -> ChiefSkills.state(0) == ChiefSkills.State.INSTALLED && ChiefSkills.talkerSkillProblem.isEmpty() && !ChiefSkills.talkerTellProblem.isEmpty(), "installed, the talker not told");
+      assertEquals("", ChiefSkills.problem(0));
       assertTrue(ChiefSkills.talkerProblem(), ChiefSkills.talkerProblem().startsWith("Couldn't tell the talker to use its skill: "));
       // Reachable again: told at the next sync, once.
       ChiefSkills.sync(context, false);
@@ -659,7 +631,7 @@ public class BbFlowTest {
     toEnd();
     find(By.textContains("Installed in bb"), "installed");
     JSONObject installed = TestServer.bbSkills().getJSONObject("installed");
-    java.util.Map<String, String> files = ChiefSkills.filled(context);
+    java.util.Map<String, String> files = ChiefSkills.filled(context, 0);
     assertEquals(ChiefSkills.marker(files.get("chief-of-staff")), installed.getString("chief-of-staff"));
     assertEquals(ChiefSkills.marker(files.get("dictate-and-delegate")), installed.getString("dictate-and-delegate"));
     assertEquals("no talker: no talker skill to wait for", "", installed.optString("dictate-and-delegate-talker"));
@@ -684,7 +656,7 @@ public class BbFlowTest {
   public void aNewTopicOrAnAppUpdateReinstallsAndCurrentSkillsAreLeftAlone() throws Exception {
     connectFake();
     ChiefSkills.pollMs = 300;
-    java.util.Map<String, String> files = ChiefSkills.filled(context);
+    java.util.Map<String, String> files = ChiefSkills.filled(context, 0);
     // The update to 3.1.0: the skill's old name talk-router is still in bb next to current ones,
     // so the install runs once and removes it.
     TestServer.bbSetSkills(
@@ -720,7 +692,7 @@ public class BbFlowTest {
     // A new ntfy server changes dictate-and-delegate: reinstalled with it.
     new BbBridge(context).setNtfyServer("https://ntfy.example.org");
     launch();
-    until(() -> TestServer.bbSkillsOr("dictate-and-delegate").equals(ChiefSkills.marker(ChiefSkills.filled(context).get("dictate-and-delegate"))), "reinstalled with the new server");
+    until(() -> TestServer.bbSkillsOr("dictate-and-delegate").equals(ChiefSkills.marker(ChiefSkills.filled(context, 0).get("dictate-and-delegate"))), "reinstalled with the new server");
     assertTrue(TestServer.bbSkills().getJSONObject("files").getString("dictate-and-delegate").contains("https://ntfy.example.org/"));
   }
 

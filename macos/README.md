@@ -86,7 +86,8 @@ and your saved keys stay.
 - Insert presses the key in the ⌘V position of a US layout (fine for QWERTY and QWERTZ; Dvorak
   needs the "Dvorak – QWERTY ⌘" layout).
 - English UI only for now (Android has eight languages); speech in any language as before.
-- Not ported (Android only): the Quick Settings tile, the volume-key service.
+- Not ported (Android only): the Quick Settings tile, the volume-key service, a second assistant
+  (the Mac has one bb connection and chief).
 
 ## Build (on Linux or a Mac)
 

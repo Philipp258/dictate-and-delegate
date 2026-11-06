@@ -1,9 +1,9 @@
 'use strict';
 // One dictation at a time: recording, chunked transcription and the floating panel's choices, a
 // port of DictationService.java without Android. The transcript always comes first; then the panel
-// offers Insert, Refine and Chief. Jev decides what starts by itself: Refine when the dictation
-// asks for a text or names a template, the chief only when it was explicitly addressed. Refine and
-// Chief can be chosen while recording; they run once the transcript is ready.
+// offers Insert, Refine and Chief, and nothing starts by itself: you choose. When there are
+// templates, Jev says which one the dictation names, so a tapped Refine uses it. Refine and Chief
+// can be chosen while recording; they run once the transcript is ready.
 //
 // Everything outside (microphone, speech model, Jev, the text model, bb, ntfy, inserting, notes)
 // comes in as injected functions; see the constructor. The panel draws panelModel(snapshot()).
@@ -43,12 +43,9 @@ const RATE = 16000,
   CHUNK_BYTES = BYTES_PER_SECOND * 120,
   FRAME_BYTES = 640; // 20 ms
 
-// Jev (Jev.java): the thresholds the decision uses.
+// Jev (Jev.java): the model, and how long a template answer is waited for.
 const JEV_MODEL = '~typesafe/jev-latest',
-  JEV_TIMEOUT_MS = 3000,
-  REFINE_AT = 0.5,
-  CHIEF_AT = 0.8,
-  HINT_AT = 0.5;
+  JEV_TIMEOUT_MS = 3000;
 
 /** What the activity log calls the chief-of-staff step's target. */
 const CHIEF_STEP = 'bb',
@@ -347,65 +344,17 @@ function addStep(e, kind, model, ms, cost, detail) {
 
 // ------------------------------------------------------------------ Jev's part (Jev.java)
 
-/**
- * Whether the chief's name comes up: case-insensitive, as a whole word, also with a possessive
- * ("Henry's", "Henrys") and as speech models mishear it ("Henri", "Henrie").
- */
-function mentions(dictation, name) {
-  if (!dictation || !name || !name.trim()) return false;
-  return namePattern(name).test(dictation);
-}
-
-function namePattern(name) {
-  const n = name.trim().toLowerCase();
-  const forms = new Set([n]);
-  if (n.endsWith('y')) {
-    const stem = n.slice(0, -1);
-    forms.add(stem + 'i');
-    forms.add(stem + 'ie');
-    forms.add(stem + 'ey');
-  } else if (n.endsWith('ie')) forms.add(n.slice(0, -2) + 'y');
-  else if (n.endsWith('i')) forms.add(n.slice(0, -1) + 'y');
-  const quote = (s) => s.replace(/[.*+?^${}()|[\]\\/-]/g, '\\$&');
-  // Spaces and hyphens in a name match either: "chief of staff", "chief-of-staff".
-  const alt = [...forms].map((f) => f.split(/[\s-]+/).map(quote).join('[\\s-]+')).join('|');
-  return new RegExp(`(?<![\\p{L}\\p{N}])(?:${alt})(?:'s|’s|s)?(?![\\p{L}\\p{N}])`, 'iu');
-}
-
-/** Jev's answers, read as Jev.parse does: anything missing counts as not asked. */
+/** Jev's answer, read as Jev.parse does: anything missing counts as no template. */
 function readAnswers(a) {
-  const p = (v) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : null);
   return {
-    refine: p(a && a.refine),
     template: (a && typeof a.template === 'string' && a.template !== 'none' && a.template) || '',
-    chief: p(a && a.chief),
     cost: a ? plain(a.cost) : null,
   };
 }
 
-/**
- * What happens by itself (Jev.decide): to the chief only when bb is ready, its name came up and
- * Jev is CHIEF_AT sure; between HINT_AT and CHIEF_AT, or when Jev failed, 🧑‍💼 is only
- * highlighted. What goes to the chief isn't refined by itself.
- */
-function jevDecision(a, autoRefine, autoChief, chiefReady, named) {
-  const ask = chiefReady && named;
-  if (!a) return { refine: false, template: '', chief: false, hint: ask };
-  const c = a.chief;
-  const chief = ask && autoChief && c !== null && c >= CHIEF_AT;
-  const hint = ask && !chief && (c === null || c >= HINT_AT);
-  const template = a.template !== '';
-  const refine = !chief && autoRefine && (template || (a.refine !== null && a.refine >= REFINE_AT));
-  return { refine, template: a.template, chief, hint };
-}
-
-/** For Activity: "refine 0.82 · chief 0.03 · Apartment application". */
+/** For Activity: the template Jev picked ("Apartment application"), "" for none (Jev.detail). */
 function jevDetail(a) {
-  const parts = [];
-  if (a.refine !== null) parts.push(format('refine %.2f', a.refine));
-  if (a.chief !== null) parts.push(format('chief %.2f', a.chief));
-  if (a.template) parts.push(a.template);
-  return parts.join(' · ');
+  return a.template;
 }
 
 /** Six random lowercase letters and digits (ChiefText.requestId). */
@@ -432,14 +381,11 @@ function newSession() {
     message: '',
     /** Jev answered or isn't asked; until then queued choices wait (a template may come). */
     decided: false,
-    hint: false,
     redo: false,
     chiefReady: false,
     /** What the last Insert put where (the insert function's result, with its text). */
     inserted: null,
     insertedKind: '',
-    /** Refine was started by Jev, not tapped: it yields to the chief. */
-    autoRefine: false,
     /** Counts Refine runs; a run whose number is no longer current is ignored when it ends. */
     refineRun: 0,
     /** Mac: Insert automatically waits for this dictation's text (true) or is done/off (false). */
@@ -454,8 +400,8 @@ class Dictation extends EventEmitter {
   /**
    * Injected (all optional unless marked; async ones may also return plain values):
    *
-   * prefs                      settings, get(key, fallback)/set/remove (required). Read: autoRefine,
-   *                            autoChief, chiefName, model, profileWords, autoInsert (Mac), bubbleOpacity;
+   * prefs                      settings, get(key, fallback)/set/remove (required). Read: model,
+   *                            profileWords, autoInsert (Mac), bubbleOpacity;
    *                            written: sessionId, recordingId, sessionModel, sessionCreated.
    * microphone                 { start(onFrame(buf), onFail(err)): Promise, stop(): Promise } (required).
    *                            Frames: 16 kHz mono PCM16LE, 20 ms each (Buffer or typed array). start
@@ -463,8 +409,9 @@ class Dictation extends EventEmitter {
    * pending                    where the recording goes: MemoryPendingAudio / FilePendingAudio(file).
    * hasKey()                   whether the OpenRouter key is saved (nothing is recorded without it).
    * transcribe(wav, words, model) → { text, cost }      one chunk, cost in USD or null (required).
-   * decide(transcript, { templates, refine, chiefName }) → { refine, template, chief, cost }
-   *                            Jev's answers (Jev.ask); throws when it fails or is slower than 3 s.
+   * decide(transcript, { templates }) → { template, cost }
+   *                            the template Jev says it names (Jev.ask); asked only when there are
+   *                            templates; throws when it fails or is slower than 3 s.
    * templates()                → the saved template names.
    * refine(text, { template, recordingId }) → { text, cost, model, anthropic, fallback, keyProblem }
    *                            the text model (TextModel.process with the template's prompt, the
@@ -603,9 +550,7 @@ class Dictation extends EventEmitter {
         request: s.request,
         message: s.message,
         decided: s.decided,
-        hint: s.hint,
         chiefReady: s.chiefReady,
-        autoRefine: s.autoRefine,
         insertedKind: s.insertedKind,
       },
     };
@@ -712,7 +657,6 @@ class Dictation extends EventEmitter {
         break;
       default:
         s.refine = QUEUED;
-        s.autoRefine = false;
         this.startQueued();
     }
     this.changed();
@@ -745,7 +689,6 @@ class Dictation extends EventEmitter {
           return;
         }
         s.chief = QUEUED;
-        this.dropAutoRefine(s);
         this.startQueued();
     }
     this.changed();
@@ -758,21 +701,12 @@ class Dictation extends EventEmitter {
     this.touch();
   }
 
-  /** The chief gets it as said: a Refine that Jev started (not one you tapped) is dropped. */
-  dropAutoRefine(s) {
-    if (!s.autoRefine) return;
-    if (s.refine === QUEUED || s.refine === RUNNING) {
-      s.refine = IDLE;
-      s.refineRun++;
-    }
-    s.autoRefine = false;
-  }
-
-  /** Runs what's queued, once the transcript is there and Jev has answered (or isn't asked). */
+  /** Runs what's queued, once the transcript is there and Jev has named the template (or isn't asked). */
   startQueued() {
     const s = this.session;
-    if (this.state !== COPIED || !s.decided || !s.noteId) return;
-    if (s.refine === QUEUED) {
+    if (this.state !== COPIED || !s.noteId) return;
+    // Only Refine waits for Jev (the template it may name); Chief and Insert don't.
+    if (s.refine === QUEUED && s.decided) {
       s.refine = RUNNING;
       const template = s.template;
       const run = ++s.refineRun;
@@ -1124,27 +1058,26 @@ class Dictation extends EventEmitter {
 
   // ---------------------------------------------------------------- Jev
 
-  /** Jev, right after the transcript: what starts by itself, the template, the chief hint. */
+  /**
+   * Jev, right after the transcript, only when there are templates: which one the dictation names,
+   * for a Refine you tap (or tapped while recording, which waits for it). Nothing starts by itself.
+   */
   decide() {
     const s = this.session;
-    const autoRefine = this.prefs.get('autoRefine', true) !== false;
-    const autoChief = this.prefs.get('autoChief', true) !== false;
-    const chiefReady = !!this.chiefReady();
     let templates = [];
     try {
       templates = this.templateNames() || [];
     } catch {
       templates = [];
     }
-    const said = s.transcript;
-    const name = this.chiefName();
-    // The chief is only asked about when its name comes up.
-    const named = chiefReady && mentions(said, name);
-    if (s.redo || !this.jev || (!autoRefine && !named && templates.length === 0)) {
+    if (s.redo || !this.jev || templates.length === 0) {
       s.decided = true;
       this.startQueued();
       return;
     }
+    // A Chief chosen ahead goes now; only Refine waits for the template.
+    this.startQueued();
+    const said = s.transcript;
     const id = s.noteId;
     this.run(async () => {
       let answers = null,
@@ -1153,7 +1086,7 @@ class Dictation extends EventEmitter {
       try {
         // Jev's own call times out after 3 s; this only makes sure a hung one can't hold the panel.
         const raw = await withTimeout(
-          Promise.resolve().then(() => this.jev(said, { templates, refine: autoRefine, chiefName: named ? name : '' })),
+          Promise.resolve().then(() => this.jev(said, { templates })),
           JEV_TIMEOUT_MS + 1000,
           tr('Jev took too long to answer.'),
         );
@@ -1175,20 +1108,14 @@ class Dictation extends EventEmitter {
       } catch {
         /* The note keeps the transcript; Activity just lacks this step. */
       }
-      const d = jevDecision(answers, autoRefine, autoChief, chiefReady, named);
       if (this.session !== s) return;
       s.decided = true;
-      s.template = d.template;
-      s.hint = d.hint;
-      if (d.chief && s.chief === IDLE) s.chief = QUEUED;
-      // What goes to the chief goes as said: Jev's Refine only when it doesn't.
-      if (d.refine && s.refine === IDLE && s.chief === IDLE) {
-        s.refine = QUEUED;
-        s.autoRefine = true;
-      }
+      s.template = answers ? answers.template : '';
       this.startQueued();
       this.changed();
     });
+    // The template only matters to a queued Refine: Insert automatically doesn't wait for Jev.
+    this.autoInsert(s);
   }
 
   // ---------------------------------------------------------------- Refine
@@ -1486,12 +1413,12 @@ class Dictation extends EventEmitter {
   }
 
   /**
-   * Mac: "Insert automatically when the transcript is ready" (autoInsert). Once Jev has answered:
-   * the refined text when Refine was chosen or started by Jev (the transcript if it fails), else the
-   * transcript; nothing when it only goes to the chief.
+   * Mac: "Insert automatically when the transcript is ready" (autoInsert): the refined text when
+   * Refine was chosen (the transcript if it fails), else the transcript; nothing when it only goes
+   * to the chief. A queued Refine waits for Jev's template, so this waits too.
    */
   autoInsert(s) {
-    if (!s.autoInsert || this.session !== s || !s.decided || this.state !== COPIED) return;
+    if (!s.autoInsert || this.session !== s || this.state !== COPIED) return;
     if (s.refine === QUEUED || s.refine === RUNNING) return;
     if (s.refine === DONE) {
       s.autoInsert = false;
@@ -1574,10 +1501,6 @@ class Dictation extends EventEmitter {
     }
   }
 
-  chiefName() {
-    return String(this.prefs.get('chiefName', '') || '').trim();
-  }
-
   /** Stops everything (the app quits); a recording in progress stays as a saved recording. */
   async destroy() {
     this.destroyed = true;
@@ -1620,9 +1543,6 @@ module.exports = {
   wav,
   appendText,
   elapsed,
-  mentions,
-  namePattern,
-  jevDecision,
   jevDetail,
   readAnswers,
   sum,
@@ -1648,9 +1568,6 @@ module.exports = {
   FRAME_BYTES,
   JEV_MODEL,
   JEV_TIMEOUT_MS,
-  REFINE_AT,
-  CHIEF_AT,
-  HINT_AT,
   CHIEF_STEP,
   CHIEF_TARGET,
   DEFAULT_MODEL,

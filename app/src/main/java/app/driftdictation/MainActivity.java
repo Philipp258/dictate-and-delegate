@@ -51,6 +51,9 @@ public final class MainActivity extends Activity {
   private boolean showOriginal;
   /** Settings → bb: the mode being looked at, a result to show once, and "change the chief". */
   private String bbModeShown = "";
+
+  /** The assistant Settings → bb's pages (connection, chief, notifications) are about (Assistants). */
+  private int bbShown;
   /**
    * The sign-in outcome or tile message for the next page opened from an intent. Handed over here
    * rather than as intent extras: MainActivity is exported, so any app could send those.
@@ -133,6 +136,8 @@ public final class MainActivity extends Activity {
       noteId = saved.getString("noteId", "");
       templateId = saved.getString("templateId", "");
       usageMonth = saved.getInt("usageMonth");
+      bbShown = Assistants.clamp(saved.getInt("bbShown", 0));
+      bbModeShown = saved.getString("bbModeShown", "");
       show(restored);
     } else show(prefs.getBoolean("onboarded", false) ? "home" : "welcome");
     if (saved == null) openFromIntent(getIntent());
@@ -144,6 +149,8 @@ public final class MainActivity extends Activity {
     super.onSaveInstanceState(out);
     if (page.equals("note")) saveEdits();
     out.putString("page", page);
+    out.putInt("bbShown", bbShown);
+    out.putString("bbModeShown", bbModeShown);
     out.putStringArrayList("stack", new ArrayList<>(stack));
     out.putString("noteId", noteId);
     out.putString("templateId", templateId);
@@ -161,10 +168,11 @@ public final class MainActivity extends Activity {
   private void openFromIntent(Intent intent) {
     String target = intent == null ? null : intent.getStringExtra("open");
     if ("bb".equals(target)) {
-      // Back from signing in to bb Connect in the browser (BbSignInActivity).
+      // Back from signing in to bb Connect in the browser (BbSignInActivity), for an assistant.
       bbNoticeOk = handoffOk;
       bbNotice = java.util.Objects.toString(takeHandoff(), "");
       bbModeShown = BbBridge.CONNECT;
+      bbShown = Assistants.clamp(intent.getIntExtra("assistant", 0));
       intent.removeExtra("open");
       if (prefs.getBoolean("onboarded", false)) {
         stack.clear();
@@ -230,7 +238,7 @@ public final class MainActivity extends Activity {
           // The last sample stays as notes from before the activity log were.
           BigDecimal check = new BigDecimal("0.00002");
           e.step("speech", samples[i][0], 1700, e.cost().subtract(check), null);
-          e.step("jev", Jev.MODEL, 400, check, null).put("answer", "refine 0.06");
+          e.step("jev", Jev.MODEL, 400, check, null);
           e.json.put("jevCost", check.toPlainString());
         }
         h.save(e);
@@ -251,7 +259,7 @@ public final class MainActivity extends Activity {
           .put("textCost", "0.000323")
           .put("jevCost", "0.00002");
       email.step("speech", email.model(), 1900, new BigDecimal("0.000727"), null);
-      email.step("jev", Jev.MODEL, 400, new BigDecimal("0.00002"), null).put("answer", "refine 0.97");
+      email.step("jev", Jev.MODEL, 400, new BigDecimal("0.00002"), null).put("answer", "Landlord email");
       email.step("refine", TextModel.MODEL, 2100, new BigDecimal("0.000323"), null);
       h.save(email);
       // Short silent audio, so "Redo with a smarter model" is available as it is on real notes.
@@ -289,6 +297,7 @@ public final class MainActivity extends Activity {
     status = null;
     noteStatus = null;
     skillsLine = hfStatus = hfLiveOff = hfPending = hfCost = hfReasons = hfHearing = null;
+    several = null;
     hfMeter = null;
     hfSend = null;
     recovery = recentBox = monthBox = wordsBox = modelList = refineList = null;
@@ -807,7 +816,7 @@ public final class MainActivity extends Activity {
     ui.add(
         content,
         ui.text(
-            tr("You can tap Refine or Chief while you're still talking. Ask in the same breath (“make this an email”, “use my apartment application”) and Refine starts by itself. Tasks go to your chief by themselves only when you address it: “chief of staff, …”."),
+            tr("You can tap Refine or Chief while you're still talking. Nothing goes anywhere by itself: you choose. Name a template in the same breath (“use my apartment application”) and Refine uses it when you tap it."),
             14,
             Ui.BODY),
         14);
@@ -815,7 +824,7 @@ public final class MainActivity extends Activity {
     ui.add(
         content,
         ui.text(
-            tr("Each note shows what it cost, as OpenRouter reports it. Jev's decision costs about $0.00002, a minute of speech with the default model about $0.002."),
+            tr("Each note shows what it cost, as OpenRouter reports it. A minute of speech with the default model costs about $0.002."),
             13,
             Ui.MUTED),
         12);
@@ -909,6 +918,19 @@ public final class MainActivity extends Activity {
                 show(page);
               }));
     if (key.equals(TalkAccessibility.OFF)) return;
+    // With a second assistant, the other volume key starts a dictation for it.
+    if (!new BbBridge(this, 1).chiefId().isEmpty()) {
+      Switch other = ui.toggle(prefs.getBoolean(Assistants.OTHER_KEY, true));
+      other.setOnCheckedChangeListener((b, c) -> prefs.edit().putBoolean(Assistants.OTHER_KEY, c).apply());
+      LinearLayout row =
+          ui.row(
+              key.equals(TalkAccessibility.DOWN) ? tr("Hold volume up for %1$s", Assistants.name(this, 1)) : tr("Hold volume down for %1$s", Assistants.name(this, 1)),
+              tr("The key you chose above is for %1$s. Its buttons come first on the panel; you can still pick the other.", Assistants.name(this, 0)),
+              other,
+              null);
+      row.setPadding(0, row.getPaddingTop(), 0, row.getPaddingBottom());
+      ui.add(card, row, 10);
+    }
     ui.add(card, ui.text(tr("Hold for"), 13, Ui.MUTED), 12);
     int hold = TalkAccessibility.holdMs(prefs);
     Ui.Flow holds = ui.add(card, ui.flow(), 6);
@@ -1089,29 +1111,116 @@ public final class MainActivity extends Activity {
 
   // ---------------------------------------------------------------- bb
 
-  /** Settings → bb: connection, chief of staff and notifications, each a page. */
+  /**
+   * Settings → bb: for each assistant (a bb with its own address, sign-in, chief and ntfy topic),
+   * connection, chief of staff and notifications, each a page. The second is offered once the
+   * first is connected.
+   */
   private void bbRows() {
-    BbBridge bb = new BbBridge(this);
-    ui.add(content, ui.label(tr("bb")), 22);
-    LinearLayout card = ui.add(content, ui.card(Ui.BG, 0), 8);
-    card.setPadding(0, 0, 0, 0);
-    card.addView(ui.row(tr("Connection"), connectionLabel(bb), null, v -> open("bb")));
-    card.addView(ui.divider());
-    card.addView(
-        ui.row(
-            tr("Chief of staff"),
-            bb.chiefId().isEmpty()
-                ? tr("Not set")
-                : (bb.chiefTitle().isEmpty() ? tr("Chief of staff") : bb.chiefTitle()) + " · " + bb.chiefId(),
-            null,
-            v -> open("chief")));
-    card.addView(ui.divider());
-    card.addView(
-        ui.row(
-            tr("Notifications"),
-            "ntfy · " + bb.ntfyServer().replaceFirst("^https?://", ""),
-            null,
-            v -> open("ntfy")));
+    for (int a = 0; a < Assistants.COUNT; a++) {
+      int assistant = a;
+      BbBridge bb = new BbBridge(this, a);
+      if (a > 0 && !bb.connected() && bb.chiefId().isEmpty()) {
+        if (!new BbBridge(this, 0).connected()) return;
+        ui.add(content, ui.label(tr("Second assistant")), 22);
+        LinearLayout card = ui.add(content, ui.card(Ui.BG, 0), 8);
+        card.setPadding(0, 0, 0, 0);
+        card.addView(
+            ui.row(
+                tr("Add a second assistant"),
+                tr("Another bb, e.g. for work: its own address, sign-in and chief. Hold the other volume key or tap its buttons to talk to it."),
+                null,
+                v -> openAssistantPage("bb", assistant)));
+        return;
+      }
+      TextView label = ui.add(content, ui.label(a == 0 && !Assistants.several(this) && !new BbBridge(this, 1).connected() ? tr("bb") : Assistants.name(this, a)), 22);
+      label.setTextColor(Assistants.color(a));
+      LinearLayout card = ui.add(content, ui.card(Ui.BG, 0), 8);
+      card.setPadding(0, 0, 0, 0);
+      card.addView(ui.row(tr("Connection"), connectionLabel(bb), null, v -> openAssistantPage("bb", assistant)));
+      card.addView(ui.divider());
+      card.addView(
+          ui.row(
+              tr("Chief of staff"),
+              bb.chiefId().isEmpty()
+                  ? tr("Not set")
+                  : (bb.chiefTitle().isEmpty() ? tr("Chief of staff") : bb.chiefTitle()) + " · " + bb.chiefId(),
+              null,
+              v -> openAssistantPage("chief", assistant)));
+      card.addView(ui.divider());
+      card.addView(
+          ui.row(
+              tr("Notifications"),
+              "ntfy · " + bb.ntfyServer().replaceFirst("^https?://", ""),
+              null,
+              v -> openAssistantPage("ntfy", assistant)));
+    }
+  }
+
+  /** Opens one of an assistant's bb pages. */
+  private void openAssistantPage(String next, int assistant) {
+    if (assistant != bbShown) {
+      bbModeShown = "";
+      changingChief = false;
+    }
+    bbShown = assistant;
+    open(next);
+  }
+
+  /**
+   * On an assistant's bb pages, when there are two (or the second is being set up): whose page it
+   * is, in its colour, and its name to change.
+   */
+  private void assistantHeader() {
+    if (bbShown == 0 && !new BbBridge(this, 1).connected() && new BbBridge(this, 1).chiefId().isEmpty()) return;
+    LinearLayout card = ui.add(content, ui.card(Ui.BG, Assistants.color(bbShown)), 14);
+    TextView which = ui.strong(bbShown == 0 ? tr("First assistant") : tr("Second assistant"), 15);
+    which.setTextColor(Assistants.color(bbShown));
+    card.addView(which);
+    ui.add(
+        card,
+        ui.text(
+            bbShown == 0
+                ? tr("Held volume key: the one chosen in Settings → Start.")
+                : tr("Held volume key: the other one (Settings → Start)."),
+            13,
+            Ui.MUTED),
+        2);
+    ui.add(card, ui.strong(tr("Name"), 14), 10);
+    EditText name = ui.input(Assistants.name(this, bbShown), Assistants.defaultName(bbShown), false);
+    name.setFilters(new InputFilter[] {new InputFilter.LengthFilter(24)});
+    ui.add(card, name, 4);
+    int assistant = bbShown;
+    autosave(name, t -> Assistants.setName(this, assistant, t));
+    ui.add(card, ui.text(tr("Shown on the panel's buttons, in calls and on notes, so you always see where something goes."), 12, Ui.MUTED), 4);
+    BbBridge bb = new BbBridge(this, assistant);
+    if (assistant > 0 && (bb.connected() || !bb.chiefId().isEmpty())) {
+      Button remove =
+          ui.button(
+              tr("Remove this assistant"),
+              Ui.Kind.QUIET,
+              v ->
+                  new AlertDialog.Builder(this)
+                      .setTitle(tr("Remove %1$s?", Assistants.name(this, assistant)))
+                      .setMessage(tr("Signs out of its bb and forgets its chief and settings here. Its notes stay; ones not sent yet aren't tried again. Nothing changes in bb."))
+                      .setPositiveButton(
+                          tr("Remove"),
+                          (d, w) ->
+                              io.execute(
+                                  () -> {
+                                    Assistants.remove(this, assistant);
+                                    main.post(
+                                        () -> {
+                                          bbShown = 0;
+                                          bbModeShown = "";
+                                          goBack();
+                                        });
+                                  }))
+                      .setNegativeButton(tr("Keep"), null)
+                      .show());
+      remove.setTextColor(Ui.WARN);
+      ui.add(card, remove, 8);
+    }
   }
 
   private String connectionLabel(BbBridge bb) {
@@ -1180,7 +1289,8 @@ public final class MainActivity extends Activity {
 
   /** Connect bb: bb Connect with a sign-in, or a custom MCP address. Setup page and Settings. */
   private void bbPage(boolean onboarding) {
-    BbBridge bb = new BbBridge(this);
+    if (onboarding) bbShown = 0;
+    BbBridge bb = new BbBridge(this, bbShown);
     if (bbModeShown.isEmpty()) bbModeShown = bb.mode();
     if (onboarding) {
       steps(false);
@@ -1193,6 +1303,7 @@ public final class MainActivity extends Activity {
           tr("Settings"),
           tr("bb"),
           tr("Dictate & Delegate reaches bb through bb's MCP server (plugin bb--mcp), which has to be on in bb."));
+    if (!onboarding) assistantHeader();
     boolean connected = bb.connected() && bb.mode().equals(bbModeShown);
     Ui.Flow modes = ui.add(content, ui.flow(), 16);
     modes.addView(
@@ -1248,9 +1359,10 @@ public final class MainActivity extends Activity {
           main.postDelayed(skillsAfterName, 1500);
         });
     skillsLine = ui.add(content, ui.text("", 14, Ui.MUTED), 12);
-    ui.add(content, ui.button(tr("Check the skills in bb"), Ui.Kind.QUIET, v -> ChiefSkills.sync(this, true)), 4);
+    int assistant = bbShown;
+    ui.add(content, ui.button(tr("Check the skills in bb"), Ui.Kind.QUIET, v -> ChiefSkills.sync(this, assistant, true)), 4);
     ui.add(content, copyNetworkLog(), 4);
-    ChiefSkills.sync(this, false);
+    ChiefSkills.sync(this, assistant, false);
     renderSkills();
   }
 
@@ -1280,7 +1392,7 @@ public final class MainActivity extends Activity {
 
   private void renderSkills() {
     if (skillsLine == null) return;
-    switch (ChiefSkills.state) {
+    switch (ChiefSkills.state(bbShown)) {
       case CHECKING -> {
         skillsLine.setTextColor(Ui.MUTED);
         skillsLine.setText(tr("Checking the chief's skills in bb…"));
@@ -1295,7 +1407,7 @@ public final class MainActivity extends Activity {
       }
       case FAILED -> {
         skillsLine.setTextColor(Ui.WARN);
-        skillsLine.setText(tr("Couldn't install the chief's skills: %1$s", ChiefSkills.problem));
+        skillsLine.setText(tr("Couldn't install the chief's skills: %1$s", ChiefSkills.problem(bbShown)));
       }
       default -> skillsLine.setText("");
     }
@@ -1371,6 +1483,13 @@ public final class MainActivity extends Activity {
                     toast(tr("Enter your bb Connect handle"));
                     return;
                   }
+                  int same = Assistants.sameBb(this, bb.assistant, h, null);
+                  if (same >= 0) {
+                    result.setVisibility(View.VISIBLE);
+                    result.setTextColor(Ui.WARN);
+                    result.setText(tr("%1$s already uses this bb. Each assistant needs its own bb, or their replies would mix.", Assistants.name(this, same)));
+                    return;
+                  }
                   signIn[0].setEnabled(false);
                   result.setVisibility(View.VISIBLE);
                   result.setTextColor(Ui.MUTED);
@@ -1379,7 +1498,7 @@ public final class MainActivity extends Activity {
                       () -> {
                         String url = null, failed = null;
                         try {
-                          url = BbOAuth.begin(this, h);
+                          url = BbOAuth.begin(this, bb.assistant, h);
                         } catch (Exception ex) {
                           failed =
                               ex.getClass() == IOException.class && ex.getMessage() != null
@@ -1455,6 +1574,13 @@ public final class MainActivity extends Activity {
                     toast(tr("The web address starts with https://"));
                     return;
                   }
+                  int same = Assistants.sameBb(this, bb.assistant, null, address);
+                  if (same >= 0) {
+                    result.setVisibility(View.VISIBLE);
+                    result.setTextColor(Ui.WARN);
+                    result.setText(tr("%1$s already uses this bb. Each assistant needs its own bb, or their replies would mix.", Assistants.name(this, same)));
+                    return;
+                  }
                   bbAction(
                       save[0],
                       result,
@@ -1463,7 +1589,7 @@ public final class MainActivity extends Activity {
                         bb.useCustom(address, token.getText().toString(), base);
                         bb.test();
                         // Connected, or new links: the skills get checked and, if needed, updated.
-                        ChiefSkills.sync(this, true);
+                        ChiefSkills.sync(this, bb.assistant, true);
                         return tr("✓  bb answers.");
                       });
                 }),
@@ -1484,12 +1610,14 @@ public final class MainActivity extends Activity {
 
   /** The chief of staff: create one in bb, use an existing thread, or open it. */
   private void chiefPage(boolean onboarding) {
-    BbBridge bb = new BbBridge(this);
+    if (onboarding) bbShown = 0;
+    BbBridge bb = new BbBridge(this, bbShown);
     if (onboarding) steps(false);
     heading(
         onboarding ? null : tr("Settings"),
         tr("Chief of staff"),
         tr("One bb thread gets every task you hand over by voice. It does small things itself, starts child threads for bigger work, and notifies you through ntfy when it's done or needs you."));
+    if (!onboarding) assistantHeader();
     if (!bb.connected()) {
       ui.add(content, ui.text(tr("Connect bb first."), 15, Ui.WARN), 16);
       ui.add(
@@ -1522,7 +1650,6 @@ public final class MainActivity extends Activity {
                 }),
             10);
     }
-    if (!id.isEmpty()) chiefNameField();
     TextView result = bbResultLine();
     if (id.isEmpty() || changingChief) {
       Button[] create = {null};
@@ -1583,30 +1710,24 @@ public final class MainActivity extends Activity {
     }
   }
 
-  /** The name that sends a dictation to the chief when you say it. */
-  private void chiefNameField() {
-    ui.add(content, ui.strong(tr("Your chief's name"), 15), 22);
-    ui.add(
-        content,
-        ui.text(
-            tr("Say it to send a dictation to your chief: \"Ada, …\", \"this is for Ada\". Just mentioning the name in a message doesn't send it. Without a name, tap 🧑‍💼."),
-            13,
-            Ui.MUTED),
-        4);
-    EditText name = ui.input(profile.chiefName(), tr("For example: Ada"), false);
-    name.setFilters(new InputFilter[] {new InputFilter.LengthFilter(40)});
-    ui.add(content, name, 8);
-    autosave(name, t -> profile.setChiefName(t));
-  }
-
   /** ntfy: where the chief's notifications go, with a link to subscribe and a test. */
   private void ntfyPage(boolean onboarding) {
-    BbBridge bb = new BbBridge(this);
+    if (onboarding) bbShown = 0;
+    BbBridge bb = new BbBridge(this, bbShown);
     if (onboarding) steps(false);
     heading(
         onboarding ? null : tr("Settings"),
         tr("Notifications"),
         tr("Your chief of staff notifies you through ntfy; tapping a notification opens its thread in bb. Dictate & Delegate itself sends none. Install the ntfy app and subscribe to your topic."));
+    if (!onboarding) assistantHeader();
+    if (!onboarding && bbShown > 0)
+      ui.add(
+          content,
+          ui.text(
+              tr("Each assistant has its own topic, so replies and text to paste come back to the right place. In the ntfy app, give this subscription the assistant's name."),
+              13,
+              Ui.MUTED),
+          10);
     String topic;
     try {
       topic = bb.ntfyTopic();
@@ -1671,7 +1792,7 @@ public final class MainActivity extends Activity {
                       () -> {
                         bb.setNtfyServer(value);
                         // The dictate-and-delegate skill holds the server: it's updated in bb.
-                        ChiefSkills.sync(this, false);
+                        ChiefSkills.sync(this, bb.assistant, false);
                         return tr("✓  Saved.");
                       });
                 }),
@@ -1734,9 +1855,9 @@ public final class MainActivity extends Activity {
     ui.add(
         recovery,
         ui.button(
-            reportLabel(),
+            reportLabel(Outbox.NONE),
             Ui.Kind.QUIET,
-            v -> sendReport("Recording (writing it down)", "it didn't finish: " + prefs.getString("detail", ""))),
+            v -> sendReport("Recording (writing it down)", "it didn't finish: " + prefs.getString("detail", ""), Outbox.NONE)),
         0);
     ui.add(
         recovery,
@@ -1751,11 +1872,11 @@ public final class MainActivity extends Activity {
                     .setNegativeButton(tr("Keep"), null)
                     .show()),
         0);
-    if (BbBridge.ready(this))
+    if (!Assistants.ready(this).isEmpty())
       ui.add(
           content,
           ui.button(
-              HandsFreeService.instance != null ? tr("🎧 Hands-free is on") : tr("🎧 Hands-free with your chief"),
+              HandsFreeService.instance != null ? tr("🎧 Hands-free is on") : Assistants.several(this) ? tr("🎧 Hands-free") : tr("🎧 Hands-free with your chief"),
               Ui.Kind.OUTLINE,
               v -> open("handsfree")),
           12);
@@ -2149,6 +2270,10 @@ public final class MainActivity extends Activity {
     TextView b = (TextView) meta.getChildAt(1);
     b.setText(badge);
     b.setVisibility(badge == null ? View.GONE : View.VISIBLE);
+    // With two assistants, a note sent to one carries its name in its colour.
+    int to = chiefNote(n.shown()) && several() ? Assistants.of(n.shown().json) : -1;
+    b.setTextColor(to < 0 ? Ui.TEAL : Assistants.color(to));
+    b.setBackground(ui.shape(to < 0 ? Ui.TEAL_SOFT : (Assistants.color(to) & 0x00ffffff) | 0x1f000000, 0, 6));
     row.setOnClickListener(v -> openNote(n.id()));
     return box;
   }
@@ -2161,14 +2286,24 @@ public final class MainActivity extends Activity {
         case "no speech" -> tr("no speech");
         default -> tr("unfinished");
       };
-    if (chiefNote(n.shown()))
+    if (chiefNote(n.shown())) {
+      String to = several() ? Assistants.name(this, Assistants.of(n.shown().json)) : null;
       return switch (Outbox.state(n.shown().json)) {
-        case SENT -> tr("chief of staff");
-        case RETRYING -> tr("sending again");
-        default -> tr("not sent");
+        case SENT -> to == null ? tr("chief of staff") : to;
+        case RETRYING -> to == null ? tr("sending again") : to + " · " + tr("sending again");
+        default -> to == null ? tr("not sent") : to + " · " + tr("not sent");
       };
+    }
     if (n.versions().size() > 1) return tr("redone");
     return "original".equals(n.shown().json.optString("version")) ? tr("as said") : null;
+  }
+
+  /** Whether two assistants are set up (or a note went to the second): asked once per page shown. */
+  private Boolean several;
+
+  private boolean several() {
+    if (several == null) several = Assistants.several(this) || !new BbBridge(this, 1).chiefId().isEmpty();
+    return several;
   }
 
   /** The note was sent to the chief of staff, or sending it failed. */
@@ -2408,12 +2543,14 @@ public final class MainActivity extends Activity {
    * sending failed, why, and Send again.
    */
   private void chiefBanner(HistoryEntry e, boolean sent) {
+    int assistant = Assistants.of(e.json);
+    boolean several = Assistants.several(this) || assistant > 0;
     if (sent) {
       String link = e.json.optString("chiefLink");
       ui.add(
           content,
           ui.button(
-              tr("Sent to chief of staff ↗"),
+              several ? tr("Sent to %1$s ↗", Assistants.name(this, assistant)) : tr("Sent to chief of staff ↗"),
               Ui.Kind.PRIMARY,
               v -> {
                 if (link.isEmpty()) toast(tr("Set the bb web address for links in Settings → bb."));
@@ -2444,7 +2581,9 @@ public final class MainActivity extends Activity {
         ui.text(
             retrying
                 ? tr("Not sent yet: %1$s", e.json.optString("chiefFailed")) + " " + Outbox.waitingLine(e.json, System.currentTimeMillis())
-                : tr("Not sent to your chief of staff: %1$s Below is what you said.", e.json.optString("chiefFailed")),
+                : several
+                    ? tr("Not sent to %1$s: %2$s Below is what you said.", Assistants.name(this, assistant), e.json.optString("chiefFailed"))
+                    : tr("Not sent to your chief of staff: %1$s Below is what you said.", e.json.optString("chiefFailed")),
             14,
             Ui.WARN),
         12);
@@ -2452,20 +2591,20 @@ public final class MainActivity extends Activity {
     ui.add(
         content,
         ui.button(
-            reportLabel(),
+            reportLabel(assistant),
             Ui.Kind.QUIET,
             v ->
                 sendReport(
                     "Note to you, request " + e.json.optString("chiefRequest", "(none)"),
                     "not sent yet, " + e.json.optInt("chiefTries", 1) + " tries since " + time(e.json.optLong("chiefFailedAt"))
-                        + ": " + e.json.optString("chiefFailed"))),
+                        + ": " + e.json.optString("chiefFailed"),
+                    assistant)),
         4);
   }
 
-  /** "Send report to Alex": the chief's name, if it has one. */
-  private String reportLabel() {
-    String name = new Profile(prefs).chiefName();
-    return name.isEmpty() ? tr("Send report to your chief") : tr("Send report to %1$s", name);
+  /** "Send report to Work": the assistant's name with two, else the chief (Outbox.NONE: the first that takes messages). */
+  private String reportLabel(int assistant) {
+    return assistant >= 0 && Assistants.several(this) ? tr("Send report to %1$s", Assistants.name(this, assistant)) : tr("Send report to your chief");
   }
 
   private static String time(long ms) {
@@ -2479,8 +2618,8 @@ public final class MainActivity extends Activity {
    * Send report: what failed, the network log around it and the app's version go to the chief as
    * an "[app failure report]", now or as soon as bb takes messages again.
    */
-  private void sendReport(String what, String why) {
-    Outbox.askReport(this, what, why);
+  private void sendReport(String what, String why, int assistant) {
+    Outbox.askReport(this, what, why, assistant);
     toast(tr("Sending the report…"));
     io.execute(
         () -> {
@@ -2702,8 +2841,12 @@ public final class MainActivity extends Activity {
     };
   }
 
-  /** What happened to this note: refined, sent to the chief, or the transcript as said. */
-  private static String routeLabel(HistoryEntry e) {
+  /** What happened to this note: refined, sent to the chief (which assistant's, with two), or the transcript as said. */
+  private String routeLabel(HistoryEntry e) {
+    if (chiefNote(e) && several())
+      return DictationService.sentToChief(e)
+          ? tr("Sent to %1$s", Assistants.name(this, Assistants.of(e.json)))
+          : tr("Not sent to %1$s", Assistants.name(this, Assistants.of(e.json)));
     if (chiefNote(e))
       return DictationService.sentToChief(e) ? tr("Sent to chief of staff") : tr("Not sent to chief of staff");
     if (e.json.has("processed")) return tr("Refined");
@@ -3272,10 +3415,12 @@ public final class MainActivity extends Activity {
    */
   private void handsFreePage() {
     heading(tr("Home"), tr("Hands-free"), null);
-    if (!BbBridge.ready(this)) {
+    List<Integer> assistants = Assistants.ready(this);
+    if (assistants.isEmpty()) {
       ui.add(content, ui.text(tr("Set up your chief of staff in Settings → bb first."), 15, Ui.WARN), 16);
       return;
     }
+    boolean several = assistants.size() > 1;
     if (HandsFreeService.instance == null) {
       ui.add(
           content,
@@ -3284,25 +3429,35 @@ public final class MainActivity extends Activity {
               15,
               Ui.BODY),
           4);
-      Button start =
-          ui.button(
-              tr("Start hands-free"),
-              Ui.Kind.PRIMARY,
-              v -> {
-                if (!microphone()) {
-                  askMicrophone();
-                  return;
-                }
-                if (android.os.Build.VERSION.SDK_INT >= 33
-                    && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
-                        != android.content.pm.PackageManager.PERMISSION_GRANTED)
-                  requestPermissions(new String[] {android.Manifest.permission.POST_NOTIFICATIONS}, 7);
-                HandsFreeService.send(this, HandsFreeService.START);
-              });
-      start.setMinHeight(ui.dp(62));
-      ui.add(content, start, 20);
+      // With two assistants, one button each: the call is with that one's chief, and only its replies are read out.
+      for (int a : assistants) {
+        Button start =
+            ui.button(
+                several ? tr("Call %1$s", Assistants.name(this, a)) : tr("Start hands-free"),
+                Ui.Kind.PRIMARY,
+                v -> {
+                  if (!microphone()) {
+                    askMicrophone();
+                    return;
+                  }
+                  if (android.os.Build.VERSION.SDK_INT >= 33
+                      && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                          != android.content.pm.PackageManager.PERMISSION_GRANTED)
+                    requestPermissions(new String[] {android.Manifest.permission.POST_NOTIFICATIONS}, 7);
+                  HandsFreeService.start(this, a);
+                });
+        start.setMinHeight(ui.dp(62));
+        if (several) start.setBackground(ui.shape(Assistants.color(a), 0, 16));
+        ui.add(content, start, several && a != assistants.get(0) ? 10 : 20);
+      }
       hfStatus = ui.add(content, ui.text("", 14, Ui.MUTED), 10);
     } else {
+      int with = HandsFreeService.callWith();
+      if (several && with >= 0) {
+        TextView who = ui.add(content, ui.strong(tr("Call with %1$s", Assistants.name(this, with)), 16), 12);
+        who.setTextColor(Assistants.color(with));
+        who.setGravity(Gravity.CENTER);
+      }
       // One big state, in its own colour, so it reads at a glance.
       hfStatus = ui.add(content, ui.text("", 26, Ui.INK), 18);
       hfStatus.setTypeface(Ui.BOLD);
@@ -3827,46 +3982,18 @@ public final class MainActivity extends Activity {
         4);
   }
 
-  /** Settings → Models & providers → Decisions: Jev, and what it may start by itself. */
+  /** Settings → Models & providers → Decisions: what Jev decides (nothing starts by itself). */
   private void decisionsPage() {
     heading(
         tr("Back"),
         tr("Decisions"),
-        tr("After each transcript, Jev, a fast decision model, decides what happens next: whether you asked for a text, which template you named, and whether you were talking to your chief of staff. It takes about a third of a second and runs on your OpenRouter key."));
+        tr("Nothing happens by itself after a transcript: you tap ✨ to refine and choose who gets it. Jev, a fast decision model, only picks the template you named (\"use my apartment application\") for a Refine you tap, and in hands-free calls checks whether you're done. It takes about a third of a second and runs on your OpenRouter key."));
     LinearLayout card = ui.add(content, ui.card(Ui.BG, Ui.LINE), 18);
     card.setPadding(0, 0, 0, 0);
-    Switch refine = ui.toggle(profile.autoRefine());
-    refine.setOnCheckedChangeListener((b, c) -> prefs.edit().putBoolean(Profile.AUTO_REFINE, c).apply());
-    card.addView(
-        ui.row(
-            tr("Refine automatically"),
-            tr("When you ask for a text, name a template, or the dictation needs tidying"),
-            refine,
-            null));
-    card.addView(ui.divider());
-    Switch chief = ui.toggle(profile.autoChief());
-    chief.setOnCheckedChangeListener((b, c) -> prefs.edit().putBoolean(Profile.AUTO_CHIEF, c).apply());
-    card.addView(
-        ui.row(
-            tr("Send to chief when addressed"),
-            tr("When you speak to your chief by name (Settings → Chief of staff); otherwise tap 🧑‍💼"),
-            chief,
-            null));
-    card.addView(ui.divider());
     card.addView(ui.row(tr("Model"), "Jev · " + Jev.MODEL, null, null));
-    ui.add(
-        content,
-        ui.text(
-            tr("The ✨ and 🧑‍💼 buttons always work, whatever is set here."),
-            13,
-            Ui.MUTED),
-        12);
   }
 
   private String decisionsLabel() {
-    if (profile.autoRefine() && profile.autoChief()) return tr("Jev · refines and sends to your chief by itself");
-    if (profile.autoRefine()) return tr("Jev · refines by itself");
-    if (profile.autoChief()) return tr("Jev · sends to your chief by itself");
     return tr("Jev · nothing starts by itself");
   }
 
@@ -4033,14 +4160,7 @@ public final class MainActivity extends Activity {
         ui.text(
             tr("Dictate & Delegate writes your application with these details, ready to paste."), 14, Ui.MUTED),
         6);
-    if (!profile.autoRefine())
-      ui.add(
-          content,
-          ui.text(
-              tr("Refine automatically is off: a template is used when you tap ✨ Refine."),
-              14,
-              Ui.MUTED),
-          14);
+    ui.add(content, ui.text(tr("The template you name is used when you tap ✨ Refine."), 14, Ui.MUTED), 14);
     List<Templates.Template> all = new Templates(this).all();
     if (all.isEmpty())
       ui.add(content, ui.text(tr("No templates yet."), 15, Ui.MUTED), 18);
@@ -4148,9 +4268,7 @@ public final class MainActivity extends Activity {
   }
 
   private String refineLabel() {
-    return profile.autoRefine()
-        ? tr("Automatic · %1$s", TextModel.name(this))
-        : tr("When you tap ✨ Refine · %1$s", TextModel.name(this));
+    return tr("When you tap ✨ Refine · %1$s", TextModel.name(this));
   }
 
   private String textModelName(String id) {

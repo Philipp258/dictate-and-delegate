@@ -47,4 +47,22 @@ public class TalkAccessibilityTest {
     assertTrue(TalkAccessibility.trusted(true, "", ""));
     assertTrue(TalkAccessibility.trusted(false, "", "Dear Jana,"));
   }
+
+  @Test
+  public void theChosenKeyIsTheFirstAssistantsAndTheOtherTheSeconds() {
+    int down = android.view.KeyEvent.KEYCODE_VOLUME_DOWN, up = android.view.KeyEvent.KEYCODE_VOLUME_UP;
+    // Volume down chosen: down for the first; up for the second once it has a chief.
+    assertEquals(0, TalkAccessibility.assistantFor(down, down, true));
+    assertEquals(1, TalkAccessibility.assistantFor(up, down, true));
+    assertEquals(-1, TalkAccessibility.assistantFor(up, down, false));
+    // Volume up chosen: the other way round.
+    assertEquals(0, TalkAccessibility.assistantFor(up, up, true));
+    assertEquals(1, TalkAccessibility.assistantFor(down, up, true));
+    // Keys off: neither, also not for the second.
+    assertEquals(-1, TalkAccessibility.assistantFor(down, 0, true));
+    assertEquals(-1, TalkAccessibility.assistantFor(up, 0, true));
+    assertEquals(0, TalkAccessibility.secondKey(0, true));
+    // Other keys are never ours.
+    assertEquals(-1, TalkAccessibility.assistantFor(android.view.KeyEvent.KEYCODE_ENTER, down, true));
+  }
 }

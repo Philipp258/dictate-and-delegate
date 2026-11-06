@@ -10,7 +10,8 @@ import android.view.accessibility.AccessibilityNodeInfo;
 
 /**
  * Dictate & Delegate's Accessibility service, used for two things only: holding a volume key starts or
- * stops a dictation, and Insert puts text at the cursor of the field you're typing in. It asks for
+ * stops a dictation (the chosen key for the first assistant; with a second assistant set up, the
+ * other volume key for that one), and Insert puts text at the cursor of the field you're typing in. It asks for
  * no accessibility events, so it never sees what happens on screen; it looks up the focused field
  * only when you tap Insert. While it runs, it also takes the Copy button of the chief's ntfy
  * notifications (ntfy sends that as an implicit broadcast, which only a running receiver gets).
@@ -30,6 +31,8 @@ public final class TalkAccessibility extends AccessibilityService {
   private final Handler main = new Handler(Looper.getMainLooper());
   private SharedPreferences prefs;
   private boolean holding, fired;
+  /** The key being held, and the assistant it starts a dictation for. */
+  private int heldKey, heldAssistant;
   private final Runnable held =
       () -> {
         fired = true;
@@ -106,6 +109,37 @@ public final class TalkAccessibility extends AccessibilityService {
     };
   }
 
+  /**
+   * The other volume key, which starts a dictation for the second assistant: when a key is chosen
+   * for the first, a second assistant has a chief, and it isn't switched off (Settings → Start).
+   * 0 otherwise.
+   */
+  static int secondKey(SharedPreferences prefs) {
+    return secondKey(startKey(prefs), secondOn(prefs));
+  }
+
+  /** A second assistant has a chief, and its key isn't switched off. */
+  private static boolean secondOn(SharedPreferences prefs) {
+    return prefs.getBoolean(Assistants.OTHER_KEY, true) && !prefs.getString(Assistants.key(1, BbBridge.CHIEF_ID), "").isEmpty();
+  }
+
+  /** The other volume key than first (0 when first is 0 or the second assistant's is off). */
+  static int secondKey(int first, boolean secondOn) {
+    if (first == 0 || !secondOn) return 0;
+    return first == KeyEvent.KEYCODE_VOLUME_DOWN ? KeyEvent.KEYCODE_VOLUME_UP : KeyEvent.KEYCODE_VOLUME_DOWN;
+  }
+
+  /** The assistant a key starts a dictation for: 0, 1, or -1 when it isn't one of ours. */
+  static int assistantFor(SharedPreferences prefs, int keyCode) {
+    return assistantFor(keyCode, startKey(prefs), secondOn(prefs));
+  }
+
+  static int assistantFor(int keyCode, int first, boolean secondOn) {
+    if (first != 0 && keyCode == first) return 0;
+    int second = secondKey(first, secondOn);
+    return second != 0 && keyCode == second ? 1 : -1;
+  }
+
   static int holdMs(SharedPreferences prefs) {
     return Math.max(200, Math.min(2000, prefs.getInt(HOLD_MS, DEFAULT_HOLD_MS)));
   }
@@ -117,16 +151,19 @@ public final class TalkAccessibility extends AccessibilityService {
    */
   @Override
   protected boolean onKeyEvent(KeyEvent e) {
-    int key = prefs == null ? 0 : startKey(prefs);
-    if (key == 0 || e.getKeyCode() != key) return false;
+    int key = e.getKeyCode();
+    int assistant = prefs == null ? -1 : assistantFor(prefs, key);
+    if (holding ? key != heldKey : assistant < 0) return false;
     // During a hands-free call the volume keys are the volume, nothing else: a call doesn't start
     // dictations, and Android sends them to the call's media session (the replies' stream).
     if (HandsFreeService.instance != null && !holding) return false;
     if (e.getAction() == KeyEvent.ACTION_DOWN) {
       if (e.getRepeatCount() > 0) return holding;
-      if (!available()) return false;
+      if (holding || !available()) return false;
       holding = true;
       fired = false;
+      heldKey = key;
+      heldAssistant = assistant;
       main.postDelayed(held, holdMs(prefs));
       return true;
     }
@@ -170,6 +207,7 @@ public final class TalkAccessibility extends AccessibilityService {
     // The same short-lived window as the tile: Android lets a visible app start the microphone.
     startActivity(
         new Intent(this, RecordActivity.class)
+            .putExtra(RecordActivity.ASSISTANT, heldAssistant)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP));
   }
 

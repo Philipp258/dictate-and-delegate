@@ -10,6 +10,12 @@ import android.os.*;
 
 /** Brief user-visible launch bridge for microphone access, shared by the tile and overlay. */
 public final class RecordActivity extends Activity {
+  /**
+   * Extra: the assistant (Assistants) a dictation is for, by the volume key that started it (-1:
+   * none, from the tile or the bubble); for a call, the assistant it's with.
+   */
+  static final String ASSISTANT = "assistant";
+
   /** Extra: start hands-free mode instead, with this PCM file as the start of the first turn. */
   static final String HANDS_FREE_SEED = "handsFreeSeed";
 
@@ -37,7 +43,8 @@ public final class RecordActivity extends Activity {
       Intent i = new Intent(this, HandsFreeService.class).setAction(HandsFreeService.START);
       if (seed != null && !seed.isEmpty()) i.putExtra(HandsFreeService.SEED, seed);
       i.putExtra(HandsFreeService.AT_X, getIntent().getIntExtra(HandsFreeService.AT_X, -1))
-          .putExtra(HandsFreeService.AT_Y, getIntent().getIntExtra(HandsFreeService.AT_Y, -1));
+          .putExtra(HandsFreeService.AT_Y, getIntent().getIntExtra(HandsFreeService.AT_Y, -1))
+          .putExtra(ASSISTANT, getIntent().getIntExtra(ASSISTANT, 0));
       try {
         startForegroundService(i);
       } catch (RuntimeException ex) {
@@ -73,7 +80,8 @@ public final class RecordActivity extends Activity {
     }
     Intent intent =
         new Intent(this, DictationService.class)
-            .setAction(stop ? DictationService.STOP : DictationService.RECORD);
+            .setAction(stop ? DictationService.STOP : DictationService.RECORD)
+            .putExtra(ASSISTANT, getIntent().getIntExtra(ASSISTANT, -1));
     intent.putExtra(
         "started",
         new ResultReceiver(new Handler(getMainLooper())) {

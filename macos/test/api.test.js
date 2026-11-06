@@ -147,15 +147,17 @@ test('importChecksEachSettingAndSkipsBadOnes', () => {
         chiefTitle: 7, // a text setting given a number: skipped
         somethingUnknown: 'x', // not a setting this app has: skipped
         sessionId: 'runtime', // running state: dropped silently
-        autoRefine: false,
+        retainAudio: false,
+        autoRefine: false, // retired (content-based routing): skipped
+        chiefName: 'Henry', // retired: skipped
         hfEndOfTurnPauseMs: 2500,
       },
       keys: { openrouterKey: 42, bbAuth: 'tokens', anthropicKey: ' sk-ant ' },
     }),
   );
-  assert.deepEqual(r.prefs, { talkerOn2: true, bbUrl: 'https://x.getbb.app/mcp', autoRefine: false, hfEndOfTurnPauseMs: 2500 });
+  assert.deepEqual(r.prefs, { talkerOn2: true, bbUrl: 'https://x.getbb.app/mcp', retainAudio: false, hfEndOfTurnPauseMs: 2500 });
   assert.deepEqual(r.keys, { anthropicKey: 'sk-ant' });
-  assert.deepEqual(r.skipped.sort(), ['bbAuth', 'bubbleOpacity', 'chiefTitle', 'hfLive', 'hfVoice', 'model', 'openrouterKey', 'somethingUnknown'].sort());
+  assert.deepEqual(r.skipped.sort(), ['autoRefine', 'bbAuth', 'bubbleOpacity', 'chiefName', 'chiefTitle', 'hfLive', 'hfVoice', 'model', 'openrouterKey', 'somethingUnknown'].sort());
 });
 
 test('importTakesLongTemplates', () => {

@@ -21,12 +21,6 @@ const OFFERED = new Set([
   'microsoft/mai-transcribe-1.5',
 ]);
 
-/** Settings → Refine: the two switches. */
-const AUTO_REFINE = 'autoRefine';
-const AUTO_CHIEF = 'autoChief';
-
-const CHIEF_NAME = 'chiefName';
-
 class Profile {
   /** prefs: the settings store (get/set/remove). */
   constructor(prefs) {
@@ -47,21 +41,18 @@ class Profile {
 
   /**
    * Removes settings from earlier versions: spoken languages, words collected from fixes, the
-   * Simple/Advanced mode, the text model choices, the account at Drift's former server, and "Act
-   * on requests" (off becomes both Refine switches off).
+   * Simple/Advanced mode, the text model choices, the account at Drift's former server, "Act on
+   * requests", and what Jev did by itself (Refine, sending to the chief by its name), as on Android.
+   * (forgetRetired isn't called on the Mac; there these keys are simply no longer read.)
    */
   forgetRetired() {
     const p = this.prefs;
     const has = (k) => (typeof p.has === 'function' ? p.has(k) : p.get(k, undefined) !== undefined);
-    if (has('processing')) {
-      const on = p.get('processing', true);
-      p.remove('processing');
-      if (!on) {
-        p.set(AUTO_REFINE, false);
-        p.set(AUTO_CHIEF, false);
-      }
-    }
     for (const k of [
+      'processing',
+      'autoRefine',
+      'autoChief',
+      'chiefName',
       'profileLanguages',
       'profileSuggestions',
       'profileDismissed',
@@ -83,25 +74,6 @@ class Profile {
 
   hintWords() {
     return this.words();
-  }
-
-  /** Refine starts by itself when Jev says the dictation asks for it or names a template. */
-  autoRefine() {
-    return this.prefs.get(AUTO_REFINE, true);
-  }
-
-  /** The dictation goes to the chief by itself when Jev is sure it was addressed. */
-  autoChief() {
-    return this.prefs.get(AUTO_CHIEF, true);
-  }
-
-  /** The chief's name, the word that sends a dictation to it ("Henry, …"); empty: only 🧑‍💼. */
-  chiefName() {
-    return String(this.prefs.get(CHIEF_NAME, '')).trim();
-  }
-
-  setChiefName(name) {
-    this.prefs.set(CHIEF_NAME, name.trim());
   }
 
   /** Refine's instructions: the user's own, or the default. */
@@ -159,4 +131,4 @@ class Profile {
   }
 }
 
-module.exports = { Profile, TOPICS, DEFAULT_MODEL, OFFERED, AUTO_REFINE, AUTO_CHIEF, CHIEF_NAME };
+module.exports = { Profile, TOPICS, DEFAULT_MODEL, OFFERED };

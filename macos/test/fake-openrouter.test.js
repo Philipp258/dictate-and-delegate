@@ -138,26 +138,25 @@ it('theRefinePickerReadsTheCatalog', async () => {
   assert.equal(TextModel.price(list[0]), '$2.00 / $10.00');
 });
 
-it('jevAnswersTheDictationQuestions', async () => {
-  await script({ decide: [{ refine: 0.9, chief: 0.85, template: 'Weekly update', cost: 0.00002 }] });
+it('jevNamesTheTemplate', async () => {
+  await script({ decide: [{ template: 'Weekly update', cost: 0.00002 }] });
   const templates = ['Apartment application', 'Weekly update'];
-  const a = await Jev.ask(client(), 'Henry, use my weekly update', templates, true, 'Henry');
-  assert.deepEqual(a, { refine: 0.9, template: 'Weekly update', chief: 0.85, cost: 0.00002 });
-  assert.deepEqual(Jev.decide(a, true, true, true, true), { refine: false, template: 'Weekly update', chief: true, hint: false });
+  const a = await Jev.ask(client(), 'use my weekly update', templates);
+  assert.deepEqual(a, { template: 'Weekly update', cost: 0.00002 });
   const [r] = await requests();
   assert.equal(r.kind, 'decide');
   assert.equal(r.body.model, Jev.MODEL);
-  assert.deepEqual(Object.keys(r.body.questions), ['refine', 'template', 'chief']);
+  assert.deepEqual(Object.keys(r.body.questions), ['template']);
 });
 
 it('jevThatIsTooSlowIsGivenUp', async () => {
   await script({ decide: [{ delay: 1 }] });
   const started = Date.now();
-  await assert.rejects(Jev.ask(client(), 'x', [], true, '', { timeoutMs: 200 }), /took too long/);
+  await assert.rejects(Jev.ask(client(), 'x', ['T'], { timeoutMs: 200 }), /took too long/);
   assert.ok(Date.now() - started < 900);
   await script({ decide: [{ error: 'busy' }] });
   // No retries for Jev: nothing waits for it.
-  await assert.rejects(Jev.ask(client(), 'x', [], true, ''), /busy right now/);
+  await assert.rejects(Jev.ask(client(), 'x', ['T']), /busy right now/);
 });
 
 it('theHandsFreeJudgeSaysWhetherTheTurnIsDone', async () => {

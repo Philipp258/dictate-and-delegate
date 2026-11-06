@@ -588,7 +588,7 @@ function dataCard() {
   return card(
     'tint gap-12',
     strong('What leaves your Mac'),
-    p("• Your notes, audio, words and templates stay on this Mac.\n• To write down what you said, your recording goes straight to OpenRouter with your key, and on to the speech model's provider. The text goes the same way to Jev, a fast model that decides whether to refine it, with your template names. When it's refined, it goes to the text model, with what you told Dictate & Delegate about you, your words, the template you named and what you attached.\n• If you connect bb, a task you hand to your chief of staff goes to your bb, with the text you pasted.\n• Dictate & Delegate has no server and collects nothing. OpenRouter and the model providers handle the data under their own policies.", 'body pre gap-8'),
+    p("• Your notes, audio, words and templates stay on this Mac.\n• To write down what you said, your recording goes straight to OpenRouter with your key, and on to the speech model's provider. If you have templates, the text goes the same way to Jev, a fast model that picks the template you named, with your template names. When you refine it, it goes to the text model, with what you told Dictate & Delegate about you, your words, the template you named and what you attached.\n• If you connect bb, a task you hand to your chief of staff goes to your bb, with the text you pasted.\n• Dictate & Delegate has no server and collects nothing. OpenRouter and the model providers handle the data under their own policies.", 'body pre gap-8'),
   );
 }
 
@@ -610,9 +610,9 @@ function pageHow(root) {
     ['✕', 'Closes the panel. The note stays in Dictate & Delegate.'],
   ];
   add(root, card('gap-16', rows.map(([t, s], i) => [strong(t, i ? 'gap-12' : ''), p(s, 'muted gap-4')])));
-  add(root, p('You can click Refine or Chief while you\'re still talking. Ask in the same breath (“make this an email”, “use my apartment application”) and Refine starts by itself. Tasks go to your chief by themselves only when you address it: “chief of staff, …”.', 'body gap-16'));
+  add(root, p('You can click Refine or Chief while you\'re still talking. Nothing is refined or sent to your chief unless you click it. Say what you want in the same breath (“make this an email”, “use my apartment application”) and Refine follows it.', 'body gap-16'));
   example(root);
-  add(root, p("Each note shows what it cost, as OpenRouter reports it. Jev's decision costs about $0.00002, a minute of speech with the default model about $0.002.", 'muted small gap-12'));
+  add(root, p("Each note shows what it cost, as OpenRouter reports it. Picking the template you named costs about $0.00002, a minute of speech with the default model about $0.002.", 'muted small gap-12'));
   continueButton(root);
 }
 
@@ -920,15 +920,6 @@ function plainHttpAllowed(url) {
 
 const toneClass = (tone) => (tone === 'ok' ? 'ok' : tone === 'warn' ? 'warn' : 'muted');
 
-function chiefNameField(root) {
-  const field = input({ value: S.profile.chiefName, placeholder: 'For example: Ada', maxlength: 40 });
-  add(root, [
-    strong("Your chief's name", 'gap-24'),
-    p('Say it to send a dictation to your chief: "Ada, …", "this is for Ada". Just mentioning the name in a message doesn\'t send it. Without a name, click 🧑‍💼.', 'muted small gap-4'),
-    h('div', { class: 'gap-8' }, autosave(field, (v) => api('setChiefName', v))),
-  ]);
-}
-
 function pageChief(root, onboarding) {
   const bb = S.bb;
   if (onboarding) steps(root, false);
@@ -953,7 +944,6 @@ function pageChief(root, onboarding) {
           act(() => api('forgetChief'));
         }
       }, { danger: true })));
-    chiefNameField(root);
   }
   const result = resultLine('chief');
   root.append(result);
@@ -1339,7 +1329,6 @@ function pageSettings(root) {
       row({ title: 'Anthropic key', sub: S.keys.anthropic ? 'Saved, encrypted · Refine uses your Anthropic credits' : 'Optional · Refine on your Anthropic credits', onclick: () => open('anthropic') }),
       row({ title: 'Voice-to-text', sub: L.speech, onclick: () => open('models') }),
       row({ title: 'Text-to-speech', sub: L.voice, onclick: () => open('voices') }),
-      row({ title: 'Decisions', sub: L.decisions, onclick: () => open('decisions') }),
       row({ title: 'Refine', sub: L.refineModel, onclick: () => open('refineModel') })),
     label('Costs and activity'),
     card('list',
@@ -1480,17 +1469,6 @@ async function pageVoices(root) {
   add(root, p("The voice models run through OpenRouter with your key; what they cost shows on each note and in Usage. The Mac's voice works offline, and takes over when OpenRouter fails. When a voice model fails, the call bar says why.", 'muted small gap-12'));
 }
 
-function pageDecisions(root) {
-  heading(root, 'Decisions', 'After each transcript, Jev, a fast decision model, decides what happens next: whether you asked for a text, which template you named, and whether you were talking to your chief of staff. It takes about a third of a second and runs on your OpenRouter key.');
-  add(root, [
-    card('list gap-16',
-      prefRow('Refine automatically', 'When you ask for a text, name a template, or the dictation needs tidying', 'autoRefine', S.profile.autoRefine),
-      prefRow('Send to chief when addressed', 'When you speak to your chief by name (Settings → Chief of staff); otherwise click 🧑‍💼', 'autoChief', S.profile.autoChief),
-      row({ title: 'Model', sub: 'Jev · ' + S.profile.jevModel })),
-    p('The ✨ and 🧑‍💼 buttons always work, whatever is set here.', 'muted small gap-12'),
-  ]);
-}
-
 function pageRefineModel(root) {
   const direct = S.keys.anthropic;
   const openRouterTab = !direct || ui.refineOpenRouterTab;
@@ -1562,8 +1540,7 @@ function pageRefine(root) {
 
 async function pageTemplates(root) {
   heading(root, 'Templates', "Keep texts you write again and again, like an application for an apartment. Then dictate which one you want and what's different this time.");
-  add(root, card('panel gap-16', label('You say'), p('“Use my apartment application for the two-room flat on Hauptstraße 5, the viewing is on Saturday, and mention that I work from home.”', 'body gap-4'), p('Dictate & Delegate writes your application with these details, ready to paste.', 'muted gap-4')));
-  if (!S.profile.autoRefine) add(root, p('Refine automatically is off: a template is used when you click ✨ Refine.', 'muted gap-12'));
+  add(root, card('panel gap-16', label('You say'), p('“Use my apartment application for the two-room flat on Hauptstraße 5, the viewing is on Saturday, and mention that I work from home.”', 'body gap-4'), p('Click ✨ Refine and Dictate & Delegate writes your application with these details, ready to paste.', 'muted gap-4')));
   const all = await api('templates');
   if (!all.length) add(root, p('No templates yet.', 'muted gap-16'));
   else add(root, card('list gap-16', all.map((t) => row({ title: t.name.trim() ? t.name : 'Untitled', sub: t.preview, onclick: () => open('template', { id: t.id }) }))));
@@ -1962,7 +1939,6 @@ const PAGES = {
   anthropic: pageAnthropic,
   models: pageModels,
   voices: pageVoices,
-  decisions: pageDecisions,
   refineModel: pageRefineModel,
   refine: pageRefine,
   templates: pageTemplates,

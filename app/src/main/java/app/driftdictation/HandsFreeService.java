@@ -33,7 +33,9 @@ import java.util.UUID;
  * reply read aloud isn't heard as you), a HandsFreeSession, the chief's spoken replies from ntfy,
  * the voice and quiet sounds for the key moments. Send and end work from the screen, the
  * notification (also on the lock screen) and the headset or car media button, which sends (a reply
- * playing plays on).
+ * playing plays on). A call is with one assistant (Assistants): its messages go to that assistant's
+ * chief, and only that assistant's ntfy topic is read for replies, so another assistant's reply is
+ * never read out in it.
  */
 public final class HandsFreeService extends Service {
   static final String START = "start", SEND = "send", END = "end";
@@ -43,6 +45,23 @@ public final class HandsFreeService extends Service {
 
   /** Extras of START: where the dictation panel was, so the call panel takes its place. */
   static final String AT_X = "atX", AT_Y = "atY";
+
+  /** Extra of START: the assistant the call is with (the first without it). */
+  static final String ASSISTANT = RecordActivity.ASSISTANT;
+
+  /** The assistant this call is with, fixed when it starts; its name when there are several, else "". */
+  private volatile int assistant;
+
+  private volatile String withName = "";
+
+  /**
+   * The assistant the call going on is with, also while its end is still being delivered (the
+   * service stays until then); -1 without a call.
+   */
+  static int callWith() {
+    HandsFreeService s = instance;
+    return s == null ? -1 : s.assistant;
+  }
   static final String CHANNEL = "hands_free";
 
   static volatile HandsFreeService instance;
@@ -111,6 +130,11 @@ public final class HandsFreeService extends Service {
     else if (instance != null) context.startService(i);
   }
 
+  /** Starts a call with an assistant. */
+  static void start(Context context, int assistant) {
+    context.startForegroundService(new Intent(context, HandsFreeService.class).setAction(START).putExtra(ASSISTANT, assistant));
+  }
+
   @Override
   public IBinder onBind(Intent intent) {
     return null;
@@ -137,7 +161,8 @@ public final class HandsFreeService extends Service {
           start(
               intent == null ? null : intent.getStringExtra(SEED),
               intent == null ? -1 : intent.getIntExtra(AT_X, -1),
-              intent == null ? -1 : intent.getIntExtra(AT_Y, -1));
+              intent == null ? -1 : intent.getIntExtra(AT_Y, -1),
+              Assistants.clamp(intent == null ? 0 : intent.getIntExtra(ASSISTANT, 0)));
       case SEND -> {
         if (session != null) session.sendNow();
       }
@@ -147,16 +172,27 @@ public final class HandsFreeService extends Service {
     return START_NOT_STICKY;
   }
 
-  private void start(String seed, int atX, int atY) {
+  private void start(String seed, int atX, int atY, int with) {
     startForeground(
         4,
         notification(),
         ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE | ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
-    if (session != null) return;
+    if (session != null) {
+      // One call at a time: a call with the other assistant waits until this one ends.
+      if (with != assistant)
+        android.widget.Toast.makeText(this, tr("A call with %1$s is on. End it first.", Assistants.name(this, assistant)), android.widget.Toast.LENGTH_LONG).show();
+      return;
+    }
     callEnded = false;
+    assistant = with;
+    withName = Assistants.several(this) ? Assistants.name(this, assistant) : "";
     SharedPreferences prefs = getSharedPreferences("settings", MODE_PRIVATE);
-    BbBridge bb = new BbBridge(this);
+    BbBridge bb = new BbBridge(this, assistant);
     talker = bb.talkerId();
+    // This call's own: its messages, notes and failures stay with them even when they're still
+    // being sent after its end, while the next call (maybe with the other assistant) starts.
+    final int callAssistant = with;
+    final String callTalker = talker;
     voice = new Voice(this);
     // The call's audio stays open (silent) for the whole call: a reply starts without a new track
     // and its warm-up. Opened first, so even the first reply finds it.
@@ -196,18 +232,18 @@ public final class HandsFreeService extends Service {
             },
             (said, request) -> {
               try {
-                if (talker.isEmpty()) {
+                if (callTalker.isEmpty()) {
                   bb.sendHandsFree(bb.chiefId(), said, request);
-                  keepNote(said, request, model);
+                  keepNote(said, request, model, callAssistant);
                   return;
                 }
-                sendBoth(bb, said, request, model);
+                sendBoth(bb, said, request, model, callTalker, callAssistant);
               } catch (HandsFreeSession.PartlySent p) {
-                if (p.chiefMissed) Outbox.failure(this, "call:" + request, "call", "Hands-free message " + request + " (the talker got it)", p.getMessage());
+                if (p.chiefMissed) Outbox.failure(this, "call:" + request, "call", "Hands-free message " + request + " (the talker got it)", p.getMessage(), callAssistant);
                 throw p;
               } catch (Exception ex) {
                 // Your words are kept by the call and go with the next message; this is for the report.
-                Outbox.failure(this, "call:" + request, "call", "Hands-free message " + request, DictationService.friendly(ex));
+                Outbox.failure(this, "call:" + request, "call", "Hands-free message " + request, DictationService.friendly(ex), callAssistant);
                 throw ex;
               }
             },
@@ -296,6 +332,7 @@ public final class HandsFreeService extends Service {
     callCost = BigDecimal.ZERO;
     callId = UUID.randomUUID().toString();
     HandsFreeLog.append(logFile(this), HandsFreeLog.callStarted(new java.text.SimpleDateFormat("HH:mm", java.util.Locale.ROOT).format(new java.util.Date())));
+    if (!withName.isEmpty()) event("with assistant " + (assistant + 1) + " (" + Assistants.name(prefs, assistant) + "), chief " + bb.chiefId() + ", replies from its topic only");
     NetLog.callStarted();
     event(
         String.format(
@@ -322,6 +359,7 @@ public final class HandsFreeService extends Service {
       }
     }
     try {
+      // Only this assistant's topic: another assistant's replies never reach this call.
       replies =
           new ChiefText.Replies(
               bb.ntfyServer(),
@@ -331,7 +369,7 @@ public final class HandsFreeService extends Service {
               // With a talker, its spoken updates from the chief carry no request: the latest one's.
               () -> {
                 HandsFreeSession s = session;
-                return talker.isEmpty() || s == null ? "" : s.lastRequest();
+                return callTalker.isEmpty() || s == null ? "" : s.lastRequest();
               },
               (request, text, published, untagged) -> {
                 HandsFreeSession s = session;
@@ -379,6 +417,7 @@ public final class HandsFreeService extends Service {
               },
               atX,
               atY);
+      panel.with(withName, Assistants.bright(assistant));
       try {
         panel.show();
       } catch (RuntimeException ex) {
@@ -596,7 +635,7 @@ public final class HandsFreeService extends Service {
    * A message of a call with a talker: to the chief and the talker at once, the same text and
    * request ID. Throws when neither got it (your words are kept); PartlySent when one did.
    */
-  private void sendBoth(BbBridge bb, String said, String request, String model) throws Exception {
+  private void sendBoth(BbBridge bb, String said, String request, String model, String talker, int callAssistant) throws Exception {
     String chief = bb.chiefId(), message = BbBridge.handsFreeMessage(said, request);
     java.util.Map<String, Long> took = new java.util.HashMap<>();
     java.util.Map<String, String> failed = bb.tellEach(bothTo(chief, talker, message, message), took);
@@ -605,7 +644,7 @@ public final class HandsFreeService extends Service {
     if (talkerWhy != null) event("the talker (" + talker + ") didn't get " + request + ": " + talkerWhy);
     if (chiefWhy != null && talkerWhy != null)
       throw new java.io.IOException(tr("neither the chief nor the talker got it: %1$s", chiefWhy));
-    keepNote(said, request, model);
+    keepNote(said, request, model, callAssistant);
     if (chiefWhy != null) throw new HandsFreeSession.PartlySent(request, true, chiefWhy);
     if (talkerWhy != null) throw new HandsFreeSession.PartlySent(request, false, talkerWhy);
     event(String.format(java.util.Locale.ROOT, "sent %s to the talker too (bb took %d ms for the talker, %d ms for the chief)", request, took.get(talker), took.get(chief)));
@@ -633,6 +672,7 @@ public final class HandsFreeService extends Service {
   /** As above, after the messages still on their way in that session are delivered (in order). */
   private Thread signal(BbBridge bb, String line, HandsFreeSession after) {
     String chief = bb.chiefId(), talker = this.talker;
+    int callAssistant = bb.assistant;
     if (chief.isEmpty()) return null;
     Thread t =
         new Thread(
@@ -652,7 +692,7 @@ public final class HandsFreeService extends Service {
               boolean starting = said.equals(HandsFree.CALL_STARTED);
               String chiefLine = starting ? HandsFree.callStarted(talker) : chiefSaid != null ? chiefSaid : said;
               String talkerLine = starting ? HandsFree.TALKER_CALL_STARTED : said;
-              if (starting && !talker.isEmpty()) ChiefSkills.safelyTellTalker(this);
+              if (starting && !talker.isEmpty()) ChiefSkills.safelyTellTalker(this, callAssistant);
               java.util.Map<String, String> to = bothTo(chief, talker, chiefLine, talkerLine);
               java.util.Map<String, String> failed = bb.tellEach(to);
               for (String id : to.keySet()) {
@@ -693,8 +733,8 @@ public final class HandsFreeService extends Service {
   }
 
   /** Each message is kept as a note, with its transcription cost, like a dictation sent to the chief. */
-  private void keepNote(String said, String request, String model) throws Exception {
-    BbBridge bb = new BbBridge(this);
+  private void keepNote(String said, String request, String model, int callAssistant) throws Exception {
+    BbBridge bb = new BbBridge(this, callAssistant);
     HistoryEntry e = HistoryEntry.create(UUID.randomUUID().toString(), model, seconds);
     e.json
         .put("text", said)
@@ -705,6 +745,7 @@ public final class HandsFreeService extends Service {
         .put("handsFree", true)
         .put("call", callId)
         .put("route", "chief")
+        .put("assistant", callAssistant)
         .put("chiefThread", bb.chiefId())
         .put("chiefLink", bb.threadLink(bb.chiefId()))
         .put("chiefSent", System.currentTimeMillis())
@@ -890,7 +931,7 @@ public final class HandsFreeService extends Service {
     Notification.Builder b =
         new Notification.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_mic)
-            .setContentTitle(tr("Hands-free with your chief"))
+            .setContentTitle(withName.isEmpty() ? tr("Hands-free with your chief") : tr("Hands-free with %1$s", withName))
             .setContentText(first)
             .setStyle(new Notification.BigTextStyle().bigText(text))
             .setOngoing(true)
@@ -936,7 +977,7 @@ public final class HandsFreeService extends Service {
     event("call ended · $" + callCost.stripTrailingZeros().toPlainString() + " on OpenRouter");
     // With the end, once: the replies that never reached you.
     // After the messages on their way: words a failed one left go first, then the notes left.
-    Thread ended = s == null ? null : signal(new BbBridge(this), HandsFree.CALL_ENDED, s);
+    Thread ended = s == null ? null : signal(new BbBridge(this, assistant), HandsFree.CALL_ENDED, s);
     if (replies != null) replies.finish();
     if (voice != null) voice.shutdown();
     if (cues != null) cues.release();

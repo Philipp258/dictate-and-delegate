@@ -16,7 +16,7 @@ function snap(over = {}, session = {}) {
     opacity: 65,
     chiefAvailable: true,
     ...over,
-    session: { refine: D.IDLE, chief: D.IDLE, hint: false, reply: '', message: '', ...session },
+    session: { refine: D.IDLE, chief: D.IDLE, reply: '', message: '', ...session },
   };
 }
 
@@ -102,16 +102,6 @@ test('refineAndChiefShowWhereTheyAre', () => {
   }
 });
 
-test('aHintHighlightsTheChiefOnlyWhileItIsIdle', () => {
-  let b = button(panelModel(snap({}, { hint: true })), 'chief');
-  assert.equal(b.ring, 'amber');
-  assert.equal(b.hinted, true);
-  assert.equal(b.name, 'Chief, suggested: this may be a task for your chief of staff');
-  b = button(panelModel(snap({}, { hint: true, chief: D.DONE })), 'chief');
-  assert.equal(b.ring, null);
-  assert.equal(b.name, 'Open chat ↗');
-});
-
 test('theChiefsTextAddsInsertFromChief', () => {
   const m = panelModel(snap({}, { chief: D.DONE, reply: 'Hi Tom', message: 'Your chief of staff sent text to insert' }));
   assert.deepEqual(m.extra, [{ id: 'insertFromChief', label: '🧑‍💼 📥', name: 'Insert from chief', enabled: true, fill: 'teal', ring: null }]);
@@ -134,7 +124,7 @@ test('aRealDictationsSnapshotDrawsAsExpected', async () => {
   const timers = { setTimeout: () => 0, clearTimeout: () => {} };
   let frameSink;
   const d = new D.Dictation({
-    prefs: new MemoryPrefs({ autoRefine: false }),
+    prefs: new MemoryPrefs(),
     timers,
     microphone: { start: (f) => (frameSink = f), stop: () => {} },
     transcribe: async () => ({ text: 'hello', cost: 0 }),

@@ -212,8 +212,6 @@ function validators() {
   };
   return {
     onboarded: bool,
-    [profileLib.AUTO_REFINE]: bool,
-    [profileLib.AUTO_CHIEF]: bool,
     retainAudio: bool,
     windowLog: bool,
     model: oneOf([...profileLib.OFFERED]),
@@ -245,7 +243,7 @@ function validators() {
  * skipped on import. Anything not here or in validators() is skipped too.
  */
 const STRING_PREFS = new Set([
-  'chiefName', 'processingPrompt', 'profileTopics', 'profileWords', 'profileAbout', 'templates',
+  'processingPrompt', 'profileTopics', 'profileWords', 'profileAbout', 'templates',
   textModel.PREF_MODEL, textModel.PREF_NAME, bridgeLib.MODE, bridgeLib.HANDLE, bridgeLib.URL, bridgeLib.LINK_BASE,
   bridgeLib.CHIEF_ID, bridgeLib.CHIEF_NAME, bridgeLib.TALKER_ID, bridgeLib.NTFY_SERVER, skillsLib.USER_NAME,
   skillsLib.TALKER_TOLD, 'hotkey', 'callHotkey',
@@ -433,8 +431,8 @@ function createMethods(ctx, shell = {}, push = () => {}) {
   let skillsTimer = null;
 
   const call = (name, ...args) => (typeof shell[name] === 'function' ? shell[name](...args) : undefined);
-  /** "Send report to Alex": the chief's name, if it has one. */
-  const reportLabel = () => (profile.chiefName() ? tr('Send report to %1$s', profile.chiefName()) : tr('Send report to your chief'));
+  /** Mac: the chief's name was only a routing word and is gone, so the report goes to "your chief". */
+  const reportLabel = () => tr('Send report to your chief');
   const hasKey = (name) => {
     try {
       const k = vault.get(name);
@@ -514,20 +512,11 @@ function createMethods(ctx, shell = {}, push = () => {}) {
     const c = streaming.choice(prefs.get(HandsFree.LIVE_MODEL, streaming.DEFAULT.id));
     return c.name + ' · ' + (hasKey(streaming.keyName(c)) ? tr('key saved') : tr('no key yet'));
   };
-  const decisionsLabel = () => {
-    if (profile.autoRefine() && profile.autoChief()) return tr('Jev · refines and sends to your chief by itself');
-    if (profile.autoRefine()) return tr('Jev · refines by itself');
-    if (profile.autoChief()) return tr('Jev · sends to your chief by itself');
-    return tr('Jev · nothing starts by itself');
-  };
   const refineModelLabel = () =>
     anthropic.hasKey(vault)
       ? tr('%1$s · Anthropic, your key', textModel.claude(prefs).name)
       : textModel.modelName(prefs) + ' · OpenRouter';
-  const refineLabel = () =>
-    profile.autoRefine()
-      ? tr('Automatic · %1$s', textModel.name(prefs, vault))
-      : tr('When you tap ✨ Refine · %1$s', textModel.name(prefs, vault));
+  const refineLabel = () => tr('When you tap ✨ Refine · %1$s', textModel.name(prefs, vault));
   const connectionLabel = () => {
     if (!bb.connected()) return tr('Not connected');
     if (bb.mode() === bridgeLib.CUSTOM) {
@@ -655,7 +644,6 @@ function createMethods(ctx, shell = {}, push = () => {}) {
           speech: modelName(profile.fixedModel()),
           speechPerMinute: perMinute(profile.fixedModel()),
           voice: voiceLabel(),
-          decisions: decisionsLabel(),
           refineModel: refineModelLabel(),
           refine: refineLabel(),
           refineName: textModel.name(prefs, vault),
@@ -669,11 +657,7 @@ function createMethods(ctx, shell = {}, push = () => {}) {
           live: liveLabel(),
         },
         profile: {
-          autoRefine: profile.autoRefine(),
-          autoChief: profile.autoChief(),
-          chiefName: profile.chiefName(),
           reportLabel: reportLabel(),
-          jevModel: jev.MODEL,
         },
         bb: {
           connected: bb.connected(),
@@ -1140,10 +1124,6 @@ function createMethods(ctx, shell = {}, push = () => {}) {
     },
     setAbout(value) {
       profile.setAbout(String(value || '').substring(0, 2000));
-      return true;
-    },
-    setChiefName(name) {
-      profile.setChiefName(String(name || '').substring(0, 40));
       return true;
     },
 

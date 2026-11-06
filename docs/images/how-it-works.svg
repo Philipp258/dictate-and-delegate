@@ -9,7 +9,7 @@
 <circle cx="420" cy="100" r="11" fill="#e8f1f8"/><text x="438" y="96">transcript</text><text x="438" y="111" fill="#5fd3e6">time ≈ seconds</text>
 <path d="M412,108 C400,140 380,140 360,140 H124" fill="none" stroke="#e8f1f8" stroke-width="2" marker-end="url(#bw)"/><text x="134" y="134">insert · always</text>
 <path d="M420,111 V176" stroke="#e8f1f8" stroke-width="2" marker-end="url(#bw)"/>
-<path d="M420,180 L444,200 L420,220 L396,200 Z" fill="#10253b" stroke="#e8f1f8" stroke-width="2"/><text x="456" y="198">decide: Jev | you</text><text x="456" y="213" fill="#5fd3e6">refine? agent?</text>
+<path d="M420,180 L444,200 L420,220 L396,200 Z" fill="#10253b" stroke="#e8f1f8" stroke-width="2"/><text x="456" y="198">you decide:</text><text x="456" y="213" fill="#5fd3e6">refine? agent?</text>
 <path d="M396,200 C360,200 360,250 330,250" fill="none" stroke="#f2c14e" stroke-width="2" marker-end="url(#by)"/>
 <rect x="180" y="234" width="146" height="36" fill="#10253b" stroke="#f2c14e" stroke-width="2"/><text x="253" y="256" text-anchor="middle" fill="#f2c14e">text model</text>
 <text x="190" y="288" fill="#5fd3e6">1 request · 1 response</text><text x="190" y="302" fill="#5fd3e6">prompt + templates</text><text x="190" y="316" fill="#5fd3e6">time ≈ seconds</text>

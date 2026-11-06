@@ -18,9 +18,11 @@ import org.json.JSONObject;
 
 /**
  * Recording, transcription and the floating panel. The transcript always comes first; then the
- * panel offers Insert, Refine and Chief. Jev decides what starts by itself: Refine when the
- * dictation asks for a text or names a template, the chief only when it was explicitly addressed.
- * Refine and Chief can be chosen while recording; they run once the transcript is ready.
+ * panel offers Insert, Refine and, for each assistant set up, Chief. Nothing starts by itself and
+ * nothing is routed by what was said: the user taps where it goes (the volume key that started
+ * the dictation only puts its assistant first). Jev only says which template a tapped Refine uses,
+ * when the dictation names one. Refine and Chief can be chosen while recording; they run once the
+ * transcript is ready.
  */
 public final class DictationService extends Service {
   static final String ENABLE = "enable",
@@ -42,6 +44,9 @@ public final class DictationService extends Service {
       /** The panel's recording wasn't written down: kept in the notes, ↻ tries again. */
       UNFINISHED = "unfinished";
 
+  /** Extra of RECORD: the assistant the volume key that started it is for (RecordActivity.ASSISTANT). */
+  static final String ASSISTANT = RecordActivity.ASSISTANT;
+
   /** Where Refine and Chief are for this dictation. */
   static final String IDLE = "idle", QUEUED = "queued", RUNNING = "running", DONE = "done", FAILED = "failed";
 
@@ -56,12 +61,14 @@ public final class DictationService extends Service {
     volatile String noteId = "", transcript = "", refined = "", reply = "";
     volatile String refine = IDLE, chief = IDLE, template = "", chiefLink = "", request = "";
     volatile String message = "";
-    /** Jev answered or isn't asked; until then queued choices wait (a template may come). */
-    volatile boolean decided, hint, redo, chiefReady;
+    /** Jev answered or isn't asked; until then a queued Refine waits (a template may come). */
+    volatile boolean decided, redo;
+    /** The assistants whose chief can get requests, when the dictation started. */
+    volatile java.util.List<Integer> assistants = java.util.List.of();
+    /** The assistant Chief is for (chief's state is that one's); the one the key chose, -1 none. */
+    volatile int assistant, keyAssistant = -1;
     volatile TalkAccessibility.Inserted inserted;
     volatile String insertedKind = "";
-    /** Refine was started by Jev, not tapped: it yields to the chief. */
-    volatile boolean autoRefine;
     /** Counts Refine runs; a run whose number is no longer current is ignored when it ends. */
     volatile int refineRun;
     /** The transcript is there: queued choices can run (also once it's no longer the panel's). */
@@ -154,7 +161,7 @@ public final class DictationService extends Service {
       if (ENABLE.equals(action)) {
         prefs.edit().putString("bubbleMode", "always").apply();
         update();
-      } else if (RECORD.equals(action)) startRecording();
+      } else if (RECORD.equals(action)) startRecording(intent.getIntExtra(ASSISTANT, -1));
       else if (STOP.equals(action)) stopRecording(true);
       else if (CANCEL.equals(action)) cancelRecording();
       else if (COMPARE.equals(action)) {
@@ -228,9 +235,16 @@ public final class DictationService extends Service {
 
   /** A new dictation: the panel forgets the last one. */
   private void newSession() {
+    newSession(-1);
+  }
+
+  /** The same, for a dictation the volume key of an assistant started (-1: none). */
+  private void newSession(int keyAssistant) {
     stopListening();
     session = new Session();
-    session.chiefReady = BbBridge.ready(this);
+    session.assistants = Assistants.ready(this);
+    session.keyAssistant = session.assistants.contains(keyAssistant) ? keyAssistant : -1;
+    session.assistant = session.keyAssistant >= 0 ? session.keyAssistant : session.assistants.isEmpty() ? 0 : session.assistants.get(0);
     closing = false;
   }
 
@@ -381,8 +395,8 @@ public final class DictationService extends Service {
                 if (RECORDING.equals(state)) stopRecording(true);
               }
 
-              public void call() {
-                callChief();
+              public void call(int assistant) {
+                callChief(assistant);
               }
 
               public void attach() {
@@ -400,8 +414,8 @@ public final class DictationService extends Service {
                 tapRefine();
               }
 
-              public void chief() {
-                tapChief();
+              public void chief(int assistant) {
+                tapChief(assistant);
               }
 
               public void insertFromChief() {
@@ -483,6 +497,10 @@ public final class DictationService extends Service {
   private void renderBubble() {
     if (bubble == null) return;
     Session s = session;
+    java.util.List<Integer> assistants = new java.util.ArrayList<>(s.assistants);
+    if (!s.chief.equals(IDLE) && !assistants.contains(s.assistant)) assistants.add(s.assistant);
+    String[] names = new String[Assistants.COUNT];
+    for (int a = 0; a < names.length; a++) names[a] = Assistants.name(prefs, a);
     bubble.render(
         new FloatingPanel.Model(
             state,
@@ -490,8 +508,10 @@ public final class DictationService extends Service {
             RECORDING.equals(state) ? new Attachments(this).pending().size() : 0,
             s.refine,
             s.chief,
-            s.chiefReady || !s.chief.equals(IDLE),
-            s.hint,
+            s.assistant,
+            assistants,
+            names,
+            s.keyAssistant,
             !s.reply.isEmpty(),
             s.message,
             prefs.getInt("bubbleOpacity", 65)));
@@ -550,7 +570,6 @@ public final class DictationService extends Service {
       case DONE -> insertText("refined", s.refined);
       default -> {
         s.refine = QUEUED;
-        s.autoRefine = false;
         startQueued(s);
       }
     }
@@ -558,14 +577,24 @@ public final class DictationService extends Service {
     touch();
   }
 
-  /** Chief: chosen ahead while recording, sent once the transcript is ready; then opens the chat. */
-  private void tapChief() {
+  /**
+   * An assistant's Chief: chosen ahead while recording, sent once the transcript is ready; then
+   * opens the chat. A dictation goes to one assistant: tapping the other's while it's only chosen
+   * moves it there; once it's on its way the other's button is gone.
+   */
+  private void tapChief(int assistant) {
     Session s = session;
+    boolean same = s.assistant == assistant;
     switch (s.chief) {
-      case QUEUED -> s.chief = IDLE;
+      case QUEUED -> {
+        if (same) s.chief = IDLE;
+        else if (BbBridge.ready(this, assistant)) s.assistant = assistant;
+        else say(tr("Set up your chief of staff in Dictate & Delegate → Settings → bb."));
+      }
       case RUNNING -> {}
       case DONE -> {
-        if (s.chiefLink.isEmpty()) say(tr("Set the bb web address for links in Settings → bb."));
+        if (!same) {}
+        else if (s.chiefLink.isEmpty()) say(tr("Set the bb web address for links in Settings → bb."));
         else
           try {
             startActivity(
@@ -575,12 +604,13 @@ public final class DictationService extends Service {
           }
       }
       default -> {
-        if (!BbBridge.ready(this)) {
+        if (s.chief.equals(FAILED) && !same) return; // Kept for its own assistant, which sends it again by itself.
+        if (!BbBridge.ready(this, assistant)) {
           say(tr("Set up your chief of staff in Dictate & Delegate → Settings → bb."));
           return;
         }
+        s.assistant = assistant;
         s.chief = QUEUED;
-        dropAutoRefine(s);
         startQueued(s);
       }
     }
@@ -588,23 +618,14 @@ public final class DictationService extends Service {
     touch();
   }
 
-  /** The chief gets it as said: a Refine that Jev started (not one you tapped) is dropped. */
-  private void dropAutoRefine(Session s) {
-    if (!s.autoRefine) return;
-    if (s.refine.equals(QUEUED) || s.refine.equals(RUNNING)) {
-      s.refine = IDLE;
-      s.refineRun++;
-    }
-    s.autoRefine = false;
-  }
-
   /**
-   * Runs what's queued, once the transcript is there and Jev has answered (or isn't asked); also
-   * for a dictation the panel has moved on from (a recording written down after the next began).
+   * Runs what's queued, once the transcript is there (Refine also waits for Jev's template, if it's
+   * asked); also for a dictation the panel has moved on from (a recording written down after the
+   * next began).
    */
   private void startQueued(Session s) {
-    if (!s.ready || !s.decided || s.noteId.isEmpty()) return;
-    if (s.refine.equals(QUEUED)) {
+    if (!s.ready || s.noteId.isEmpty()) return;
+    if (s.refine.equals(QUEUED) && s.decided) {
       s.refine = RUNNING;
       String template = s.template;
       int run = ++s.refineRun;
@@ -612,7 +633,8 @@ public final class DictationService extends Service {
     }
     if (s.chief.equals(QUEUED)) {
       s.chief = RUNNING;
-      work(() -> sent(s, sendNote(this, s.noteId)));
+      int assistant = s.assistant;
+      work(() -> sent(s, sendNote(this, s.noteId, assistant)));
     }
     if (session != s) return;
     renderBubble();
@@ -635,15 +657,14 @@ public final class DictationService extends Service {
         });
   }
 
-  /** Jev, right after the transcript: what starts by itself, the template, the chief hint. */
+  /**
+   * Jev, right after the transcript, only with saved templates: the template the dictation names,
+   * for a tapped Refine. Nothing starts by itself.
+   */
   private void decide(Session s) {
-    Profile profile = new Profile(prefs);
-    boolean chiefReady = BbBridge.ready(this);
     java.util.List<String> templates = new Templates(this).names();
     String said = s.transcript;
-    // The chief is only asked about when its name comes up.
-    boolean named = chiefReady && Jev.mentions(said, profile.chiefName());
-    if (s.redo || (!profile.autoRefine() && !named && templates.isEmpty())) {
+    if (s.redo || templates.isEmpty()) {
       s.decided = true;
       startQueued(s);
       return;
@@ -655,7 +676,7 @@ public final class DictationService extends Service {
           String failed = null;
           long asked = SystemClock.elapsedRealtime();
           try {
-            a = Jev.ask(this, said, templates, profile.autoRefine(), named ? profile.chiefName() : "");
+            a = Jev.ask(this, said, templates);
           } catch (Exception ex) {
             failed = friendly(ex);
           }
@@ -677,19 +698,11 @@ public final class DictationService extends Service {
           } catch (Exception ignored) {
             /* The note keeps the transcript; Activity just lacks this step. */
           }
-          Jev.Decision d =
-              Jev.decide(answers, profile.autoRefine(), profile.autoChief(), chiefReady, named);
+          String template = answers == null ? "" : answers.template();
           main.post(
               () -> {
                 s.decided = true;
-                s.template = d.template();
-                s.hint = d.hint();
-                if (d.chief() && s.chief.equals(IDLE)) s.chief = QUEUED;
-                // What goes to the chief goes as said: Jev's Refine only when it doesn't.
-                if (d.refine() && s.refine.equals(IDLE) && s.chief.equals(IDLE)) {
-                  s.refine = QUEUED;
-                  s.autoRefine = true;
-                }
+                s.template = template;
                 startQueued(s);
                 if (session == s) renderBubble();
               });
@@ -698,19 +711,11 @@ public final class DictationService extends Service {
 
   /** Refine finished (failure: why, else null). */
   private void refined(Session s, int run, String failed) {
-    if (run != s.refineRun && failed == null) {
-      // Dropped for the chief: the note shows what was said; the refined text stays a version.
-      try {
-        update(this, s.noteId, e -> e.json.put("version", "original").put("text", e.json.optString("original", e.text())));
-      } catch (Exception ignored) {
-        /* The note just opens on the refined version. */
-      }
-    }
     String text = failed == null ? text(this, s.noteId) : "";
     main.post(
         () -> {
           prefs.edit().putLong("historyRevision", System.nanoTime()).apply();
-          if (run != s.refineRun) return; // Dropped: the dictation went to the chief meanwhile.
+          if (run != s.refineRun) return; // An older run.
           if (failed != null) {
             s.refine = FAILED;
             s.message = tr("Couldn't refine: %1$s", failed);
@@ -745,13 +750,15 @@ public final class DictationService extends Service {
             s.message =
                 e != null && e.json.optBoolean("chiefQueued")
                     ? tr("Not sent yet: %1$s It's kept and goes by itself once bb can be reached.", failed == null ? "" : failed)
-                    : tr("Not sent to your chief of staff: %1$s", failed == null ? "" : failed);
+                    : s.assistants.size() > 1
+                        ? tr("Not sent to %1$s: %2$s", Assistants.name(prefs, s.assistant), failed == null ? "" : failed)
+                        : tr("Not sent to your chief of staff: %1$s", failed == null ? "" : failed);
           } else {
             s.chief = DONE;
             s.chiefLink = e.json.optString("chiefLink");
             s.request = e.json.optString("chiefRequest");
-            s.message = tr("Sent to your chief of staff");
-            if (bubble == null && session == s) Toast.makeText(this, tr("Sent to chief of staff"), Toast.LENGTH_LONG).show();
+            s.message = s.assistants.size() > 1 ? tr("Sent to %1$s", Assistants.name(prefs, s.assistant)) : tr("Sent to your chief of staff");
+            if (bubble == null && session == s) Toast.makeText(this, s.message, Toast.LENGTH_LONG).show();
             if (session == s && bubble != null) listen(s, e.json.optLong("chiefSent"));
           }
           if (session == s) {
@@ -764,7 +771,7 @@ public final class DictationService extends Service {
   /** While the panel is open: the chief's text for this request, from the ntfy topic. */
   private void listen(Session s, long sentAt) {
     stopListening();
-    BbBridge bb = new BbBridge(this);
+    BbBridge bb = new BbBridge(this, s.assistant);
     String topic;
     try {
       topic = bb.ntfyTopic();
@@ -987,6 +994,14 @@ public final class DictationService extends Service {
    * it failed.
    */
   static String sendNote(Context context, String id) {
+    return sendNote(context, id, -1);
+  }
+
+  /**
+   * The same, to an assistant (-1: the one the note is for already). A note that failed stays
+   * with the assistant it was meant for: its tries go there, never to another.
+   */
+  static String sendNote(Context context, String id, int assistant) {
     synchronized (SENDING) {
       while (SENDING.contains(id))
         try {
@@ -998,7 +1013,7 @@ public final class DictationService extends Service {
       SENDING.add(id);
     }
     try {
-      return sendNoteOnce(context, id);
+      return sendNoteOnce(context, id, assistant);
     } finally {
       synchronized (SENDING) {
         SENDING.remove(id);
@@ -1007,16 +1022,17 @@ public final class DictationService extends Service {
     }
   }
 
-  private static String sendNoteOnce(Context context, String id) {
+  private static String sendNoteOnce(Context context, String id, int to) {
     HistoryEntry entry = load(context, id);
     if (entry == null) return tr("This note was deleted.");
     // Sent meanwhile (by the outbox, or a Retry before this one): nothing to do.
     if (entry.json.has("chiefThread") && !entry.json.has("chiefFailed")) return null;
     String said = entry.json.optString("original", entry.text());
-    BbBridge bb = new BbBridge(context);
     // The same request ID on every try: the chief's reply finds the note, and a try that may
     // have arrived isn't sent twice.
     boolean again = entry.json.has("chiefFailed") && !entry.json.optString("chiefRequest").isEmpty();
+    int assistant = again || to < 0 ? Assistants.of(entry.json) : Assistants.clamp(to);
+    BbBridge bb = new BbBridge(context, assistant);
     String chief = bb.chiefId(), request = again ? entry.json.optString("chiefRequest") : ChiefText.requestId();
     long asked = SystemClock.elapsedRealtime();
     String why = null;
@@ -1047,7 +1063,7 @@ public final class DictationService extends Service {
             if (files != null && files.files() > 0) step.put("files", files.files()).put("filesHow", files.how());
             if (files != null && files.refused() > 0) step.put("uploadRefused", files.refused());
             if (files != null && !files.failed().isEmpty()) step.put("filesFailed", String.join("; ", files.failed()));
-            e.json.put("route", "chief").put("chiefRequest", request);
+            e.json.put("route", "chief").put("chiefRequest", request).put("assistant", assistant);
             if (failed != null) {
               Outbox.failed(e.json, failed, e.json.optInt("chiefTries") + 1, System.currentTimeMillis());
               return;
@@ -1062,17 +1078,30 @@ public final class DictationService extends Service {
       return failed == null ? friendly(ex) : failed;
     }
     String key = "chief:" + request;
-    if (failed != null) Outbox.failure(context, key, "chief", "Note to you, request " + request, failed);
+    if (failed != null) Outbox.failure(context, key, "chief", "Note to you, request " + request, failed, assistant);
     else if (again) {
       Outbox.resolved(context, key);
-      Outbox.worked(context);
-    } else if (Outbox.failuresWaiting(context) > 0) Outbox.worked(context); // A failure is kept for each queued note.
+      Outbox.worked(context, assistant);
+    } else if (Outbox.failuresWaiting(context) > 0) Outbox.worked(context, assistant); // A failure is kept for each queued note.
     return failed;
   }
 
   /** The note went to the chief of staff. */
   static boolean sentToChief(HistoryEntry entry) {
     return entry.json.has("chiefThread") && !entry.json.has("chiefFailed");
+  }
+
+  /** The assistant the note that sent this request went to; -1 when there's no such note. */
+  static int assistantOf(Context context, String request) {
+    synchronized (NOTES) {
+      try (HistoryStore h = new HistoryStore(context)) {
+        for (HistoryEntry e : h.list(200, 0))
+          if (request.equals(e.json.optString("chiefRequest"))) return Assistants.of(e.json);
+      } catch (Exception ignored) {
+        /* Then every assistant's topic is looked at. */
+      }
+    }
+    return -1;
   }
 
   /** Keeps the chief's text back with the note that asked for it (found by its request ID). */
@@ -1098,7 +1127,8 @@ public final class DictationService extends Service {
 
   // ------------------------------------------------------------------ recording
 
-  private void startRecording() throws Exception {
+  /** keyAssistant: the assistant whose volume key started it (-1: the tile, the bubble). */
+  private void startRecording(int keyAssistant) throws Exception {
     if (isBusy()) return;
     adoptLeftover(); // never blocks: an old recording becomes a note to retry
     if (audio(this).exists()) throw new IOException(tr("Could not delete saved audio. Try again after restarting Dictate & Delegate."));
@@ -1106,7 +1136,7 @@ public final class DictationService extends Service {
       throw new IOException(tr("Allow microphone access in Dictate & Delegate first."));
     requireKey(this);
     foreground(true);
-    newSession();
+    newSession(keyAssistant);
     vault.remove("progress");
     prefs.edit().remove("recordingId").commit();
     prefs.edit().putString("sessionModel", new Profile(prefs).fixedModel()).commit();
@@ -1188,11 +1218,12 @@ public final class DictationService extends Service {
   }
 
   /**
-   * 📞 while recording: the recording so far becomes the start of a hands-free call. The audio
-   * goes to hands-free mode (through RecordActivity, which may start the microphone service), this
-   * dictation ends without a note, and listening goes on there.
+   * An assistant's 📞 while recording: the recording so far becomes the start of a hands-free call
+   * with that assistant's chief. The audio goes to hands-free mode (through RecordActivity, which
+   * may start the microphone service), this dictation ends without a note, and listening goes on
+   * there.
    */
-  private void callChief() {
+  private void callChief(int assistant) {
     if (!RECORDING.equals(state)) return;
     transition(STOPPING, tr("Starting the call…"));
     main.removeCallbacks(ticker);
@@ -1225,6 +1256,7 @@ public final class DictationService extends Service {
                         .putExtra(RecordActivity.HANDS_FREE_SEED, seed.exists() ? seed.getPath() : "")
                         .putExtra(HandsFreeService.AT_X, atX)
                         .putExtra(HandsFreeService.AT_Y, atY)
+                        .putExtra(RecordActivity.ASSISTANT, assistant)
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP));
                 transition(READY, tr("Tap the bubble to record"));
               });

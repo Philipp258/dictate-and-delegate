@@ -169,7 +169,7 @@ final class TestServer {
 
   /** Marks bb's skills as current for this app, so tests about other things don't install. */
   static void skillsCurrent(android.content.Context context) throws Exception {
-    String summary = ChiefSkills.summary(ChiefSkills.filled(context));
+    String summary = ChiefSkills.summary(ChiefSkills.filled(context, 0));
     context
         .getSharedPreferences("settings", 0)
         .edit()

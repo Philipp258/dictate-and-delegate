@@ -7,6 +7,7 @@
     <string name="t_00f987b3" formatted="false">De tekst van je stafchef staat niet meer op je ntfy-onderwerp.</string>
     <string name="t_01380324_one" formatted="false">%1$d opname is niet uitgeschreven. De audio is bewaard: probeer het hier opnieuw of open hem bij Recent.</string>
     <string name="t_01380324_other" formatted="false">%1$d opnames zijn niet uitgeschreven. De audio is bewaard: probeer het hier opnieuw of open ze bij Recent.</string>
+    <string name="t_013994e3" formatted="false">Elke notitie toont wat ze kostte, zoals OpenRouter het meldt. Een minuut spraak met het standaardmodel kost ongeveer $0,002.</string>
     <string name="t_0174ec90" formatted="false">Iedereen die het topic weet, kan deze meldingen lezen; daarom is het lang en willekeurig. Houd het voor jezelf.</string>
     <string name="t_01e4f1a8" formatted="false">Alles verwijderen</string>
     <string name="t_01f8e246" formatted="false">Tegel of volume omhoog ingedrukt houden</string>
@@ -30,6 +31,7 @@
     <string name="t_083e8bd0" formatted="false">bb heeft de vaardigheid van de talker niet geïnstalleerd. Het wordt de volgende keer opnieuw geprobeerd.</string>
     <string name="t_08db7524" formatted="false">Vanaf $%1$s / min</string>
     <string name="t_08e77a0c" formatted="false">Weergeven over andere apps toestaan</string>
+    <string name="t_08fc0fd2" formatted="false">Privé</string>
     <string name="t_092d8ce0" formatted="false">goedkoopste</string>
     <string name="t_098821db" formatted="false">Netwerklogboek kopiëren</string>
     <string name="t_09b31ec9" formatted="false">Verzenden genegeerd: net verzonden (%1$.1f s geleden)</string>
@@ -50,6 +52,7 @@
     <string name="t_0cf56167" formatted="false">De aanmeldserver van bb stuurde iets onverwachts.</string>
     <string name="t_0d22dfd9" formatted="false">Stem mislukt (%1$s): Android-stem leest het antwoord voor</string>
     <string name="t_0d35d152" formatted="false">Je sjablonen blijven op dit apparaat. Alleen het sjabloon dat je aanvraagt wordt samen met je dictaat naar de AI gestuurd.</string>
+    <string name="t_0d69a00c" formatted="false">Ingedrukte volumetoets: die je kiest bij Instellingen → Starten.</string>
     <string name="t_0dc541d5" formatted="false">Herstellen naar standaard</string>
     <string name="t_0dd1e692" formatted="false">Kon de talker niet instrueren om zijn vaardigheid te gebruiken: %1$s</string>
     <string name="t_0de44d68" formatted="false">1 bericht</string>
@@ -75,6 +78,7 @@
     <string name="t_181bf8d8" formatted="false">Prijzen per miljoen tokens in / uit, van OpenRouter.</string>
     <string name="t_189a9f2b" formatted="false">De spraakmodellen werken via OpenRouter met jouw sleutel; de kosten zie je bij elke notitie en in Verbruik. De spraakfunctie van Android werkt offline en neemt het over als OpenRouter niet werkt. Als een spraakmodel mislukt, zie je in de oproepbalk waarom.</string>
     <string name="t_18d0ca78" formatted="false">MCP-adres</string>
+    <string name="t_18d2e01f" formatted="false">Er loopt een gesprek met %1$s. Beëindig dat eerst.</string>
     <string name="t_19269cba" formatted="false">Anruf nach so viel Stille beenden (Sekunden)</string>
     <string name="t_1959e611" formatted="false">Open source, MIT-licentie · github.com/Philipp258/dictate-and-delegate</string>
     <string name="t_1964b988" formatted="false">Stop</string>
@@ -100,8 +104,10 @@
     <string name="t_1fde91b3" formatted="false">Je Anthropic-tegoed is op.</string>
     <string name="t_200afc5b" formatted="false">Sjabloon bewerken</string>
     <string name="t_202538d9" formatted="false">Probleem melden</string>
+    <string name="t_2041c79d" formatted="false">Verzonden naar %1$s</string>
     <string name="t_20842b83" formatted="false">Dictate &amp; Delegate heeft geen server, dus alles wat bewaard wordt staat op deze telefoon. Dit verwijdert je notities, audio, sjablonen, woorden, Over jou, je OpenRouter-, Anthropic- en live transcriptiesleutels, je bb-inlog en instellingen. Dit kan niet ongedaan worden gemaakt. Je accounts bij OpenRouter, Anthropic en bb blijven zoals ze zijn.</string>
     <string name="t_215d7d37" formatted="false">Vervangen door de verfijnde tekst</string>
+    <string name="t_2164aaf6" formatted="false">Verzonden naar %1$s ↗</string>
     <string name="t_219bf282" formatted="false">Je stafchef stuurt je meldingen via ntfy; als je op een melding tikt, opent de bijbehorende thread in bb. Dictate &amp; Delegate zelf verstuurt er geen. Installeer de ntfy-app en abonneer je op je onderwerp.</string>
     <string name="t_22747cc0" formatted="false">Berichten</string>
     <string name="t_22a3ef54" formatted="false">Juridisch</string>
@@ -116,8 +122,10 @@
     <string name="t_256649c4" formatted="false">snel</string>
     <string name="t_260e77ee" formatted="false">Niet verzonden: je lijkt nog meer te willen zeggen (%1$d%% klaar)</string>
     <string name="t_262860bd" formatted="false">Inloggen met bb</string>
+    <string name="t_263d0a9f" formatted="false">De toets die je hierboven kiest is voor %1$s. Zijn knoppen staan als eerste op het paneel; je kunt nog steeds de andere kiezen.</string>
     <string name="t_2652688c" formatted="false">Microfoon</string>
     <string name="t_26643376" formatted="false">Controleren…</string>
+    <string name="t_27325906" formatted="false">Volume omlaag ingedrukt houden voor %1$s</string>
     <string name="t_2792985f" formatted="false">🎧 Handsfree met je stafchef</string>
     <string name="t_27a3f255" formatted="false">Verzenden: niet-getelde spraak uitschrijven, daarna verzonden</string>
     <string name="t_27a92292" formatted="false">bb heeft de aanmelding niet toegestaan.</string>
@@ -160,11 +168,12 @@
     <string name="t_324be3eb" formatted="false">Kon het sjabloon niet verwijderen</string>
     <string name="t_32a5138e" formatted="false">zoals gezegd</string>
     <string name="t_32cb8094" formatted="false">Dat is geen bb-threadlink of -id (begint met thr_).</string>
-    <string name="t_3320a538" formatted="false">Na elk transcript beslist Jev, een snel beslismodel, wat er daarna gebeurt: of je om een tekst vroeg, welk sjabloon je noemde en of je je stafchef aansprak. Dat duurt ongeveer een derde seconde en loopt via je OpenRouter-sleutel.</string>
     <string name="t_339c2181" formatted="false">Dictate &amp; Delegate schrijft je sollicitatie met deze gegevens, klaar om te plakken.</string>
     <string name="t_33e841f4" formatted="false">Niet verzonden naar je stafchef: %1$s</string>
     <string name="t_33fdfd35" formatted="false">Helpt Dictate &amp; Delegate namen goed te spellen en elke notitie doelgericht te verwerken.</string>
+    <string name="t_345a4ad2" formatted="false">Elke assistent heeft een eigen topic, zodat antwoorden en tekst om te plakken op de juiste plek aankomen. Geef dit abonnement in de ntfy-app de naam van de assistent.</string>
     <string name="t_345d171c" formatted="false">De aanmeldserver van bb antwoordde met HTTP %1$d.</string>
+    <string name="t_34ed0f68" formatted="false">Staat op de knoppen van het paneel, in gesprekken en bij notities, zodat je altijd ziet waar iets heen gaat.</string>
     <string name="t_34f63f9b" formatted="false">Rapport verstuurd</string>
     <string name="t_3519ffb2" formatted="false">Microfoon: je stem · woorden komen bij je pauze</string>
     <string name="t_3575eb12" formatted="false">Rapport naar je chief sturen</string>
@@ -181,8 +190,8 @@
     <string name="t_38a07146" formatted="false">bb-webadres voor links</string>
     <string name="t_38b17551" formatted="false">Beëindigen</string>
     <string name="t_392604e7" formatted="false">Antwoord wacht: je bent aan het praten</string>
-    <string name="t_39ee7423" formatted="false">Automatisch verfijnen staat uit: een sjabloon wordt gebruikt wanneer je op ✨ Verfijn tikt.</string>
     <string name="t_3a98665a" formatted="false">Bijvoorbeeld: Ik bouw een app genaamd Dictate &amp; Delegate. Jana is een collega. Schrijf getallen als cijfers.</string>
+    <string name="t_3b6d3bbe" formatted="false">Het sjabloon dat je noemt, wordt gebruikt als je op ✨ Verfijnen tikt.</string>
     <string name="t_3b71f15b" formatted="false">Beste allround</string>
     <string name="t_3b9793b3" formatted="false">%1$s antwoordde niet op tijd. Probeer het opnieuw.</string>
     <string name="t_3b9938d1" formatted="false">Dit sjabloon verwijderen?</string>
@@ -220,12 +229,14 @@
     <string name="t_446b3ccc" formatted="false">%1$d u %2$d min</string>
     <string name="t_449d8bae" formatted="false">%1$s verwijderen</string>
     <string name="t_45a0c8fa" formatted="false">Verfijnd via OpenRouter in plaats van Anthropic: %1$s</string>
+    <string name="t_45c0f60f" formatted="false">Deze assistent verwijderen</string>
     <string name="t_45cb3322" formatted="false">Test verzenden</string>
     <string name="t_45d08313" formatted="false">OpenRouter kon dit verzoek niet uitvoeren (HTTP %1$d).</string>
     <string name="t_46202182" formatted="false">Geen spraak herkend. Klaar om opnieuw te proberen.</string>
     <string name="t_46713b89" formatted="false">Invoegen · Toegankelijkheidstoestemming</string>
     <string name="t_46783a6e" formatted="false">Stafchef aanmaken</string>
     <string name="t_467f1c34" formatted="false">Opname stoppen</string>
+    <string name="t_46a7dfd5" formatted="false">Opnieuw naar %1$s sturen</string>
     <string name="t_46d6d32e" formatted="false">Nu opnieuw proberen</string>
     <string name="t_46e4fba1" formatted="false">%1$d s</string>
     <string name="t_47eaeab4" formatted="false">Handsfree</string>
@@ -277,14 +288,15 @@
     <string name="t_54964c79" formatted="false">Ein Sendewort oder eine längere Pause fragt Jev, ob du fertig bist; nur ein klares Ja sendet (ohne Jev das Sendewort allein). Mehrere mit Kommas trennen.</string>
     <string name="t_55026b0c" formatted="false">Activiteit</string>
     <string name="t_551d8c4b" formatted="false">Geen app om bestanden mee te kiezen.</string>
+    <string name="t_554ed1d4" formatted="false">%1$s verwijderen?</string>
     <string name="t_5561cf2b" formatted="false">%1$s gehoord, maar de definitieve tekst ging daarna verder: niet verstuurd</string>
     <string name="t_55793fa6" formatted="false">Geluiden en stem</string>
     <string name="t_55cc6297" formatted="false">Dicteren op de achtergrond</string>
     <string name="t_568a8214" formatted="false">Handsfree-instellingen</string>
-    <string name="t_56f7d03e" formatted="false">Stafchef, suggestie: dit is wellicht een taak voor je stafchef</string>
     <string name="t_57fa913f" formatted="false">Gespreksaudio openhouden</string>
     <string name="t_582efc5c" formatted="false">Geannuleerd. Er is niets getranscribeerd of verzonden.</string>
     <string name="t_5831cebc" formatted="false">Met je Anthropic-sleutel gebruikt ✨ Verfijnen het Claude-model dat je hier kiest. Als Anthropic faalt, gaat het via OpenRouter naar het OpenRouter-model.</string>
+    <string name="t_584337ad" formatted="false">🎧 Handsfree</string>
     <string name="t_5844fa43" formatted="false">Overslaan</string>
     <string name="t_58480c1f" formatted="false">Annuleren…</string>
     <string name="t_5851ec64" formatted="false">Microfoon en privacy</string>
@@ -299,7 +311,6 @@
     <string name="t_5afff0dd" formatted="false">Veeg omlaag, bewerk Snelle instellingen en voeg Dictate &amp; Delegate toe.</string>
     <string name="t_5b08232c" formatted="false">Spraak-naar-tekst</string>
     <string name="t_5bc4deda" formatted="false">$%1$s per miljoen tekens</string>
-    <string name="t_5bd47891" formatted="false">Elke notitie toont de kosten zoals gerapporteerd door OpenRouter. De beslissing van Jev kost ongeveer $0.00002, een minuut spraak met het standaardmodel ongeveer $0.002.</string>
     <string name="t_5c53b93a" formatted="false">Microfoon werd onderbroken. Opgeslagen audio kan opnieuw worden geprobeerd.</string>
     <string name="t_5c9445ff" formatted="false">De naam in je bb-adres: &lt;handle&gt;.getbb.app. Je browser opent de accountpagina van bb; geef Dictate &amp; Delegate daar toestemming.</string>
     <string name="t_5cab269d" formatted="false">Je stafchef werkt eraan in bb en meldt zich via ntfy als hij klaar is of je nodig heeft. De knop opent de thread.</string>
@@ -314,11 +325,9 @@
     <string name="t_5eb87a8b" formatted="false">Start</string>
     <string name="t_5f1cb221" formatted="false">Wat je meestal dicteert</string>
     <string name="t_608acc86" formatted="false">Opname onderbroken.</string>
-    <string name="t_60a70b6d" formatted="false">Automatisch verfijnen</string>
     <string name="t_61710ff3" formatted="false">Per model</string>
     <string name="t_6183a1b8" formatted="false">hij is niet nieuwer dan deze versie</string>
     <string name="t_61e2b45c" formatted="false">Jij: %1$s</string>
-    <string name="t_62171086" formatted="false">Je kunt al op Verfijn of Stafchef tikken terwijl je nog spreekt. Vraag het in dezelfde adem (“maak hier een e-mail van”, “gebruik mijn woningaanvraag”) en Verfijn start vanzelf. Taken gaan alleen vanzelf naar je stafchef als je die aanspreekt: “stafchef, …”.</string>
     <string name="t_62bfeb04" formatted="false">Het aanmeldantwoord van bb bevatte geen token.</string>
     <string name="t_62e4540e" formatted="false">Niet verzonden: %1$s. Woorden bewaard; verzend opnieuw</string>
     <string name="t_633eed3f" formatted="false">Je hebt de update geannuleerd.</string>
@@ -327,6 +336,7 @@
     <string name="t_6408cdf0" formatted="false">Antwoord gepauzeerd: je praat. Het vervalt zodra je bericht verstuurd is</string>
     <string name="t_6418f0e2" formatted="false">Voer je bb Connect-gebruikersnaam in</string>
     <string name="t_64608f3a" formatted="false">Transcriberen… %1$s, opnieuw proberen over %2$d s (poging %3$d).</string>
+    <string name="t_65175c76" formatted="false">%1$s bellen</string>
     <string name="t_65211030" formatted="false">Het serveradres begint met https://</string>
     <string name="t_653174a7" formatted="false">Opnieuw gedaan met een slimmer model</string>
     <string name="t_6542df76" formatted="false">Als je stopt, worden je woorden uitgeschreven en verschijnt een zwevend paneel over je actieve app.</string>
@@ -354,8 +364,9 @@
     <string name="t_6df56c0c" formatted="false">Nog niet verzonden</string>
     <string name="t_6f2c1806" formatted="false">Verwijderen</string>
     <string name="t_707aa7bf" formatted="false">%1$s gehoord · wacht op een pauze</string>
-    <string name="t_714149a6" formatted="false">Naar stafchef sturen indien aangesproken</string>
+    <string name="t_7143d377" formatted="false">Tweede assistent toevoegen</string>
     <string name="t_71cc04b4" formatted="false">bb stuurde geen aanmeldcode. Start opnieuw.</string>
+    <string name="t_720e8712" formatted="false">Na een transcript gebeurt er niets vanzelf: je tikt op ✨ om te verfijnen en kiest wie het krijgt. Jev, een snel beslismodel, kiest alleen het sjabloon dat je noemde (‘gebruik mijn woningaanvraag’) voor een Verfijnen waarop je tikt, en controleert in handsfree gesprekken of je klaar bent. Dat duurt ongeveer een derde seconde en loopt via je OpenRouter-sleutel.</string>
     <string name="t_721589c1" formatted="false">Vandaag</string>
     <string name="t_722c6f22" formatted="false">%1$s gehoord…</string>
     <string name="t_72ec293c" formatted="false">GitHub stuurde iets onverwachts</string>
@@ -370,12 +381,12 @@
     <string name="t_76692d71" formatted="false">🎧 Handsfree staat aan</string>
     <string name="t_77083f49" formatted="false">Wat je telefoon verlaat</string>
     <string name="t_772f8ccc" formatted="false">Je naam</string>
+    <string name="t_7787a5b2" formatted="false">Verzenden naar %1$s…</string>
     <string name="t_77a2a807" formatted="false">Notitie verwijderen</string>
     <string name="t_77e5aff2" formatted="false">Verzonden naar stafchef ↗</string>
     <string name="t_77f722e3" formatted="false">Transcriberen… %1$s, nu opnieuw proberen (poging %2$d).</string>
     <string name="t_783d9fbc" formatted="false">Kon deze afbeelding niet lezen.</string>
     <string name="t_78e66b38" formatted="false">Lokale gegevens verwijderen?</string>
-    <string name="t_791246e5" formatted="false">Naam van je leidinggevende</string>
     <string name="t_7a213062" formatted="false">Dat is je stafchef. De talker moet een andere thread zijn.</string>
     <string name="t_7a8fe19e" formatted="false">Een eerdere opname is niet uitgeschreven: %1$s Hij staat bewaard in je notities om opnieuw te proberen.</string>
     <string name="t_7a933498" formatted="false">Kon niet alle audio verwijderen</string>
@@ -391,7 +402,6 @@
     <string name="t_7d1dd2ca" formatted="false">Verfijnd invoegen</string>
     <string name="t_7d72ac62" formatted="false">Verzenden genegeerd: nog niets gehoord</string>
     <string name="t_7d7c4de0" formatted="false">Niet verzonden: nog geen %1$s</string>
-    <string name="t_7e19ccd3" formatted="false">Zeg de naam om een dictaat naar je leidinggevende te sturen: \"Ada, …\", \"dit is voor Ada\". Alleen de naam noemen in een bericht verzendt het niet. Zonder naam, tik op 🧑‍💼.</string>
     <string name="t_7f3bcbfd" formatted="false">Handsfree bellen met je chef</string>
     <string name="t_7fd53415_one" formatted="false">%1$d sjabloon</string>
     <string name="t_7fd53415_other" formatted="false">%1$d sjablonen</string>
@@ -403,8 +413,6 @@
     <string name="t_81e2a271" formatted="false">Transcriptie</string>
     <string name="t_821e233c" formatted="false">Met één toestemming plaatst Invoegen je tekst direct bij de cursor, en start je een opname door een volumeknop ingedrukt te houden. Zonder deze toestemming kopieert Dictate &amp; Delegate de tekst en plak je deze zelf.</string>
     <string name="t_8250ae9b" formatted="false">Aanmelden bij bb…</string>
-    <string name="t_8265f0ba" formatted="false">Jev · verfijnt en stuurt zelf naar je stafchef</string>
-    <string name="t_826621ab" formatted="false">Wanneer je je stafchef bij naam noemt (Instellingen → Stafchef); tik anders op 🧑‍💼</string>
     <string name="t_82a7b056" formatted="false">Het tekstmodel gaf niets terug. Probeer opnieuw.</string>
     <string name="t_82bad7d7" formatted="false">Deze aanmelding komt niet overeen met wat hier is gestart. Start opnieuw.</string>
     <string name="t_82cf479c" formatted="false">Microfoon %1$.1f s gepauzeerd na antwoord (echo)</string>
@@ -436,11 +444,13 @@
     <string name="t_8b814d52" formatted="false">Broncode</string>
     <string name="t_8bec24cc" formatted="false">Controleren en opslaan</string>
     <string name="t_8bf10d56" formatted="false">Verwijderen</string>
+    <string name="t_8c8185ec" formatted="false">Naar %1$s sturen</string>
     <string name="t_8cb43c6e" formatted="false">Stem mislukt: %1$s</string>
     <string name="t_8cc9e4c3" formatted="false">📎 Toevoegen</string>
     <string name="t_8d448705" formatted="false">Een eerdere opname is uitgeschreven. Hij staat in je notities.</string>
     <string name="t_8d8041f9" formatted="false">Je stem moet zo veel keer luider zijn dan de achtergrond</string>
     <string name="t_8edfe30e" formatted="false">vereist aandacht</string>
+    <string name="t_8eeb1ae4" formatted="false">Volume omhoog ingedrukt houden voor %1$s</string>
     <string name="t_8f13ebdb" formatted="false">Dictate &amp; Delegate schrijft</string>
     <string name="t_8f454c36" formatted="false">Stel je stafchef in via Dictate &amp; Delegate → Instellingen → bb.</string>
     <string name="t_8fe78547" formatted="false">geen spraak</string>
@@ -471,7 +481,6 @@
     <string name="t_9931e57c" formatted="false">Kon niet starten. Controleer machtigingen en probeer opnieuw.</string>
     <string name="t_998a8ce0" formatted="false">Gekopieerd; plak met lang drukken</string>
     <string name="t_99cccfe5" formatted="false">Audio verwijderen</string>
-    <string name="t_9a6bdb3b" formatted="false">Jev · verfijnt zelf</string>
     <string name="t_9ae57457" formatted="false">Zoeken naar updates</string>
     <string name="t_9aefa862" formatted="false">Haal een sleutel op openrouter.ai</string>
     <string name="t_9b464b7c_one" formatted="false">%1$d bijlage voor deze dictatie</string>
@@ -482,6 +491,7 @@
     <string name="t_9bb908f9" formatted="false">Tekst</string>
     <string name="t_9bec7d3e" formatted="false">Modellen en aanbieders</string>
     <string name="t_9bef8b14" formatted="false">Ideeën &amp; dagboek</string>
+    <string name="t_9bf9292a" formatted="false">Ingedrukte volumetoets: de andere (Instellingen → Starten).</string>
     <string name="t_9c550f09" formatted="false">Tegel of volume omlaag ingedrukt houden</string>
     <string name="t_9c7b6819" formatted="false">Audio verwijderen</string>
     <string name="t_9c9743f1" formatted="false">Nodig om een notitie opnieuw te doen met een slimmer model</string>
@@ -521,6 +531,7 @@
     <string name="t_a6ab7640" formatted="false">Je bent uitgelogd bij bb. Log opnieuw in via Instellingen → bb.</string>
     <string name="t_a6ee4edb" formatted="false">Verzenden naar je stafchef…</string>
     <string name="t_a72f83aa" formatted="false">Toegankelijkheidstoestemming vereist: zie Invoegen.</string>
+    <string name="t_a732f5f8" formatted="false">Niet verzonden naar %1$s: %2$s</string>
     <string name="t_a75a18d5" formatted="false">Kon %1$s niet bereiken op %2$s: %3$s.</string>
     <string name="t_a75b1302" formatted="false">onbekend adres</string>
     <string name="t_aa539260" formatted="false">Uitschrijven… %1$d s</string>
@@ -544,6 +555,7 @@
     <string name="t_ad36a70e" formatted="false">Verzendwoorden</string>
     <string name="t_ad395bc2" formatted="false">Plak een nieuwe sleutel om deze te vervangen</string>
     <string name="t_ad6a7ed6" formatted="false">✓ Opgeslagen</string>
+    <string name="t_ad7aa9b3" formatted="false">Handsfree bellen met %1$s</string>
     <string name="t_ae112605" formatted="false">Notities doorzoeken</string>
     <string name="t_ae11d238" formatted="false">Optioneel. bb (getbb.app) draait coding agents op je eigen computer. Eenmaal gekoppeld draagt Dictate &amp; Delegate een ingesproken taak over aan je stafchef-thread aldaar. Zonder bb is Dictate &amp; Delegate een dicteer-app.</string>
     <string name="t_ae292a04" formatted="false">Volume omhoog</string>
@@ -553,11 +565,11 @@
     <string name="t_aec6e5df" formatted="false">Open source. Je eigen OpenRouter-sleutel, geen Dictate &amp; Delegate-server ertussen.</string>
     <string name="t_b01f4f95" formatted="false">Klaar</string>
     <string name="t_b048967b" formatted="false">Verbind eerst bb.</string>
-    <string name="t_b048b7e4" formatted="false">Wanneer je om een tekst vraagt, een sjabloon noemt of het dictaat moet worden opgeschoond</string>
     <string name="t_b085f3f0" formatted="false">Dicteren stoppen</string>
     <string name="t_b0ad5840" formatted="false">Nog geen sjablonen.</string>
     <string name="t_b0bc3188" formatted="false">Woorden</string>
     <string name="t_b0c515f3" formatted="false">✓  Aan</string>
+    <string name="t_b1130c14" formatted="false">Eerste assistent</string>
     <string name="t_b15fa13c" formatted="false">Geen verbinding met %1$s. Controleer je internetverbinding.</string>
     <string name="t_b1a746c0" formatted="false">Talker-thread</string>
     <string name="t_b1c2889b" formatted="false">Skills controleren in bb</string>
@@ -601,7 +613,6 @@
     <string name="t_bdae2794" formatted="false">Gebruikt om namen en termen correct te spellen bij transcriptie en verwerking.</string>
     <string name="t_be7f9242" formatted="false">Kon transcriptgeschiedenis niet opslaan.</string>
     <string name="t_bed11d96" formatted="false">Tekst van je stafchef gekopieerd</string>
-    <string name="t_bf062440" formatted="false">Jev · stuurt zelf naar je stafchef</string>
     <string name="t_c002f56c" formatted="false">De audio van deze opname verwijderen?</string>
     <string name="t_c0d15569" formatted="false">Stem mislukt (%1$s): deze telefoon heeft geen andere stem</string>
     <string name="t_c0da8988" formatted="false">Notities</string>
@@ -609,6 +620,7 @@
     <string name="t_c17cebfc" formatted="false">%1$s gehoord, maar je stem telde niet als spraak (te zacht tegen de achtergrond?): niet verstuurd</string>
     <string name="t_c1829c8e_one" formatted="false">%1$d woord</string>
     <string name="t_c1829c8e_other" formatted="false">%1$d woorden</string>
+    <string name="t_c1d29519" formatted="false">%1$s gebruikt deze bb al. Elke assistent heeft een eigen bb nodig, anders raken de antwoorden door elkaar.</string>
     <string name="t_c21bafca" formatted="false">✨ Verfijnen gaat via OpenRouter naar het model dat je hier kiest. Voeg onder Modellen en aanbieders een Anthropic-sleutel toe om Claude met je Anthropic-tegoed te gebruiken.</string>
     <string name="t_c2230b29" formatted="false">Luisteren · nog niet verzonden</string>
     <string name="t_c25dfbec" formatted="false">Verzonden naar stafchef</string>
@@ -671,6 +683,7 @@
     <string name="t_cfd7960b" formatted="false">Test van Dictate &amp; Delegate. Meldingen van je stafchef zien er zo uit.</string>
     <string name="t_d024ef7f" formatted="false">Zwevend paneel</string>
     <string name="t_d1101d1a" formatted="false">bb zoeken…</string>
+    <string name="t_d1d743a4" formatted="false">Chat met %1$s openen ↗</string>
     <string name="t_d1e4a3ee" formatted="false">Start</string>
     <string name="t_d27e302d" formatted="false">Je stafchef krijgt alles: geplakte tekst in het bericht, afbeeldingen en pdf\'s als bijlagen.</string>
     <string name="t_d2be46f0" formatted="false">Deze notitie kostte %1$s.</string>
@@ -689,6 +702,7 @@
     <string name="t_d6d7613f" formatted="false">Je sjabloon</string>
     <string name="t_d6dce050" formatted="false">Geen stafchef ingesteld. Stel er een in via Instellingen → bb.</string>
     <string name="t_d79a087e" formatted="false">Die thread is gearchiveerd in bb. Deactiveer het archiveren of kies een andere.</string>
+    <string name="t_d7cd110a" formatted="false">Nog een bb, bijv. voor je werk: eigen adres, aanmelding en chef. Houd de andere volumetoets ingedrukt of tik op zijn knoppen om ermee te praten.</string>
     <string name="t_d7e63cc4" formatted="false">Terwijl je dicteert, blijft een klein paneel bovenop andere apps zichtbaar: tik op ■ om te stoppen, daarna op Invoegen, Verfijnen of Stafchef. Om dit toe te staan, toont Android een lijst met apps: tik op Dictate &amp; Delegate, schakel het in en ga terug.</string>
     <string name="t_d8427f19" formatted="false">Je OpenRouter-sleutel</string>
     <string name="t_d90fc528" formatted="false">Wijzig de taal via Android-instellingen → Apps → Dictate &amp; Delegate.</string>
@@ -719,11 +733,11 @@
     <string name="t_dff686d8" formatted="false">Verhoog dit als lawaai of anderen je beurt overnemen; verlaag het als zachtere woorden worden gemist. De recente gebeurtenissen hieronder tonen elke beslissing met het bijbehorende niveau.</string>
     <string name="t_e0f871ec" formatted="false">Verzendwoord gehoord: je bericht was al verzonden</string>
     <string name="t_e11b985b" formatted="false">meest nauwkeurig</string>
-    <string name="t_e124f150" formatted="false">Bijvoorbeeld: Ada</string>
     <string name="t_e16301de" formatted="false">Anthropic · %1$s</string>
     <string name="t_e17493b2" formatted="false">geen reactie op dit adres</string>
     <string name="t_e17c28b4" formatted="false">Beslissingen</string>
     <string name="t_e1a911fe" formatted="false">sleutel opgeslagen</string>
+    <string name="t_e1b8de72" formatted="false">Meldt zich af bij zijn bb en vergeet hier zijn chef en instellingen. Zijn notities blijven; nog niet verzonden notities worden niet opnieuw geprobeerd. In bb verandert niets.</string>
     <string name="t_e24b4cba" formatted="false">Aanmelden mislukt: %1$s</string>
     <string name="t_e2530adf" formatted="false">Hier invoegen</string>
     <string name="t_e2774654" formatted="false">Openen in ntfy</string>
@@ -738,7 +752,6 @@
     <string name="t_e5251fab" formatted="false">Voltooi configuratie om te starten met dicteren</string>
     <string name="t_e534f035" formatted="false">Code &amp; tech</string>
     <string name="t_e5523fab" formatted="false">Kon niet alles verwijderen</string>
-    <string name="t_e587893b" formatted="false">De knoppen ✨ en 🧑‍💼 werken altijd, wat hier ook staat.</string>
     <string name="t_e5a8e366" formatted="false">Gesproken</string>
     <string name="t_e5bbe918" formatted="false">Niet meer opnieuw geprobeerd. Hij was al verstuurd, dus de tekst wordt nog bewaard zodra die binnenkomt.</string>
     <string name="t_e6a56db0" formatted="false">Deze thread gebruiken</string>
@@ -759,6 +772,7 @@
     <string name="t_ea954889" formatted="false">Doorgaan</string>
     <string name="t_eaa82cf9" formatted="false">Geen spraak herkend. Klaar om opnieuw op te nemen.</string>
     <string name="t_eb150f22" formatted="false">Kon actie niet voltooien. Controleer microfoontoegang, opslagruimte en je sleutel, en probeer opnieuw.</string>
+    <string name="t_eb4bdc9c" formatted="false">Gesprek met %1$s</string>
     <string name="t_eb89173a" formatted="false">Open Toegankelijkheidsinstellingen</string>
     <string name="t_ec054ecf" formatted="false">Verzenden genegeerd: al bezig met verzenden</string>
     <string name="t_ec8fbe93" formatted="false">De tekst, versies, kosten en audio worden verwijderd. Dit kan niet ongedaan worden gemaakt.</string>
@@ -771,6 +785,7 @@
     <string name="t_ee5fc561" formatted="false">Skills van stafchef controleren in bb…</string>
     <string name="t_eea7466f" formatted="false">Plaatst de tekst bij de cursor, waar je typt.</string>
     <string name="t_eec8ea51" formatted="false">Lokale gegevens verwijderen</string>
+    <string name="t_ef0f5831" formatted="false">Tweede assistent</string>
     <string name="t_ef217ee7" formatted="false">Opnieuw proberen</string>
     <string name="t_efc1065a" formatted="false">Niet verbonden</string>
     <string name="t_efcb8ba3" formatted="false">de verbinding is verbroken</string>
@@ -782,13 +797,14 @@
     <string name="t_f0d83244" formatted="false">Het spraakmodel gaf geen transcriptie terug. De opname is bewaard; probeer het opnieuw.</string>
     <string name="t_f13b16c1" formatted="false">Je stafchef gebruikt twee vaardigheden in bb, chief-of-staff en dictate-and-delegate: hoe voor je te werken, en hoe je meldingen te sturen en tekst terug te zenden. Dictate &amp; Delegate installeert en updatet deze in bb via een korte thread.</string>
     <string name="t_f157fddc" formatted="false">Plak of typ de tekst zoals je deze zou versturen.</string>
+    <string name="t_f176a68e" formatted="false">Gaat naar %1$s ✓</string>
     <string name="t_f1a961a8" formatted="false">bb stuurde iets onverwachts. Werk bb bij en probeer het opnieuw.</string>
     <string name="t_f1d71ab7" formatted="false">Woord- en snelheidsbolletjes zijn redactionele schattingen, geen metingen van je stem. Prijzen per minuut via %1$s.</string>
     <string name="t_f1eb4151" formatted="false">snelste</string>
     <string name="t_f23a5730" formatted="false">Voeg eerst je OpenRouter-sleutel toe in de instellingen van Dictate &amp; Delegate.</string>
     <string name="t_f2784936" formatted="false">Je woorden worden opgeschreven terwijl je praat, en een verzendwoord verzendt direct. Uit, of zonder sleutel: opgeschreven bij elke pauze.</string>
-    <string name="t_f2cd6d4e" formatted="false">Automatisch · %1$s</string>
     <string name="t_f37b2ae0" formatted="false">bb kon het niet uitvoeren: %1$s</string>
+    <string name="t_f37cc7be" formatted="false">Werk</string>
     <string name="t_f3856474" formatted="false">bb Connect heeft geen server genaamd “%1$s”. Controleer de gebruikersnaam en of bb Connect aanstaat in bb.</string>
     <string name="t_f41dc081" formatted="false">✓  Verzonden. Het zou in de ntfy-app moeten verschijnen.</string>
     <string name="t_f443b068" formatted="false">Leest antwoorden van je chef voor in de handsfree-modus (voorlopig alleen in het Engels).</string>
@@ -803,13 +819,16 @@
     <string name="t_f6a5c392" formatted="false">Handsfree-modus</string>
     <string name="t_f6a8c847" formatted="false">Alle opgeslagen audio verwijderen?</string>
     <string name="t_f703e6b3" formatted="false">OpenRouter heeft nog geen kosten gemeld voor deze notitie.</string>
+    <string name="t_f72e2459" formatted="false">Niet verzonden naar %1$s: %2$s Hieronder staat wat je zei.</string>
     <string name="t_f7362d4a" formatted="false">Nu verzenden</string>
     <string name="t_f7503f59" formatted="false">Wacht tot deze notitie klaar is</string>
     <string name="t_f791ca6c" formatted="false">Notities, audio, sjablonen, sleutels, bb-aanmelding en instellingen</string>
+    <string name="t_f7e960db" formatted="false">Niet verzonden naar %1$s</string>
     <string name="t_f8964565" formatted="false">Sluit het paneel. De notitie blijft in Dictate &amp; Delegate.</string>
     <string name="t_f8a28f83" formatted="false">Snelle instellingen-tegel</string>
     <string name="t_f8bfec6c" formatted="false">ElevenLabs-sleutel</string>
     <string name="t_f927dded" formatted="false">%1$s opgenomen</string>
+    <string name="t_f9846eda" formatted="false">Je kunt al op Verfijnen of Stafchef tikken terwijl je nog praat. Niets gaat vanzelf ergens heen: jij kiest. Noem in dezelfde adem een sjabloon (‘gebruik mijn woningaanvraag’) en Verfijnen gebruikt het als je erop tikt.</string>
     <string name="t_f9db5ec8" formatted="false">het is niet deze app</string>
     <string name="t_f9dd979f" formatted="false">✓  Opgeslagen.</string>
     <string name="t_fa57ce65" formatted="false">Alleen transcriptie</string>
@@ -817,6 +836,7 @@
     <string name="t_fab497fe" formatted="false">Praat overal.</string>
     <string name="t_fac75a8c" formatted="false">Tegoed en verbruik op openrouter.ai</string>
     <string name="t_fb6e7c77" formatted="false">3 · Zwevend paneel</string>
+    <string name="t_fbe86bc2" formatted="false">Handsfree met %1$s</string>
     <string name="t_fc1cb01e" formatted="false">Opname starten</string>
     <string name="t_fc31df0c" formatted="false">%1$d berichten</string>
     <string name="t_fc4b6317" formatted="false">✓  Toegestaan</string>

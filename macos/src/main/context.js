@@ -148,9 +148,9 @@ async function createContext({ log: baseLog } = {}) {
       );
     },
 
-    /** Jev on a dictation. */
-    decide(transcript, { templates: names, refine, chiefName }) {
-      return jev.ask(openRouter, transcript, names, refine, chiefName);
+    /** Jev on a dictation: which template it names. */
+    decide(transcript, { templates: names }) {
+      return jev.ask(openRouter, transcript, names);
     },
 
     /** A tiny event bus between main's parts and the windows ("skills", "notes", "settings"…). */

@@ -207,8 +207,6 @@ public class PanelTest {
         .putString("model", "microsoft/mai-transcribe-2")
         .putString("bubbleMode", "recording")
         .putBoolean("onboarded", true)
-        .putBoolean(Profile.AUTO_REFINE, true)
-        .putBoolean(Profile.AUTO_CHIEF, true)
         .putInt("bubbleX", 16)
         .putInt("bubbleY", 900) // Clear of the test pad's field and of Android's clipboard chip.
         .remove(TalkAccessibility.VOLUME_KEY)
@@ -256,7 +254,6 @@ public class PanelTest {
   @Test
   public void insertPutsTheTranscriptAtTheCursorThenRefinedReplacesItInPlace() throws Exception {
     TestServer.transcripts("um so see you at ten I mean eleven");
-    TestServer.decide(0.93, 0, "none");
     TestServer.replies("See you at eleven.");
     setClipboard("something I still need");
     pad("Hi Jana, ");
@@ -272,7 +269,8 @@ public class PanelTest {
     find("Insert").click();
     until("the transcript is in the field", () -> "Hi Jana, um so see you at ten I mean eleven".equals(padText()));
     find("Inserted");
-    // Refine started by itself (Jev 0.93) and its button became Insert refined.
+    // Refine runs when tapped, and its button becomes Insert refined.
+    find("✨ Refine").click();
     find("Insert refined");
     shot("3-refined");
     find("Insert refined").click();
@@ -294,7 +292,6 @@ public class PanelTest {
   String insertIntoWebField(String kind, String already) throws Exception {
     TestServer.reset();
     TestServer.transcripts("I mean, I don't know");
-    TestServer.decide(0.1, 0, "none");
     // A fresh page each time; spaces in the text go as _ (the shell command isn't quoted).
     shell("am start -W --activity-clear-task -n app.driftdictation.test/app.driftdictation.WebPadActivity --es kind " + kind
         + (already.isEmpty() ? "" : " --es text " + already.replace(' ', '_')));
@@ -334,7 +331,6 @@ public class PanelTest {
   @Test
   public void editedMeanwhileTheRefinedTextGoesAtTheCursorInstead() throws Exception {
     TestServer.transcripts("see you at ten");
-    TestServer.decide(0.1, 0, "none");
     TestServer.replies("See you at 10.");
     UiObject2 field = pad("");
     dictate();
@@ -510,7 +506,6 @@ public class PanelTest {
     bb.useCustom(TestServer.bbUrl(), "", LINKS);
     bb.setChief(new BbBridge.ThreadInfo(TestServer.CHIEF, "Chief of staff", "idle"));
     bb.setNtfyServer(TestServer.ntfyRoot());
-    prefs.edit().putString(Profile.CHIEF_NAME, "Henry").commit();
     TestServer.skillsCurrent(context);
     return bb;
   }
@@ -519,9 +514,9 @@ public class PanelTest {
   public void theChiefsTextBackAppearsInThePanelAndInserts() throws Exception {
     BbBridge bb = chief();
     TestServer.transcripts("Henry, write Tom that I'm running late");
-    TestServer.decide(0.3, 0.96, "none");
     pad("");
     dictate();
+    find("🧑‍💼 Chief").click();
     find("Open chat ↗");
     shot("4-chief-sent");
     String request = note().json.optString("chiefRequest");
@@ -563,7 +558,6 @@ public class PanelTest {
     try {
       chief();
       TestServer.transcripts("sag Tom, dass ich mich verspäte, und mach es höflich");
-      TestServer.decide(0.1, 0.2, "none");
       TestServer.replies("Hallo Tom, ich verspäte mich etwas. Entschuldige!");
       dictate();
       find("✨ Verfeinern").click();
@@ -605,7 +599,7 @@ public class PanelTest {
     bb.setNtfyServer(args.getString("realNtfy"));
     // Never into the real ~/.bb/skills: this chief gets the filled skills as its first message.
     TestServer.skillsCurrent(context);
-    java.util.Map<String, String> files = ChiefSkills.filled(context);
+    java.util.Map<String, String> files = ChiefSkills.filled(context, 0);
     String prompt =
         "For this test, follow these two skills as if they were installed, then reply \"ready\".\n\n"
             + files.get(ChiefSkills.CHIEF)
@@ -618,13 +612,12 @@ public class PanelTest {
     String chiefId = created.getString("id");
     android.util.Log.i("TalkRouterReal", "chief " + chiefId + " topic " + bb.ntfyTopic());
     bb.setChief(new BbBridge.ThreadInfo(chiefId, args.getString("realTitle"), created.optString("status")));
-    prefs.edit().putString(Profile.CHIEF_NAME, "Henry").commit();
     TestServer.transcripts(
         "Henry, write a two-sentence reply to Sarah saying I can't make it on Thursday but Friday"
             + " works, and send me the text to paste.");
-    TestServer.decide(0.2, 0.97, "none");
     pad("");
     dictate();
+    find("🧑‍💼 Chief").click();
     find("Open chat ↗");
     shot("real-1-chief-sent");
     // The panel waits five minutes for the chief's text (DictationService.PANEL_WAIT_MS).
@@ -649,7 +642,7 @@ public class PanelTest {
     bb.useCustom(args.getString("realMcp"), "", args.getString("realLinks"));
     bb.setNtfyServer(args.getString("realNtfy"));
     TestServer.skillsCurrent(context);
-    java.util.Map<String, String> files = ChiefSkills.filled(context);
+    java.util.Map<String, String> files = ChiefSkills.filled(context, 0);
     String prompt =
         "For this test, follow these two skills as if they were installed, then reply \"ready\".\n\n"
             + files.get(ChiefSkills.CHIEF)
@@ -659,7 +652,6 @@ public class PanelTest {
         bb.run(BbBridge.spawnSnippet(prompt).replace(JSONObject.quote(BbBridge.CHIEF_TITLE), JSONObject.quote(args.getString("realTitle"))));
     android.util.Log.i("TalkRouterReal", "chief " + created.getString("id"));
     bb.setChief(new BbBridge.ThreadInfo(created.getString("id"), args.getString("realTitle"), created.optString("status")));
-    prefs.edit().putString(Profile.CHIEF_NAME, "Henry").commit();
     // -e realBase64 true: as over bb Connect, the upload is refused and a large photo-sized
     // picture (red with noise, over bb's 100,000-character limit as base64) goes in parts.
     boolean base64 = "true".equals(args.getString("realBase64"));
@@ -676,9 +668,9 @@ public class PanelTest {
     new Attachments(context).add("image", "colour.jpg", jpeg.toByteArray(), ".jpg");
     TestServer.transcripts(
         "Henry, look at the attached picture and send me just the name of its colour, in English, as text to paste.");
-    TestServer.decide(0.1, 0.97, "none");
     pad("");
     dictate();
+    find("🧑‍💼 Chief").click();
     find("Open chat ↗");
     UiObject2 insert = device.wait(Until.findObject(By.desc("Insert from chief")), DictationService.PANEL_WAIT_MS);
     assertNotNull("the chief's answer arrived while the panel waited", insert);
@@ -767,6 +759,44 @@ public class PanelTest {
     // Switched off, the key is Android's again.
     prefs.edit().putString(TalkAccessibility.VOLUME_KEY, TalkAccessibility.OFF).commit();
     assertFalse(key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_VOLUME_DOWN));
+  }
+
+  /** With a second assistant, holding the other volume key starts a dictation for it: its buttons first. */
+  @Test
+  public void holdingTheOtherVolumeKeyStartsADictationForTheSecondAssistant() throws Exception {
+    chief();
+    BbBridge work = new BbBridge(context, 1);
+    work.useCustom(TestServer.bbUrl(), "", LINKS);
+    work.setChief(new BbBridge.ThreadInfo("thr_workchief", "Chief of staff", "idle"));
+    Assistants.setName(context, 1, "Work");
+    prefs.edit().putString(Assistants.key(1, ChiefSkills.INSTALLED), ChiefSkills.summary(ChiefSkills.filled(context, 1))).putInt(Assistants.key(1, ChiefSkills.CHECKED_VERSION), BuildConfig.VERSION_CODE).commit();
+    try {
+      TestServer.transcripts("for work");
+      prefs.edit().putString(TalkAccessibility.VOLUME_KEY, TalkAccessibility.DOWN).putInt(TalkAccessibility.HOLD_MS, 300).commit();
+      device.pressHome();
+      assertTrue(key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_VOLUME_UP));
+      Thread.sleep(500);
+      assertTrue(key(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_VOLUME_UP));
+      waitFor("recording");
+      assertEquals(1, DictationService.session().keyAssistant);
+      find("Send to Work");
+      find("Hands-free call with Work");
+      shot("0b-volume-up-work");
+      // Its own key stops it too.
+      Thread.sleep(800);
+      assertTrue(key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_VOLUME_UP));
+      Thread.sleep(500);
+      assertTrue(key(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_VOLUME_UP));
+      waitFor("copied");
+      // Switched off in Settings → Start: volume up is the volume again.
+      prefs.edit().putBoolean(Assistants.OTHER_KEY, false).commit();
+      assertFalse(key(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_VOLUME_UP));
+    } finally {
+      work.disconnect();
+      work.forgetChief();
+      prefs.edit().remove(Assistants.OTHER_KEY).remove(Assistants.key(1, Assistants.NAME)).remove(Assistants.key(1, BbBridge.MODE)).commit();
+      prefs.edit().putString(TalkAccessibility.VOLUME_KEY, TalkAccessibility.OFF).commit();
+    }
   }
 
   @Test

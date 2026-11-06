@@ -350,9 +350,30 @@ final class ChiefText {
     }
   }
 
-  /** The text for a request, from the messages the topic still holds (ntfy keeps them 12 h). */
+  /**
+   * The text for a request, from the messages the topics still hold (ntfy keeps them 12 h): the
+   * topic of the assistant whose note sent it, else each connected assistant's in turn.
+   */
   static String fetch(Context context, String request) throws Exception {
-    BbBridge bb = new BbBridge(context);
+    java.util.List<Integer> order = new java.util.ArrayList<>();
+    int owner = DictationService.assistantOf(context, request);
+    if (owner >= 0) order.add(owner);
+    for (int a : Assistants.connected(context)) if (!order.contains(a)) order.add(a);
+    if (order.isEmpty()) order.add(0);
+    Exception failed = null;
+    for (int a : order) {
+      try {
+        String text = fetch(new BbBridge(context, a), request);
+        if (!text.isEmpty()) return text;
+      } catch (Exception ex) {
+        failed = ex;
+      }
+    }
+    if (failed != null) throw failed;
+    return "";
+  }
+
+  private static String fetch(BbBridge bb, String request) throws Exception {
     String server = bb.ntfyServer();
     long since = System.currentTimeMillis() / 1000 - 12 * 3600;
     String all = get("ntfy poll", streamUrl(server, bb.ntfyTopic(), since, true), 2_000_000, bb.ntfyTopic());

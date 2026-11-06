@@ -28,8 +28,6 @@ public class ControlsTest {
         .edit()
         .putString("bubbleMode", "recording")
         .putString("model", "openai/whisper-1")
-        .putBoolean(Profile.AUTO_REFINE, false)
-        .putBoolean(Profile.AUTO_CHIEF, false)
         .putBoolean("onboarded", true)
         .commit();
     TestServer.useKey(context);

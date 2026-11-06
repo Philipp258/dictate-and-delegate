@@ -52,7 +52,7 @@ final class ChiefSkills {
   /** Prefs: which talker was told, with which version of its skill: "<thread id>:<hash>". */
   static final String TALKER_TOLD = "talkerToldSkill";
 
-  /** Prefs: the user's name; the hashes installed last time; the app version that checked. */
+  /** Prefs: the user's name (shared); per assistant, the hashes installed last time and the app version that checked. */
   static final String USER_NAME = "bbUserName", INSTALLED = "skillsInstalled", CHECKED_VERSION = "skillsCheckedVersion";
 
   /** Prefs: the chief was told to use the skills (new chiefs at once, older ones after install). */
@@ -104,8 +104,8 @@ final class ChiefSkills {
    * The skills bb should have: name → filled file. The talker's only with a talker set (and on):
    * a user without one doesn't wait for it, and setting one installs it.
    */
-  static Map<String, String> filled(Context context) throws Exception {
-    BbBridge bb = new BbBridge(context);
+  static Map<String, String> filled(Context context, int assistant) throws Exception {
+    BbBridge bb = new BbBridge(context, assistant);
     SharedPreferences prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE);
     Map<String, String> files = new LinkedHashMap<>();
     for (String name : NAMES)
@@ -222,9 +222,32 @@ final class ChiefSkills {
     FAILED
   }
 
-  static volatile State state = State.IDLE;
-  static volatile String problem = "";
-  private static volatile boolean running;
+  /** Each assistant's bb is kept current on its own: where its install stands, and why it failed. */
+  private static final State[] states = {State.IDLE, State.IDLE};
+
+  private static final String[] problems = {"", ""};
+  private static final boolean[] running = new boolean[Assistants.COUNT];
+
+  static State state(int assistant) {
+    return states[assistant];
+  }
+
+  static String problem(int assistant) {
+    return problems[assistant];
+  }
+
+  /** For the tests: back to the start. */
+  static void reset() {
+    for (int a = 0; a < Assistants.COUNT; a++) {
+      states[a] = State.IDLE;
+      problems[a] = "";
+    }
+  }
+
+  /** An assistant's own name for one of these settings (Assistants.key). */
+  private static String k(int assistant, String name) {
+    return Assistants.key(assistant, name);
+  }
 
   /** How long the app waits for the install thread, polling every few seconds. */
   static long installWaitMs = 4 * 60_000, pollMs = 3000;
@@ -240,50 +263,56 @@ final class ChiefSkills {
     return !talkerSkillProblem.isEmpty() ? talkerSkillProblem : talkerTellProblem;
   }
 
+  /** Brings every connected assistant's bb up to date (see below). */
+  static void sync(Context context, boolean force) {
+    for (int a = 0; a < Assistants.COUNT; a++) sync(context, a, force);
+  }
+
   /**
-   * Brings bb's skills up to date in the background. Without force it only asks bb when something
-   * changed since the last install: the filled files (template, name, topic, server, link) or the
-   * app version.
+   * Brings an assistant's bb skills up to date in the background, filled with its own topic, server
+   * and link. Without force it only asks bb when something changed since the last install: the
+   * filled files (template, name, topic, server, link) or the app version.
    */
-  static synchronized void sync(Context context, boolean force) {
+  static synchronized void sync(Context context, int assistant, boolean force) {
     Context app = context.getApplicationContext();
-    if (running || !new BbBridge(app).connected()) return;
+    if (running[assistant] || !new BbBridge(app, assistant).connected()) return;
     SharedPreferences prefs = app.getSharedPreferences("settings", Context.MODE_PRIVATE);
     Map<String, String> files;
     try {
-      files = filled(app);
+      files = filled(app, assistant);
     } catch (Exception ex) {
       return;
     }
     boolean same =
-        summary(files).equals(prefs.getString(INSTALLED, ""))
-            && prefs.getInt(CHECKED_VERSION, 0) == BuildConfig.VERSION_CODE;
+        summary(files).equals(prefs.getString(k(assistant, INSTALLED), ""))
+            && prefs.getInt(k(assistant, CHECKED_VERSION), 0) == BuildConfig.VERSION_CODE;
     if (same && !force) {
-      state = State.INSTALLED;
-      if (!talkerTold(app, files)) new Thread(() -> safelyTellTalker(app), "talker-skill").start();
+      states[assistant] = State.INSTALLED;
+      if (!talkerTold(app, assistant, files)) new Thread(() -> safelyTellTalker(app, assistant), "talker-skill").start();
       return;
     }
-    running = true;
+    running[assistant] = true;
     new Thread(
             () -> {
               try {
-                List<String> missing = ensure(app, files);
+                List<String> missing = ensure(app, assistant, files);
                 // The talker's skill if bb didn't take it: tried again at the next sync, and said
                 // on its own, never as the chief's skills failing.
                 Map<String, String> got = new LinkedHashMap<>(files);
                 for (String name : missing) got.remove(name);
-                prefs.edit().putString(INSTALLED, summary(got)).putInt(CHECKED_VERSION, BuildConfig.VERSION_CODE).apply();
-                talkerSkillProblem = missing.contains(TALKER) ? tr("bb didn't install the talker's skill. It's tried again next time.") : "";
-                state = State.INSTALLED;
-                problem = "";
-                tellOlderChief(app);
+                prefs.edit().putString(k(assistant, INSTALLED), summary(got)).putInt(k(assistant, CHECKED_VERSION), BuildConfig.VERSION_CODE).apply();
+                // The talker is the first assistant's (Settings → Hands-free): only its sync says how it is.
+                if (assistant == 0) talkerSkillProblem = missing.contains(TALKER) ? tr("bb didn't install the talker's skill. It's tried again next time.") : "";
+                states[assistant] = State.INSTALLED;
+                problems[assistant] = "";
+                tellOlderChief(app, assistant);
               } catch (Exception ex) {
-                problem = DictationService.friendly(ex);
-                state = State.FAILED;
+                problems[assistant] = DictationService.friendly(ex);
+                states[assistant] = State.FAILED;
               } finally {
-                running = false;
+                running[assistant] = false;
               }
-              safelyTellTalker(app); // Its own try: a talker that can't be told is said apart.
+              safelyTellTalker(app, assistant); // Its own try: a talker that can't be told is said apart.
             },
             "chief-skills")
         .start();
@@ -293,13 +322,13 @@ final class ChiefSkills {
    * Checks bb and, if needed, installs through a thread and waits for it. Blocks. Only the chief's
    * skills must be there for it to succeed; returns the optional ones (the talker's) still missing.
    */
-  static List<String> ensure(Context app, Map<String, String> files) throws Exception {
-    BbBridge bb = new BbBridge(app);
-    state = State.CHECKING;
+  static List<String> ensure(Context app, int assistant, Map<String, String> files) throws Exception {
+    BbBridge bb = new BbBridge(app, assistant);
+    states[assistant] = State.CHECKING;
     JSONObject installed = bb.read(checkSnippet()).optJSONObject("skills");
     List<String> outdated = outdated(files, installed == null ? new JSONObject() : installed);
     if (outdated.isEmpty()) return List.of();
-    state = State.INSTALLING;
+    states[assistant] = State.INSTALLING;
     String id = bb.run(spawnSnippet(installPrompt(files))).optString("id");
     if (id.isEmpty()) throw new IOException(tr("bb didn't say which thread it created."));
     try {
@@ -331,29 +360,30 @@ final class ChiefSkills {
     return talker.isEmpty() ? "" : talker + ":" + marker(files.get(TALKER));
   }
 
-  static boolean talkerTold(Context app, Map<String, String> files) {
-    String value = talkerToldValue(new BbBridge(app).talkerId(), files);
-    return value.isEmpty() || value.equals(app.getSharedPreferences("settings", Context.MODE_PRIVATE).getString(TALKER_TOLD, ""));
+  static boolean talkerTold(Context app, int assistant, Map<String, String> files) {
+    String value = talkerToldValue(new BbBridge(app, assistant).talkerId(), files);
+    return value.isEmpty() || value.equals(app.getSharedPreferences("settings", Context.MODE_PRIVATE).getString(k(assistant, TALKER_TOLD), ""));
   }
 
   /**
    * The talker (set and on) gets TALKER_START once: when it's set or changed, and whenever its
    * skill changed. Only once bb has the current skills, so it finds the one it's told to use.
    */
-  static synchronized void tellTalker(Context app) throws Exception {
+  static synchronized void tellTalker(Context app, int assistant) throws Exception {
     SharedPreferences prefs = app.getSharedPreferences("settings", Context.MODE_PRIVATE);
-    Map<String, String> files = filled(app);
-    if (talkerTold(app, files) || !summary(files).equals(prefs.getString(INSTALLED, ""))) return;
-    BbBridge bb = new BbBridge(app);
+    Map<String, String> files = filled(app, assistant);
+    if (talkerTold(app, assistant, files) || !summary(files).equals(prefs.getString(k(assistant, INSTALLED), ""))) return;
+    BbBridge bb = new BbBridge(app, assistant);
     String talker = bb.talkerId();
     bb.send(talker, TALKER_START);
-    prefs.edit().putString(TALKER_TOLD, talkerToldValue(talker, files)).apply();
+    prefs.edit().putString(k(assistant, TALKER_TOLD), talkerToldValue(talker, files)).apply();
   }
 
   /** The same, for a background thread: a failure is said apart, and tried again at the next call or sync. */
-  static void safelyTellTalker(Context app) {
+  static void safelyTellTalker(Context app, int assistant) {
+    if (assistant != 0) return; // Only the first assistant has a talker.
     try {
-      tellTalker(app);
+      tellTalker(app, assistant);
       talkerTellProblem = "";
     } catch (Exception ex) {
       talkerTellProblem = tr("Couldn't tell the talker to use its skill: %1$s", DictationService.friendly(ex));
@@ -362,11 +392,11 @@ final class ChiefSkills {
   }
 
   /** A chief from before the skills gets the one line once, now that they're there. */
-  static void tellOlderChief(Context app) throws Exception {
-    BbBridge bb = new BbBridge(app);
+  static void tellOlderChief(Context app, int assistant) throws Exception {
+    BbBridge bb = new BbBridge(app, assistant);
     SharedPreferences prefs = app.getSharedPreferences("settings", Context.MODE_PRIVATE);
-    if (bb.chiefId().isEmpty() || prefs.getBoolean(CHIEF_TOLD, false)) return;
+    if (bb.chiefId().isEmpty() || prefs.getBoolean(k(assistant, CHIEF_TOLD), false)) return;
     bb.send(bb.chiefId(), START);
-    prefs.edit().putBoolean(CHIEF_TOLD, true).apply();
+    prefs.edit().putBoolean(k(assistant, CHIEF_TOLD), true).apply();
   }
 }

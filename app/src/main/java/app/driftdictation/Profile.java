@@ -36,18 +36,16 @@ final class Profile {
 
   /**
    * Removes settings from earlier versions: spoken languages, words collected from fixes, the
-   * Simple/Advanced mode, the text model choices, the account at Drift's former server, and "Act on
-   * requests" (off becomes both Refine switches off).
+   * Simple/Advanced mode, the text model choices, the account at Drift's former server, "Act on
+   * requests", and what Jev did by itself (Refine, sending to the chief by its name; 3.7.0).
    */
   void forgetRetired() {
-    if (prefs.contains("processing")) {
-      boolean on = prefs.getBoolean("processing", true);
-      SharedPreferences.Editor e = prefs.edit().remove("processing");
-      if (!on) e.putBoolean(AUTO_REFINE, false).putBoolean(AUTO_CHIEF, false);
-      e.apply();
-    }
     prefs
         .edit()
+        .remove("processing")
+        .remove("autoRefine")
+        .remove("autoChief")
+        .remove("chiefName")
         .remove("profileLanguages")
         .remove("profileSuggestions")
         .remove("profileDismissed")
@@ -85,30 +83,6 @@ final class Profile {
 
   List<String> hintWords() {
     return words();
-  }
-
-  /** Settings → Refine: the two switches. */
-  static final String AUTO_REFINE = "autoRefine", AUTO_CHIEF = "autoChief";
-
-  /** Refine starts by itself when Jev says the dictation asks for it or names a template. */
-  boolean autoRefine() {
-    return prefs.getBoolean(AUTO_REFINE, true);
-  }
-
-  /** The dictation goes to the chief by itself when Jev is sure it was addressed. */
-  boolean autoChief() {
-    return prefs.getBoolean(AUTO_CHIEF, true);
-  }
-
-  static final String CHIEF_NAME = "chiefName";
-
-  /** The chief's name, the word that sends a dictation to it ("Henry, …"); empty: only 🧑‍💼. */
-  String chiefName() {
-    return prefs.getString(CHIEF_NAME, "").trim();
-  }
-
-  void setChiefName(String name) {
-    prefs.edit().putString(CHIEF_NAME, name.trim()).apply();
   }
 
   /** Refine's instructions: the user's own, or the default. */

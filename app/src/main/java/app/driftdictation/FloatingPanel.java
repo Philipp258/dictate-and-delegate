@@ -11,9 +11,11 @@ import android.widget.*;
 
 /**
  * The floating panel over other apps, icon buttons named for accessibility (long press shows the
- * name). While recording: the timer with stop, Refine and Chief to choose ahead, ✕ to cancel, and
- * 📎. Afterwards: ✕, Insert, Refine (then Insert refined), Chief (then Open chat
- * ↗), and Insert from chief when the chief sent text back. While it's written down: ✕ stops
+ * name). While recording: the timer with stop, Refine and Chief to choose ahead, 📞 to go on as a
+ * call, ✕ to cancel, and 📎. Afterwards: ✕, Insert, Refine (then Insert refined), Chief (then Open
+ * chat ↗), and Insert from chief when the chief sent text back. With two assistants set up, Chief
+ * and 📞 are there for each, with its name and in its colour, the one whose volume key started the
+ * dictation first. While it's written down: ✕ stops
  * trying (the recording stays in the notes) and 🎙 records something new; when it couldn't be,
  * ↻ tries again. Ready, error and empty show the small icon instead. Its window never takes focus, so the cursor stays in the app you're in; drag it
  * anywhere.
@@ -26,8 +28,14 @@ final class FloatingPanel extends FrameLayout {
       int attached,
       String refine,
       String chief,
-      boolean chiefAvailable,
-      boolean hint,
+      /** The assistant chief's state is for. */
+      int assistant,
+      /** The assistants offered (whose chief can get requests), in order. */
+      java.util.List<Integer> assistants,
+      /** Each assistant's name. */
+      String[] names,
+      /** The assistant whose volume key started the dictation, -1 none: its buttons come first. */
+      int keyAssistant,
       boolean reply,
       String message,
       int opacity) {}
@@ -39,14 +47,14 @@ final class FloatingPanel extends FrameLayout {
 
     void attach();
 
-    /** 📞 while recording: switch to a hands-free call with the chief, keeping what was said. */
-    void call();
+    /** An assistant's 📞 while recording: switch to a hands-free call with its chief, keeping what was said. */
+    void call(int assistant);
 
     void insert();
 
     void refine();
 
-    void chief();
+    void chief(int assistant);
 
     void insertFromChief();
 
@@ -67,11 +75,13 @@ final class FloatingPanel extends FrameLayout {
     void end();
   }
 
-  private static final int INK = 0xf2182420, PILL = 0x2effffff, TEAL = 0xff28b89a, AMBER = 0xffedb14a;
+  private static final int INK = 0xf2182420, PILL = 0x2effffff, TEAL = 0xff28b89a;
 
   private final OverlayIcon icon;
   private final LinearLayout bar, extra;
-  private final TextView attach, timer, close, insert, refine, chief, fromChief, status, call, mic, retry;
+  private final TextView attach, timer, close, insert, refine, fromChief, status, mic, retry;
+  /** Each assistant's Chief and 📞. */
+  private final TextView[] chiefs = new TextView[Assistants.COUNT], calls = new TextView[Assistants.COUNT];
   private final Row row;
   private final Actions actions;
   private final Drag drag;
@@ -79,8 +89,8 @@ final class FloatingPanel extends FrameLayout {
   private final int slop;
   private float downX, downY;
   private boolean dragging, small = true;
-  /** Which order the buttons are in: null before the first render. */
-  private Boolean recordingOrder;
+  /** Which order the buttons are in (recording or not, which assistant first): null before the first render. */
+  private String order;
 
   FloatingPanel(Context context, Actions actions, Drag drag) {
     super(context);
@@ -105,8 +115,11 @@ final class FloatingPanel extends FrameLayout {
     timer.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
     attach = pill(row, "📎", v -> actions.attach());
     name(attach, tr("Add context to this dictation"));
-    call = pill(row, "📞", v -> actions.call());
-    name(call, tr("Hands-free call with your chief"));
+    for (int a = 0; a < Assistants.COUNT; a++) {
+      int assistant = a;
+      calls[a] = pill(row, "📞", v -> actions.call(assistant));
+      name(calls[a], tr("Hands-free call with your chief"));
+    }
     close = pill(row, "✕", v -> actions.close());
     mic = pill(row, "🎙", v -> actions.record());
     name(mic, tr("Record something new"));
@@ -114,7 +127,10 @@ final class FloatingPanel extends FrameLayout {
     name(retry, tr("Try again"));
     insert = pill(row, "📥", v -> actions.insert());
     refine = pill(row, "", v -> actions.refine());
-    chief = pill(row, "", v -> actions.chief());
+    for (int a = 0; a < Assistants.COUNT; a++) {
+      int assistant = a;
+      chiefs[a] = pill(row, "", v -> actions.chief(assistant));
+    }
     extra = new LinearLayout(context);
     extra.setGravity(Gravity.CENTER_VERTICAL);
     LinearLayout.LayoutParams el = new LinearLayout.LayoutParams(-2, -2);
@@ -181,7 +197,10 @@ final class FloatingPanel extends FrameLayout {
 
   /** Whether every shown button has room for its whole label (for the device tests). */
   boolean fits() {
-    for (TextView t : new TextView[] {attach, timer, close, insert, refine, chief, fromChief, mic, retry}) {
+    java.util.List<TextView> all = new java.util.ArrayList<>(java.util.List.of(attach, timer, close, insert, refine, fromChief, mic, retry));
+    all.addAll(java.util.List.of(chiefs));
+    all.addAll(java.util.List.of(calls));
+    for (TextView t : all) {
       if (t.getVisibility() != VISIBLE || t.getLayout() == null) continue;
       float need = t.getPaint().measureText(t.getText().toString()) + t.getPaddingLeft() + t.getPaddingRight();
       if (t.getWidth() + 1 < need) return false;
@@ -260,19 +279,30 @@ final class FloatingPanel extends FrameLayout {
       return;
     }
     setAlpha(1f);
-    // While recording: ■ ✨ 🧑‍💼 📞 📎 ✕; afterwards: 📥 ✨ 🧑‍💼 ✕. The ✕ is always last, on the
-    // outer edge where close and cancel usually are.
-    if (!Boolean.valueOf(recording).equals(recordingOrder)) {
-      recordingOrder = recording;
+    // While recording: ■ ✨ 🧑‍💼 📞 (each assistant's pair) 📎 ✕; afterwards: 📥 ✨ 🧑‍💼 ✕. The ✕ is
+    // always last, on the outer edge where close and cancel usually are.
+    java.util.List<Integer> first = new java.util.ArrayList<>();
+    if (m.keyAssistant() >= 0) first.add(m.keyAssistant());
+    for (int a = 0; a < Assistants.COUNT; a++) if (!first.contains(a)) first.add(a);
+    String next = recording + ":" + first;
+    if (!next.equals(order)) {
+      order = next;
       row.removeAllViews();
-      for (TextView t :
-          recording
-              ? new TextView[] {timer, refine, chief, call, attach, insert, retry, mic, close}
-              : new TextView[] {retry, insert, refine, chief, mic, timer, attach, call, close})
-        row.addView(t, new ViewGroup.LayoutParams(-2, dp(40)));
+      java.util.List<TextView> views = new java.util.ArrayList<>();
+      if (recording) {
+        views.addAll(java.util.List.of(timer, refine));
+        for (int a : first) views.addAll(java.util.List.of(chiefs[a], calls[a]));
+        views.addAll(java.util.List.of(attach, insert, retry, mic, close));
+      } else {
+        views.addAll(java.util.List.of(retry, insert, refine));
+        for (int a : first) views.add(chiefs[a]);
+        views.addAll(java.util.List.of(mic, timer, attach));
+        for (int a : first) views.add(calls[a]);
+        views.add(close);
+      }
+      for (TextView t : views) row.addView(t, new ViewGroup.LayoutParams(-2, dp(40)));
     }
     attach.setVisibility(recording ? VISIBLE : GONE);
-    call.setVisibility(recording && m.chiefAvailable() ? VISIBLE : GONE);
     attach.setText(m.attached() > 0 ? "📎 " + m.attached() : "📎");
     timer.setVisibility(recording ? VISIBLE : GONE);
     timer.setText("● " + AudioFiles.elapsed(m.elapsed()) + "  ■");
@@ -316,32 +346,66 @@ final class FloatingPanel extends FrameLayout {
         m.refine().equals(DictationService.DONE) ? TEAL : PILL,
         m.refine().equals(DictationService.QUEUED) || m.refine().equals(DictationService.RUNNING) ? TEAL : 0);
     refine.setVisibility(unfinished ? GONE : VISIBLE);
-    chief.setVisibility(m.chiefAvailable() && !unfinished ? VISIBLE : GONE);
-    chief.setText(
-        switch (m.chief()) {
-          case DictationService.QUEUED -> "🧑‍💼 ✓";
-          case DictationService.RUNNING -> "🧑‍💼 …";
-          case DictationService.DONE -> "🧑‍💼 ↗";
-          case DictationService.FAILED -> "🧑‍💼 ↻";
-          default -> "🧑‍💼";
-        });
-    boolean hinted = m.hint() && m.chief().equals(DictationService.IDLE);
-    name(
-        chief,
-        switch (m.chief()) {
-          case DictationService.QUEUED -> tr("🧑‍💼 Chief ✓");
-          case DictationService.RUNNING -> tr("🧑‍💼 Sending…");
-          case DictationService.DONE -> tr("Open chat ↗");
-          case DictationService.FAILED -> tr("🧑‍💼 Send again");
-          default ->
-              hinted ? tr("Chief, suggested: this may be a task for your chief of staff") : tr("🧑‍💼 Chief");
-        });
-    boolean chiefBusy = m.chief().equals(DictationService.QUEUED) || m.chief().equals(DictationService.RUNNING);
-    style(chief, PILL, chiefBusy ? TEAL : hinted ? AMBER : 0);
+    boolean several = m.assistants().size() > 1;
+    // Once the dictation is on its way (or kept to try again) it belongs to its assistant: the
+    // other's Chief goes.
+    boolean bound = !m.chief().equals(DictationService.IDLE) && !m.chief().equals(DictationService.QUEUED);
+    for (int a = 0; a < Assistants.COUNT; a++) {
+      boolean offered = m.assistants().contains(a);
+      String label = several ? " " + shortName(m.names()[a]) : "";
+      chiefs[a].setVisibility(offered && !unfinished && (!bound || a == m.assistant()) ? VISIBLE : GONE);
+      calls[a].setVisibility(offered && recording ? VISIBLE : GONE);
+      String state = a == m.assistant() ? m.chief() : DictationService.IDLE;
+      chiefs[a].setText(
+          "🧑‍💼"
+              + label
+              + switch (state) {
+                case DictationService.QUEUED -> " ✓";
+                case DictationService.RUNNING -> " …";
+                case DictationService.DONE -> " ↗";
+                case DictationService.FAILED -> " ↻";
+                default -> "";
+              });
+      name(
+          chiefs[a],
+          several
+              ? switch (state) {
+                case DictationService.QUEUED -> tr("Goes to %1$s ✓", m.names()[a]);
+                case DictationService.RUNNING -> tr("Sending to %1$s…", m.names()[a]);
+                case DictationService.DONE -> tr("Open the chat with %1$s ↗", m.names()[a]);
+                case DictationService.FAILED -> tr("Send to %1$s again", m.names()[a]);
+                default -> tr("Send to %1$s", m.names()[a]);
+              }
+              : switch (state) {
+                case DictationService.QUEUED -> tr("🧑‍💼 Chief ✓");
+                case DictationService.RUNNING -> tr("🧑‍💼 Sending…");
+                case DictationService.DONE -> tr("Open chat ↗");
+                case DictationService.FAILED -> tr("🧑‍💼 Send again");
+                default -> tr("🧑‍💼 Chief");
+              });
+      boolean busy = state.equals(DictationService.QUEUED) || state.equals(DictationService.RUNNING);
+      // With two, each in its colour (filled while it's chosen or on its way); alone, as always.
+      if (several) style(chiefs[a], busy ? tint(Assistants.bright(a)) : PILL, Assistants.bright(a));
+      else style(chiefs[a], PILL, busy ? TEAL : 0);
+      calls[a].setText("📞" + label);
+      name(calls[a], several ? tr("Hands-free call with %1$s", m.names()[a]) : tr("Hands-free call with your chief"));
+      style(calls[a], PILL, several ? Assistants.bright(a) : 0);
+    }
     extra.setVisibility(m.reply() ? VISIBLE : GONE);
     style(fromChief, TEAL, 0);
     status.setText(m.message());
     status.setVisibility(m.message().isEmpty() ? GONE : VISIBLE);
+  }
+
+  /** An assistant's name on a button: short enough for the panel. */
+  static String shortName(String name) {
+    String n = name.trim();
+    return n.length() <= 10 ? n : n.substring(0, 9) + "…";
+  }
+
+  /** A colour, half see-through over the panel's dark background. */
+  private static int tint(int color) {
+    return (color & 0x00ffffff) | 0x66000000;
   }
 
   // Dragging: a move past the touch slop anywhere on the panel moves its window; taps still reach

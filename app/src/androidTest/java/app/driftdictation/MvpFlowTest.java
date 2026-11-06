@@ -50,6 +50,12 @@ public class MvpFlowTest {
     waitFor("copied");
   }
 
+  /** A dictation, then ✨ on the panel: Refine never starts by itself. */
+  void dictateAndRefine() throws Exception {
+    dictate();
+    find("✨ Refine").click();
+  }
+
   HistoryEntry latest() throws Exception {
     try (HistoryStore h = new HistoryStore(context)) {
       return h.list(1, 0).get(0);
@@ -148,8 +154,6 @@ public class MvpFlowTest {
         .putString("model", "microsoft/mai-transcribe-2")
         .putString("bubbleMode", "recording")
         .putBoolean("onboarded", true)
-        .putBoolean(Profile.AUTO_REFINE, true)
-        .putBoolean(Profile.AUTO_CHIEF, true)
         .remove("processingPrompt")
         .remove("profileWords")
         .remove(TextModel.PREF_MODEL)
@@ -317,8 +321,7 @@ public class MvpFlowTest {
     assertEquals("openai/gpt-fake", prefs.getString(TextModel.PREF_MODEL, ""));
     device.pressBack();
     find("Fake GPT · OpenRouter");
-    TestServer.decide(0.95, 0, "none");
-    dictate();
+    dictateAndRefine();
     HistoryEntry e = latestOnce(n -> n.json.has("processed"), "the refined text");
     assertEquals("openai/gpt-fake", sent("text").get(0).getString("model"));
     assertEquals("openai/gpt-fake", e.json.optString("textModel"));
@@ -350,47 +353,44 @@ public class MvpFlowTest {
   }
 
   @Test
-  public void askedForATextRefineStartsByItselfCostsWhatOpenRouterReportedAndKeepsWhatYouSaid()
-      throws Exception {
+  public void tappedRefineCostsWhatOpenRouterReportedAndKeepsWhatYouSaid() throws Exception {
     new Profile(prefs).addWord("Jana");
-    TestServer.decide(0.95, 0, "none");
+    // Asking for a text in the same breath starts nothing by itself; ✨ does.
     dictate();
-    // The transcript comes first; Refine follows by itself.
+    Thread.sleep(800);
+    assertFalse(latest().json.has("processed"));
+    assertEquals(DictationService.IDLE, DictationService.session().refine);
+    find("✨ Refine").click();
     HistoryEntry e = latestOnce(n -> n.json.has("processed"), "the refined text");
     // The note is saved first, the last transcript right after it.
     Vault vault = new Vault(context);
     for (int i = 0; i < 50 && !"Hi Jana, see you at ten.".equals(vault.get("transcript")); i++) Thread.sleep(100);
     assertEquals("Hi Jana, see you at ten.", vault.get("transcript"));
 
-    // Exactly what the fake reported: no fee on top.
-    BigDecimal all = TestServer.SPEECH.add(TestServer.JEV).add(TestServer.TEXT);
+    // Exactly what the fake reported: no fee on top. Jev isn't asked without templates.
+    BigDecimal all = TestServer.SPEECH.add(TestServer.TEXT);
     assertEquals(0, all.compareTo(e.cost()));
     assertFalse(e.incompleteCost());
+    assertTrue(sent("decide").isEmpty());
     assertEquals(TextModel.MODEL, e.json.optString("textModel"));
-    assertEquals(0, TestServer.JEV.compareTo(e.jevCost()));
     assertEquals(0, TestServer.TEXT.compareTo(e.textCost()));
     assertEquals("Hi Jana, see you at ten.", e.json.optString("processed"));
     assertEquals("um hi Jana see you at ten", e.json.optString("original"));
-    // The activity log: speech, Jev's answer, then Refine.
+    // The activity log: speech, then Refine.
     JSONArray steps = e.json.getJSONArray("steps");
-    assertEquals(3, steps.length());
+    assertEquals(2, steps.length());
     assertEquals("speech", steps.getJSONObject(0).getString("kind"));
     assertEquals("microsoft/mai-transcribe-2", steps.getJSONObject(0).getString("model"));
     assertEquals(
         0, TestServer.SPEECH.compareTo(new BigDecimal(steps.getJSONObject(0).getString("cost"))));
-    assertEquals("jev", steps.getJSONObject(1).getString("kind"));
-    assertEquals(Jev.MODEL, steps.getJSONObject(1).getString("model"));
-    assertEquals("refine 0.95", steps.getJSONObject(1).getString("answer"));
+    assertEquals("refine", steps.getJSONObject(1).getString("kind"));
+    assertEquals(TextModel.MODEL, steps.getJSONObject(1).getString("model"));
     assertEquals(
-        0, TestServer.JEV.compareTo(new BigDecimal(steps.getJSONObject(1).getString("cost"))));
-    assertEquals("refine", steps.getJSONObject(2).getString("kind"));
-    assertEquals(TextModel.MODEL, steps.getJSONObject(2).getString("model"));
-    assertEquals(
-        0, TestServer.TEXT.compareTo(new BigDecimal(steps.getJSONObject(2).getString("cost"))));
-    assertFalse(steps.getJSONObject(2).has("detail"));
+        0, TestServer.TEXT.compareTo(new BigDecimal(steps.getJSONObject(1).getString("cost"))));
+    assertFalse(steps.getJSONObject(1).has("detail"));
 
-    // What went to OpenRouter: WAV audio with the words for Azure, Jev with the dictation as
-    // state (no chief without bb, no templates), then Refine; every chat call asks for its cost.
+    // What went to OpenRouter: WAV audio with the words for Azure, then Refine; every chat call
+    // asks for its cost.
     JSONObject speech = sent("transcribe").get(0);
     assertEquals("microsoft/mai-transcribe-2", speech.getString("model"));
     assertEquals("wav", speech.getJSONObject("input_audio").getString("format"));
@@ -403,12 +403,6 @@ public class MvpFlowTest {
             .getJSONObject("phraseList")
             .getJSONArray("phrases")
             .getString(0));
-    JSONObject jev = sent("decide").get(0);
-    assertEquals(Jev.MODEL, jev.getString("model"));
-    assertEquals("um hi Jana see you at ten", jev.getJSONObject("state").getString("dictation"));
-    JSONObject questions = jev.getJSONObject("questions");
-    assertEquals(1, questions.length());
-    assertEquals(Jev.REFINE, questions.getJSONObject("refine").getString("instructions"));
     JSONObject text = sent("text").get(0);
     assertEquals(TextModel.MODEL, text.getString("model"));
     assertEquals(TextModel.MAX_TOKENS, text.getInt("max_tokens"));
@@ -443,8 +437,6 @@ public class MvpFlowTest {
     find("Activity");
     assertNotNull(device.wait(Until.findObject(By.textStartsWith("Transcription · ")), 5000));
     assertNotNull(
-        device.wait(Until.findObject(By.text(Pattern.compile("Jev · .* → refine 0\\.95"))), 5000));
-    assertNotNull(
         device.wait(
             Until.findObject(By.textStartsWith("Refine · " + TextModel.NAME + " · ")), 5000));
     tap("Hi Jana, see you at ten.");
@@ -462,6 +454,10 @@ public class MvpFlowTest {
       TestServer.decide(0.2, 0, "Weekly update");
       TestServer.replies("Done: the panel\nNext: tests");
       dictate();
+      // Naming it doesn't start Refine; a tapped ✨ uses it.
+      Thread.sleep(800);
+      assertEquals(DictationService.IDLE, DictationService.session().refine);
+      find("✨ Refine").click();
       HistoryEntry e = latestOnce(n -> n.json.has("processed"), "the refined text");
       assertEquals("Weekly update", e.json.optString("template"));
       JSONObject q = sent("decide").get(0).getJSONObject("questions");
@@ -475,22 +471,7 @@ public class MvpFlowTest {
   }
 
   @Test
-  public void aDictationWithoutRequestStaysTheTranscript() throws Exception {
-    TestServer.reset();
-    TestServer.transcripts("Call Jana tomorrow at ten.");
-    dictate();
-    assertEquals("Call Jana tomorrow at ten.", new Vault(context).get("transcript"));
-    // Only the speech model and Jev ran; no Refine.
-    HistoryEntry e = latestOnce(n -> hasStep(n, "jev"), "Jev's answer");
-    Thread.sleep(500);
-    assertEquals(0, TestServer.SPEECH.add(TestServer.JEV).compareTo(e.cost()));
-    assertFalse(e.json.has("processed"));
-    assertTrue(sent("text").isEmpty());
-  }
-
-  @Test
-  public void withBothSwitchesOffJevIsntAskedAndNothingStarts() throws Exception {
-    prefs.edit().putBoolean(Profile.AUTO_REFINE, false).putBoolean(Profile.AUTO_CHIEF, false).commit();
+  public void withoutTemplatesJevIsntAskedAndNothingStarts() throws Exception {
     dictate();
     Thread.sleep(800);
     assertEquals("um hi Jana see you at ten", new Vault(context).get("transcript"));
@@ -501,35 +482,33 @@ public class MvpFlowTest {
   }
 
   @Test
-  public void whenJevFailsOrIsSlowNothingStartsByItself() throws Exception {
-    TestServer.reset();
-    TestServer.transcripts("make this an email", "make this an email");
-    TestServer.error("decide", "provider");
-    dictate();
-    HistoryEntry e = latestOnce(n -> hasStep(n, "jev"), "the failed Jev step");
-    Thread.sleep(500);
-    assertFalse(latest().json.has("processed"));
-    assertTrue(sent("text").isEmpty());
-    // Slower than Jev.TIMEOUT_MS counts as no answer, too.
-    send(DictationService.HIDE);
-    Thread.sleep(500);
-    TestServer.script("decide", new JSONObject().put("refine", 0.99).put("delay", 5));
-    dictate();
-    HistoryEntry slow = latestOnce(n -> hasStep(n, "jev") && !n.id().equals(e.id()), "the slow Jev step");
-    Thread.sleep(500);
-    assertFalse(latest().json.has("processed"));
-    assertTrue(sent("text").isEmpty());
-    JSONArray steps = slow.json.getJSONArray("steps");
-    assertTrue(steps.getJSONObject(steps.length() - 1).has("detail"));
+  public void whenJevFailsATappedRefineStillRunsWithoutATemplate() throws Exception {
+    Templates templates = new Templates(context);
+    for (Templates.Template t : templates.all()) templates.delete(t.id());
+    templates.save(null, "Weekly update", "Done: …\nNext: …");
+    try {
+      TestServer.reset();
+      TestServer.transcripts("make this an email");
+      TestServer.error("decide", "provider");
+      dictate();
+      HistoryEntry e = latestOnce(n -> hasStep(n, "jev"), "the failed Jev step");
+      Thread.sleep(500);
+      assertFalse(latest().json.has("processed"));
+      assertTrue(sent("text").isEmpty());
+      find("✨ Refine").click();
+      e = latestOnce(n -> n.json.has("processed"), "the refined text");
+      assertFalse(e.json.has("template"));
+    } finally {
+      for (Templates.Template t : templates.all()) templates.delete(t.id());
+    }
   }
 
   @Test
   public void failedProcessingStillDeliversWhatYouSaid() throws Exception {
     TestServer.reset();
     TestServer.transcripts("um hi Jana see you at ten");
-    TestServer.decide(0.95, 0, "none");
     TestServer.replies((String) null);
-    dictate();
+    dictateAndRefine();
     latestOnce(n -> n.json.has("processingFailed"), "the Refine failure");
     assertEquals("um hi Jana see you at ten", new Vault(context).get("transcript"));
     // The note is saved first, the session's state right after it.
@@ -541,7 +520,6 @@ public class MvpFlowTest {
   public void anUnknownCostIsNeverShownAsFree() throws Exception {
     TestServer.reset();
     TestServer.script("transcribe", new JSONObject().put("text", "Call Jana.").put("cost", JSONObject.NULL));
-    prefs.edit().putBoolean(Profile.AUTO_REFINE, false).putBoolean(Profile.AUTO_CHIEF, false).commit();
     dictate();
     HistoryEntry e = latest();
     assertTrue(e.incompleteCost());
@@ -570,9 +548,8 @@ public class MvpFlowTest {
     new Attachments(context).addText("Two-room flat, Hauptstraße 5, 900 euros, viewing Saturday 10:00");
     TestServer.reset();
     TestServer.transcripts("write a short application for this flat");
-    TestServer.decide(0.97, 0, "none");
     TestServer.replies("Application for Hauptstraße 5.");
-    dictate();
+    dictateAndRefine();
     HistoryEntry e = latestOnce(n -> n.json.has("processed"), "the refined text");
     // The note is saved a moment before the last-transcript shortcut.
     long deadline = SystemClock.elapsedRealtime() + 5000;

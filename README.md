@@ -58,7 +58,7 @@ It works independently on your computer or a server, and reports back.
 <td width="25%" valign="top"><img src="docs/images/steps/agent-4.png" width="200" alt="Playing the game while asking Ada for changes"></td>
 </tr>
 <tr>
-<td valign="top">① <i>"Ada, build me a little snake game."</i></td>
+<td valign="top">① Tap 🧑‍💼 and say: <i>"Ada, build me a little snake game."</i></td>
 <td valign="top">② Ada builds it on your computer.</td>
 <td valign="top">③ You get a message when it's ready.</td>
 <td valign="top">④ Give feedback while you play: <i>"Ada, make it faster each level."</i> No typing, no switching apps.</td>
@@ -71,9 +71,9 @@ https://github.com/user-attachments/assets/1d1d507f-47d5-4513-99e1-ce83b8d83619
 
 ## How it works
 
-<img src="docs/images/how-it-works.svg" width="100%" alt="Your phone sends audio to a speech-to-text model; the transcript always comes back to insert. Then Jev or you decide: one text-model call that comes back in seconds to insert, or an independent agent on its own machine (bb) that comes back minutes to hours later through a notification or text to insert.">
+<img src="docs/images/how-it-works.svg" width="100%" alt="Your phone sends audio to a speech-to-text model; the transcript always comes back to insert. Then you decide: one text-model call that comes back in seconds to insert, or an independent agent on its own machine (bb) that comes back minutes to hours later through a notification or text to insert.">
 
-Your words always come back to you first, a few seconds after you stop talking. From there, Jev (a small decision model) or you decide whether the text goes on to a text model for a finished text, or to an independent agent on its own machine. Both come back to your phone.
+Your words always come back to you first, a few seconds after you stop talking. From there, you decide with one tap whether the text goes on to a text model for a finished text, or to an independent agent on its own machine. Nothing goes anywhere by itself. Both come back to your phone.
 
 ### The floating panel
 
@@ -91,7 +91,7 @@ Press a shortcut in any app and talk. A small floating panel stays next to whate
 
 ### Agents through bb
 
-Dictate & Delegate sends your dictation to an agent running on its own machine, your laptop or a server, through [bb](https://getbb.app), with Claude Code or Codex on your existing subscription. Usually you'd have a kind of "coordinator" or "chief of staff" agent there that routes and manages all larger independent work. This can include coding, research, recurring tasks and a lot of other things.
+Dictate & Delegate sends your dictation to an agent running on its own machine, your laptop or a server, through [bb](https://getbb.app), with Claude Code or Codex on your existing subscription. Usually you'd have a kind of "coordinator" or "chief of staff" agent there that routes and manages all larger independent work. This can include coding, research, recurring tasks and a lot of other things. You can set up two of them, say one for personal things and one for work, each on its own bb: the panel then has a button for each.
 
 ### Models and cost
 
