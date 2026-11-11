@@ -343,4 +343,64 @@ public class OpenRouterDropTest {
     assertFalse(OpenRouter.dropped(new IOException("x", new java.net.SocketTimeoutException("Read timed out")), 0, 0, now));
     assertFalse(OpenRouter.dropped(new IOException("The model provider had a problem (HTTP 502)."), 0, 0, now));
   }
+
+  private static void status(Socket s, int code, String extra, String json) throws IOException {
+    byte[] body = json.getBytes(StandardCharsets.UTF_8);
+    OutputStream out = s.getOutputStream();
+    out.write(("HTTP/1.1 " + code + " X\r\nContent-Type: application/json\r\n" + extra + "Content-Length: " + body.length + "\r\nConnection: close\r\n\r\n").getBytes(StandardCharsets.ISO_8859_1));
+    out.write(body);
+    out.flush();
+  }
+
+  @Test
+  public void aBusyAnswerCarriesWhatTheProviderSaidAndIsLogged() throws Exception {
+    java.io.File dir = java.nio.file.Files.createTempDirectory("netlog").toFile();
+    java.io.File log = new java.io.File(dir, "network.log");
+    NetLog.init(log, () -> "wifi");
+    String said = "{\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"provider_name\":\"Azure\",\"raw\":\"Rate limit is exceeded. Try again in 7 seconds.\"}}}";
+    try (Fake fake =
+        new Fake(
+            (n, s) -> {
+              readRequest(s);
+              status(s, 429, "Retry-After: 7\r\n", said);
+            })) {
+      OpenRouter.Control control = new OpenRouter.Control(10_000);
+      control.busyTries = 0; // the transcription switches models itself
+      NetLog.forNote("abcdef1234567890");
+      OpenRouter.Busy busy;
+      try {
+        busy = assertThrows(OpenRouter.Busy.class, () -> OpenRouter.post(fake.url(), body(), "k", control));
+      } finally {
+        NetLog.forNote(null);
+      }
+      assertEquals(1, fake.connections.get());
+      assertEquals(429, busy.status);
+      assertEquals(7000, busy.retryAfterMs);
+      assertTrue(busy.getMessage(), busy.getMessage().contains("HTTP 429 too many requests from Azure: Provider returned error (Rate limit is exceeded. Try again in 7 seconds.)"));
+      String line = new String(java.nio.file.Files.readAllBytes(log.toPath()), StandardCharsets.UTF_8);
+      assertTrue(line, line.contains("headers retry-after=7"));
+      assertTrue(line, line.contains("body {\"error\""));
+      assertTrue(line, line.contains("note abcdef12"));
+      assertEquals(1, NetLog.forNoteLines(line, "abcdef1234567890").split("\n").length);
+      assertEquals("", NetLog.forNoteLines(line, "zzz"));
+    } finally {
+      NetLog.init(null, null);
+    }
+  }
+
+  @Test
+  public void aServerErrorIsBusyToo() throws Exception {
+    try (Fake fake =
+        new Fake(
+            (n, s) -> {
+              readRequest(s);
+              if (n == 0) status(s, 502, "", "{\"error\":{\"message\":\"upstream down\"}}");
+              else answer(s, "{\"text\":\"hello\"}");
+            })) {
+      // Chat and the like try a busy answer again themselves.
+      JSONObject r = OpenRouter.post(fake.url(), body(), "k", new OpenRouter.Control(20_000));
+      assertEquals("hello", r.getString("text"));
+      assertEquals(2, fake.connections.get());
+    }
+  }
 }

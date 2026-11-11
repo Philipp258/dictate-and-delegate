@@ -73,6 +73,13 @@ public final class DictationService extends Service {
     volatile int refineRun;
     /** The transcript is there: queued choices can run (also once it's no longer the panel's). */
     volatile boolean ready;
+    /**
+     * Chief was queued by the note's own saved intent (a retry, the app starting again), not by a
+     * tap now: it goes only while the note is fresh (NoteFlow).
+     */
+    volatile boolean chiefAuto;
+    /** The assistant button was tapped for this dictation (also taken back): the note must say so. */
+    volatile boolean chiefTapped;
   }
 
   static volatile DictationService instance;
@@ -145,12 +152,32 @@ public final class DictationService extends Service {
     // Left from before: a recording the app stopped during (or an older version kept after a
     // failure) and ones whose writing down was cut off become notes to retry; none blocks.
     adoptLeftover();
-    markOrphans(this);
+    java.util.List<String> cutOff = markOrphans(this);
     windows = getSystemService(WindowManager.class);
     wake =
         getSystemService(PowerManager.class)
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Dictate & Delegate:dictation");
     wake.setReferenceCounted(false);
+    resume(cutOff);
+  }
+
+  /**
+   * Recordings whose writing down was cut off (Android stopped the app) go on by themselves while
+   * they're fresh (NoteFlow.AUTO_MS), in the background; older ones wait, visible, for Retry.
+   */
+  private void resume(java.util.List<String> cutOff) {
+    long now = System.currentTimeMillis();
+    for (String id : cutOff) {
+      HistoryEntry e = load(this, id);
+      if (e == null || e.json.optBoolean("interrupted") || now - NoteFlow.recordedAt(e.json) > NoteFlow.AUTO_MS) continue;
+      try {
+        update(this, id, n -> NoteFlow.event(n.json, now, "the app was stopped while writing it down; going on by itself"));
+        requireKey(this);
+        retryNote(id);
+      } catch (Exception ignored) {
+        /* It stays to retry, and says so. */
+      }
+    }
   }
 
   @Override
@@ -184,11 +211,13 @@ public final class DictationService extends Service {
         }
         retryNote(session);
       } else if (RETRY.equals(action)) {
+        // One note at a time, the one asked for: never all kept recordings at once (that sent an
+        // old one in 3.7.2, see NoteFlow).
         adoptLeftover();
         String id = intent.getStringExtra("noteId");
-        java.util.List<String> ids = id == null || id.isEmpty() ? unfinished(this) : java.util.List.of(id);
+        if (id == null || id.isEmpty()) throw new IOException(tr("Open the recording you want to retry and tap Retry there."));
         requireKey(this);
-        for (String i : ids) retryNote(i);
+        retryNote(id);
       } else if (DISCARD.equals(action)) {
         String id = intent.getStringExtra("noteId");
         boolean all = id == null || id.isEmpty();
@@ -587,9 +616,14 @@ public final class DictationService extends Service {
     boolean same = s.assistant == assistant;
     switch (s.chief) {
       case QUEUED -> {
-        if (same) s.chief = IDLE;
-        else if (BbBridge.ready(this, assistant)) s.assistant = assistant;
-        else say(tr("Set up your chief of staff in Dictate & Delegate → Settings → bb."));
+        s.chiefTapped = true;
+        if (same) {
+          s.chief = IDLE;
+          keepIntent(s, -1);
+        } else if (BbBridge.ready(this, assistant)) {
+          s.assistant = assistant;
+          keepIntent(s, assistant);
+        } else say(tr("Set up your chief of staff in Dictate & Delegate → Settings → bb."));
       }
       case RUNNING -> {}
       case DONE -> {
@@ -611,11 +645,51 @@ public final class DictationService extends Service {
         }
         s.assistant = assistant;
         s.chief = QUEUED;
+        s.chiefAuto = false;
+        s.chiefTapped = true;
+        keepIntent(s, assistant);
         startQueued(s);
       }
     }
     renderBubble();
     touch();
+  }
+
+  /** Saves intents in the order they're tapped. */
+  private final ExecutorService intents = Executors.newSingleThreadExecutor();
+
+  /**
+   * The assistant button's choice (-1: taken back) is saved at once: on the note once there is
+   * one, else (still recording) for the recording, which hands it to its note. So ✕, a retry, or
+   * Android stopping the app can't lose it.
+   */
+  private void keepIntent(Session s, int assistant) {
+    String id = s.noteId;
+    long now = System.currentTimeMillis();
+    if (id.isEmpty()) {
+      if (assistant < 0) prefs.edit().remove("sessionIntent").commit();
+      else prefs.edit().putString("sessionIntent", "{\"assistant\":" + assistant + ",\"at\":" + now + "}").commit();
+      return;
+    }
+    intents.execute(
+        () -> {
+          try {
+            update(
+                this,
+                id,
+                e -> {
+                  if (assistant < 0) {
+                    if (NoteFlow.dropChief(e.json, now)) NoteFlow.event(e.json, now, "you took back sending it to the chief");
+                  } else {
+                    NoteFlow.wantChief(e.json, assistant, now);
+                    NoteFlow.event(e.json, now, "you chose to send it to the chief of " + Assistants.logName(assistant));
+                  }
+                });
+            prefs.edit().putLong("historyRevision", System.nanoTime()).apply();
+          } catch (Exception ex) {
+            main.post(() -> say(tr("Couldn't save your choice on the note: %1$s", friendly(ex))));
+          }
+        });
   }
 
   /**
@@ -634,7 +708,8 @@ public final class DictationService extends Service {
     if (s.chief.equals(QUEUED)) {
       s.chief = RUNNING;
       int assistant = s.assistant;
-      work(() -> sent(s, sendNote(this, s.noteId, assistant)));
+      Send mode = s.chiefAuto ? Send.AUTO : Send.USER;
+      work(() -> sent(s, sendNote(this, s.noteId, assistant, mode)));
     }
     if (session != s) return;
     renderBubble();
@@ -749,7 +824,7 @@ public final class DictationService extends Service {
             s.chief = FAILED;
             s.message =
                 e != null && e.json.optBoolean("chiefQueued")
-                    ? tr("Not sent yet: %1$s It's kept and goes by itself once bb can be reached.", failed == null ? "" : failed)
+                    ? tr("Not sent yet: %1$s It's tried again by itself for a few minutes; the note says how it stands.", failed == null ? "" : failed)
                     : s.assistants.size() > 1
                         ? tr("Not sent to %1$s: %2$s", Assistants.name(prefs, s.assistant), failed == null ? "" : failed)
                         : tr("Not sent to your chief of staff: %1$s", failed == null ? "" : failed);
@@ -988,20 +1063,28 @@ public final class DictationService extends Service {
   private static final java.util.Set<String> SENDING = new java.util.HashSet<>();
 
   /**
-   * Hands what was said, with pasted text as context and a request ID, to the chief-of-staff
-   * thread in bb. On failure the note records why and stays queued in the Outbox, which sends it
-   * again by itself (with the same request ID, so it never arrives twice). Returns null, or why
-   * it failed.
+   * Who asks for a send, which decides whether it may go (NoteFlow): AUTO only a fresh note that is
+   * due (the flow by itself), NOW also one waiting for its next try (bb just took something), USER
+   * any (the user tapped Send or the assistant button now: it's meant for the chief from now on).
    */
+  enum Send {
+    AUTO,
+    NOW,
+    USER
+  }
+
+  /** The user's Send, to the assistant the note is meant for. */
   static String sendNote(Context context, String id) {
-    return sendNote(context, id, -1);
+    return sendNote(context, id, -1, Send.USER);
   }
 
   /**
-   * The same, to an assistant (-1: the one the note is for already). A note that failed stays
-   * with the assistant it was meant for: its tries go there, never to another.
+   * Hands what was said, with pasted text as context and the note's request ID, to the chief of
+   * an assistant (-1: the one it's meant for), if NoteFlow lets it go for who asks. On failure the
+   * note keeps why; while it's fresh the outbox tries again by itself (same request ID, checked
+   * first, so it never arrives twice). Returns null when it's there (now or before), else why not.
    */
-  static String sendNote(Context context, String id, int assistant) {
+  static String sendNote(Context context, String id, int assistant, Send mode) {
     synchronized (SENDING) {
       while (SENDING.contains(id))
         try {
@@ -1012,9 +1095,11 @@ public final class DictationService extends Service {
         }
       SENDING.add(id);
     }
+    NetLog.forNote(id);
     try {
-      return sendNoteOnce(context, id, assistant);
+      return sendNoteOnce(context, id, assistant, mode);
     } finally {
+      NetLog.forNote(null);
       synchronized (SENDING) {
         SENDING.remove(id);
         SENDING.notifyAll();
@@ -1022,18 +1107,59 @@ public final class DictationService extends Service {
     }
   }
 
-  private static String sendNoteOnce(Context context, String id, int to) {
+  private static String sendNoteOnce(Context context, String id, int to, Send mode) {
+    long now = System.currentTimeMillis();
+    String[] claim = {null, null, null}; // request, "again", refusal
+    int[] target = {0};
+    try {
+      // Claimed under the notes' lock: whether it may go, and its request ID saved before anything goes out.
+      update(
+          context,
+          id,
+          e -> {
+            if (NoteFlow.sent(e.json)) {
+              claim[2] = "";
+              return;
+            }
+            if (mode == Send.USER) {
+              int a = to >= 0 ? Assistants.clamp(to) : NoteFlow.assistant(e.json);
+              if (!NoteFlow.meantForChief(e.json) || NoteFlow.assistant(e.json) != a) NoteFlow.wantChief(e.json, a, now);
+              NoteFlow.confirm(e.json, now);
+            }
+            NoteFlow.Delivery d = NoteFlow.delivery(e.json, now);
+            boolean may =
+                d == NoteFlow.Delivery.DUE
+                    || d == NoteFlow.Delivery.WAITING && mode != Send.AUTO
+                    || d == NoteFlow.Delivery.NEEDS_OK && mode == Send.USER;
+            if (!may) {
+              claim[2] =
+                  d == NoteFlow.Delivery.NEEDS_TRANSCRIPT
+                      ? tr("It isn't written down yet.")
+                      : d == NoteFlow.Delivery.SENDING
+                          ? tr("It's being sent already.")
+                          : d == NoteFlow.Delivery.NONE ? tr("It isn't meant for a chief.") : tr("It waits for you: open the note to read it, then Send.");
+              return;
+            }
+            String request = e.json.optString("chiefRequest");
+            claim[1] = request.isEmpty() ? null : "again";
+            if (request.isEmpty()) request = ChiefText.requestId();
+            target[0] = NoteFlow.assistant(e.json);
+            NoteFlow.beginSend(e.json, request, target[0], now);
+            claim[0] = request;
+          });
+    } catch (Exception ex) {
+      return friendly(ex);
+    }
+    if (claim[2] != null) return claim[2].isEmpty() ? null : claim[2];
+    String request = claim[0];
+    boolean again = claim[1] != null;
+    int assistant = target[0];
     HistoryEntry entry = load(context, id);
     if (entry == null) return tr("This note was deleted.");
-    // Sent meanwhile (by the outbox, or a Retry before this one): nothing to do.
-    if (entry.json.has("chiefThread") && !entry.json.has("chiefFailed")) return null;
-    String said = entry.json.optString("original", entry.text());
-    // The same request ID on every try: the chief's reply finds the note, and a try that may
-    // have arrived isn't sent twice.
-    boolean again = entry.json.has("chiefFailed") && !entry.json.optString("chiefRequest").isEmpty();
-    int assistant = again || to < 0 ? Assistants.of(entry.json) : Assistants.clamp(to);
+    // chiefText: the user sent it from a redo's version, whose words go.
+    String said = entry.json.optString("chiefText", entry.json.optString("original", entry.text()));
     BbBridge bb = new BbBridge(context, assistant);
-    String chief = bb.chiefId(), request = again ? entry.json.optString("chiefRequest") : ChiefText.requestId();
+    String chief = bb.chiefId();
     long asked = SystemClock.elapsedRealtime();
     String why = null;
     BbBridge.Sent sent = null;
@@ -1045,14 +1171,14 @@ public final class DictationService extends Service {
           bb.sendRequest(
               chief, said, attachments.texts(entry.recordingId()), attachments.binaries(entry.recordingId()), request, again);
     } catch (Exception ex) {
-      why =
-          ex.getClass() == IOException.class && ex.getMessage() != null
-              ? ex.getMessage()
-              : tr("bb couldn't be reached. Try again.");
+      why = withDetail(ex.getClass() == IOException.class && ex.getMessage() != null ? ex.getMessage() : tr("bb couldn't be reached. Try again."), ex);
     }
     String failed = why;
     BbBridge.Sent files = sent;
     long ms = SystemClock.elapsedRealtime() - asked;
+    long end = System.currentTimeMillis();
+    NoteFlow.Delivery after;
+    HistoryEntry saved;
     try {
       update(
           context,
@@ -1063,32 +1189,44 @@ public final class DictationService extends Service {
             if (files != null && files.files() > 0) step.put("files", files.files()).put("filesHow", files.how());
             if (files != null && files.refused() > 0) step.put("uploadRefused", files.refused());
             if (files != null && !files.failed().isEmpty()) step.put("filesFailed", String.join("; ", files.failed()));
-            e.json.put("route", "chief").put("chiefRequest", request).put("assistant", assistant);
-            if (failed != null) {
-              Outbox.failed(e.json, failed, e.json.optInt("chiefTries") + 1, System.currentTimeMillis());
-              return;
-            }
-            Outbox.sent(e.json);
-            e.json
-                .put("chiefThread", chief)
-                .put("chiefLink", bb.threadLink(chief))
-                .put("chiefSent", System.currentTimeMillis());
+            NoteFlow.log(e.json, end - ms, "bb", "chief of " + Assistants.logName(assistant) + " · request " + request + (again ? " (checked first)" : ""), ms, failed);
+            if (failed != null) NoteFlow.sendFailed(e.json, failed, end);
+            else NoteFlow.sendDone(e.json, chief, bb.threadLink(chief), end);
           });
+      saved = load(context, id);
     } catch (Exception ex) {
       return failed == null ? friendly(ex) : failed;
     }
+    after = saved == null ? NoteFlow.Delivery.NONE : NoteFlow.delivery(saved.json, System.currentTimeMillis());
     String key = "chief:" + request;
-    if (failed != null) Outbox.failure(context, key, "chief", "Note to you, request " + request, failed, assistant);
-    else if (again) {
-      Outbox.resolved(context, key);
-      Outbox.worked(context, assistant);
-    } else if (Outbox.failuresWaiting(context) > 0) Outbox.worked(context, assistant); // A failure is kept for each queued note.
+    if (failed != null) {
+      Outbox.failure(context, key, "chief", "Note to you, request " + request, failed, assistant);
+      if (saved != null && (after == NoteFlow.Delivery.NEEDS_OK || saved.json.optInt("chiefTries") >= 2))
+        Problems.notSent(context, saved, failed);
+    } else {
+      Problems.clear(context, id);
+      if (again || saved != null && saved.json.optInt("chiefTries") > 0) {
+        Outbox.resolved(context, key);
+        Outbox.worked(context, assistant);
+      } else if (Outbox.failuresWaiting(context) > 0 || Outbox.waiting(context)) Outbox.worked(context, assistant); // bb takes messages: what waits goes too.
+    }
     return failed;
+  }
+
+  /** Plain words plus what technically went wrong, unless the words carry it already. */
+  static String withDetail(String words, Throwable ex) {
+    if (ex == null || words.contains("HTTP ") || ex.getClass() == IOException.class) return words;
+    String kind = NetLog.classify(ex);
+    String message = ex.getMessage() == null ? "" : ex.getMessage().replaceAll("\\s+", " ").trim();
+    if (message.length() > 300) message = message.substring(0, 300) + "…";
+    if (kind.isEmpty() || kind.startsWith("app error"))
+      return message.isEmpty() || words.contains(message) ? words + " (" + ex.getClass().getSimpleName() + ")" : words + " (" + message + ")";
+    return words + " (" + kind + (message.isEmpty() || message.equals(kind) ? "" : ": " + message) + ")";
   }
 
   /** The note went to the chief of staff. */
   static boolean sentToChief(HistoryEntry entry) {
-    return entry.json.has("chiefThread") && !entry.json.has("chiefFailed");
+    return NoteFlow.sent(entry.json);
   }
 
   /** The assistant the note that sent this request went to; -1 when there's no such note. */
@@ -1138,7 +1276,7 @@ public final class DictationService extends Service {
     foreground(true);
     newSession(keyAssistant);
     vault.remove("progress");
-    prefs.edit().remove("recordingId").commit();
+    prefs.edit().remove("recordingId").remove("sessionIntent").commit();
     prefs.edit().putString("sessionModel", new Profile(prefs).fixedModel()).commit();
     prefs
         .edit()
@@ -1208,6 +1346,8 @@ public final class DictationService extends Service {
                   return;
                 }
                 session.noteId = note;
+                // A choice tapped (or taken back) while the recording was being saved: on the note now too.
+                if (session.chiefTapped) keepIntent(session, session.chief.equals(QUEUED) ? session.assistant : -1);
                 if (failure != null || !transcribe) {
                   String why = failure == null ? tr("Recording interrupted.") : friendly(failure);
                   session.message = tr("%1$s It's kept in your notes; ↻ writes it down.", why);
@@ -1400,6 +1540,15 @@ public final class DictationService extends Service {
           }
         }
         entry.json.put("status", status);
+        // Stopped without Stop (the app or the microphone): never sent anywhere without the user.
+        if (status.equals("needs attention")) entry.json.put("interrupted", true);
+        // The assistant button tapped while recording: the note is for that chief.
+        String chosen = prefs.getString("sessionIntent", "");
+        if (!chosen.isEmpty()) {
+          JSONObject c = new JSONObject(chosen);
+          NoteFlow.wantChief(entry.json, Assistants.clamp(c.optInt("assistant")), c.optLong("at", System.currentTimeMillis()));
+          NoteFlow.event(entry.json, c.optLong("at"), "you chose to send it to the chief of " + Assistants.logName(c.optInt("assistant")) + " while recording");
+        }
         if (recordingId.equals(id)) {
           Attachments attachments = new Attachments(this);
           attachments.claimPending(id);
@@ -1416,6 +1565,7 @@ public final class DictationService extends Service {
         .remove("sessionId")
         .remove("sessionCreated")
         .remove("recordingId")
+        .remove("sessionIntent")
         .putLong("historyRevision", System.nanoTime())
         .commit();
     return id;
@@ -1434,45 +1584,65 @@ public final class DictationService extends Service {
     }
   }
 
-  /** Notes whose writing down was cut off (the app stopped) say so, and can be retried. */
-  static void markOrphans(Context context) {
-    java.util.List<String> ids = unfinished(context);
-    if (ids.isEmpty()) return;
+  /**
+   * Notes whose writing down was cut off (the app stopped) say so, and can be retried. Returns
+   * them (not the ones that failed or were stopped on purpose).
+   */
+  static java.util.List<String> markOrphans(Context context) {
+    java.util.List<String> ids = unfinished(context), cut = new java.util.ArrayList<>();
+    if (ids.isEmpty()) return cut;
     synchronized (NOTES) {
       try (HistoryStore history = new HistoryStore(context)) {
         for (String id : ids) {
           HistoryEntry e = history.get(id);
           if (e != null && e.json.optString("status").equals("pending")) {
             e.json.put("status", "needs attention");
+            NoteFlow.event(e.json, System.currentTimeMillis(), "writing it down was cut off (the app was stopped)");
             history.save(e);
+            cut.add(id);
           }
         }
       } catch (Exception ignored) {
         /* They still show as unfinished. */
       }
     }
+    return cut;
   }
 
-  /** Retry: writes a kept recording down again, on the panel unless you're recording. */
+  /**
+   * Retry: writes a kept recording down again. On the panel only when the panel shows that very
+   * recording (its ↻); from anywhere else it runs in the background and never takes the panel, so
+   * the panel's buttons always act on the recording you just made. What the note is meant for
+   * (NoteFlow) goes on once it's written down.
+   */
   private void retryNote(String id) throws IOException {
     if (JOBS.containsKey(id)) return;
     if (!recording(this, id).exists()) throw new IOException(tr("The audio of this recording is gone. Its text so far is in your notes."));
     HistoryEntry e = load(this, id);
     if (e == null) throw new IOException(tr("This note was deleted."));
+    boolean panel = !isBusy() && UNFINISHED.equals(state) && id.equals(session.noteId);
     Session s;
-    boolean show = !isBusy();
-    if (show && UNFINISHED.equals(state) && id.equals(session.noteId)) s = session; // ↻: choices made stay
-    else if (show) {
-      newSession();
-      s = session;
-      s.noteId = id;
-    } else {
+    if (panel) s = session; // ↻: choices made stay
+    else {
       s = new Session();
       s.noteId = id;
+      s.assistants = Assistants.ready(this);
+    }
+    long now = System.currentTimeMillis();
+    try {
+      update(
+          this,
+          id,
+          n -> {
+            n.json.remove("stoppedAt"); // Retry goes on from a Stop trying
+            NoteFlow.event(n.json, now, panel ? "you tapped ↻ on the panel" : "retry");
+          });
+    } catch (Exception ignored) {
+      /* The retry still runs. */
     }
     Job job = new Job(id, e.recordingId(), s);
     if (JOBS.putIfAbsent(id, job) != null) return;
-    startJob(job, show);
+    startJob(job, panel);
   }
 
   /**
@@ -1480,14 +1650,38 @@ public final class DictationService extends Service {
    * went out whole already, its answer is still taken when it comes (the model may be charging).
    */
   private void stopTrying(Session s) {
-    Job j = JOBS.get(s.noteId);
+    stopTrying(this, s.noteId);
+    Toast.makeText(this, tr("Stopped. The recording is kept in your notes; retry it there."), Toast.LENGTH_LONG).show();
+    newSession();
+    transition(READY, tr("Tap the bubble to record"));
+  }
+
+  /**
+   * Stop trying (the panel's ✕, the note's Stop trying): no new try starts, and nothing goes on by
+   * itself afterwards (stoppedAt, saved before this returns, so a Retry right after wins).
+   */
+  static void stopTrying(Context context, String id) {
+    if (id == null || id.isEmpty()) return;
+    Job j = JOBS.get(id);
     if (j != null) {
       j.stopped = true;
       j.control.cancel();
     }
-    Toast.makeText(this, tr("Stopped. The recording is kept in your notes; retry it there."), Toast.LENGTH_LONG).show();
-    newSession();
-    transition(READY, tr("Tap the bubble to record"));
+    long now = System.currentTimeMillis();
+    try {
+      update(context, id, n -> {
+        n.json.put("stoppedAt", now);
+        NoteFlow.event(n.json, now, "you tapped stop trying; nothing goes on by itself");
+      });
+    } catch (Exception ignored) {
+      /* Deleted meanwhile. */
+    }
+  }
+
+  /** A redo with a smarter model is being written down for this note (its recording ID). */
+  static boolean redoing(String noteId) {
+    for (Job j : JOBS.values()) if (j.recordingId.equals(noteId) && !j.id.equals(j.recordingId)) return true;
+    return false;
   }
 
   /** Throws a kept recording's audio away (once it stopped, if it's being written down). */
@@ -1499,11 +1693,15 @@ public final class DictationService extends Service {
       return;
     }
     recording(context, id).delete();
+    Problems.clear(context, id);
     synchronized (NOTES) {
       try (HistoryStore history = new HistoryStore(context)) {
         HistoryEntry e = history.get(id);
         if (e != null && !e.json.optString("status").equals("complete") && !e.json.optString("status").equals("no speech")) {
           e.json.put("status", "audio discarded");
+          long now = System.currentTimeMillis();
+          NoteFlow.dropChief(e.json, now);
+          NoteFlow.event(e.json, now, "you discarded the audio");
           history.save(e);
         }
       } catch (Exception ignored) {
@@ -1559,7 +1757,8 @@ public final class DictationService extends Service {
     PowerManager.WakeLock lock =
         getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Dictate & Delegate:transcribe");
     lock.setReferenceCounted(false);
-    lock.acquire(15 * 60_000L);
+    // Each 2-minute part may take a few minutes with busy retries.
+    lock.acquire(Math.max(15 * 60_000L, (pcm.length() / AudioFiles.CHUNK_BYTES + 1) * 5 * 60_000L));
     long uploadStarted = SystemClock.elapsedRealtime();
     String failed = null, transcript = "";
     boolean cancelled = false, empty = false, redo = false;
@@ -1573,27 +1772,63 @@ public final class DictationService extends Service {
       if (!pcm.exists()) throw new IOException(tr("The audio of this recording is gone. Its text so far is in your notes."));
       if (entry.json.optString("status").equals("needs attention")) entry.json.put("status", "pending");
       entry.json.remove("transcribeFailed");
+      entry.json.remove("speechAskedAt");
+      // Meant for a chief: should Android stop the app mid-way, the outbox's look in a few minutes says so.
+      if (NoteFlow.meantForChief(entry.json)) Outbox.soon(this, 5 * 60_000L);
       String model = entry.model();
       OpenRouter openRouter = new OpenRouter(this);
       // No language: the speech models detect it, also when you switch mid-note.
       java.util.List<String> words = new Profile(prefs).hintWords();
+      // Busy answers (429, 5xx) are tried again here, switching to the fallback model, not inside the call.
+      job.control.busyTries = 0;
+      String[] plan = OpenRouter.busyPlan(model, new Profile(prefs).fallbackModel(model));
+      NetLog.forNote(id);
+      int chunks = 0;
       while (entry.offset() < (pcm.length() & ~1L)) {
         if (job.control.cancelled() || !alive) throw new OpenRouter.Cancelled(null);
         AudioFiles.Chunk chunk = AudioFiles.readChunk(pcm, entry.offset());
-        entry.beginRequest();
-        save(history, entry); // A lost response leaves an explicit unknown charge.
-        long asked = SystemClock.elapsedRealtime();
-        OpenRouter.Result result;
-        try {
-          result = openRouter.transcribe(chunk.wav(), model, words, job.control);
-        } catch (Exception failure) {
-          entry.step("speech", model, SystemClock.elapsedRealtime() - asked, null, friendly(failure));
-          save(history, entry);
-          throw failure;
+        chunks++;
+        OpenRouter.Result result = null;
+        long firstTry = System.currentTimeMillis();
+        for (int round = 0; result == null; round++) {
+          String use = plan[2 * round];
+          entry.beginRequest();
+          save(history, entry); // A lost response leaves an explicit unknown charge.
+          long asked = SystemClock.elapsedRealtime(), at = System.currentTimeMillis();
+          String target = use + " · part " + chunks + " · " + AudioFiles.elapsed((chunk.nextOffset() - entry.offset()) * 1000 / AudioFiles.BYTES_PER_SECOND);
+          try {
+            result = openRouter.transcribe(chunk.wav(), use, words, job.control);
+          } catch (OpenRouter.Busy busy) {
+            // Nothing was written down; a 429 or 503 wasn't run, so it wasn't charged either.
+            long ms = SystemClock.elapsedRealtime() - asked;
+            if (OpenRouter.notRun(busy.status)) entry.json.put("unconfirmed", Math.max(0, entry.json.optInt("unconfirmed") - 1));
+            entry.step("speech", use, ms, null, busy.getMessage());
+            NoteFlow.log(entry.json, at, "speech", target + " · try " + (round + 1), ms, busy.getMessage());
+            save(history, entry);
+            if (2 * (round + 1) >= plan.length)
+              throw new IOException(
+                  tr("Tried %1$d times over %2$d s (%3$s), all busy. Last answer: %4$s", round + 1, (System.currentTimeMillis() - firstTry + 999) / 1000, models(plan), busy.getMessage()), busy);
+            String next = plan[2 * (round + 1)];
+            long pause = Math.max(Long.parseLong(plan[2 * (round + 1) + 1]), next.equals(use) ? Math.min(busy.retryAfterMs, 60_000) : 0);
+            plan[2 * (round + 1) + 1] = Long.toString(pause);
+            job.control.retrying(round + 1, pause, busy.shortWhy() + (next.equals(use) ? "" : ", " + tr("now with %1$s", shortModel(next))));
+            if (pause > 0) job.control.pause(pause);
+            continue;
+          } catch (Exception failure) {
+            long ms = SystemClock.elapsedRealtime() - asked;
+            String why = withDetail(friendly(failure), failure);
+            entry.step("speech", use, ms, null, why);
+            NoteFlow.log(entry.json, at, "speech", target + " · try " + (round + 1), ms, why);
+            save(history, entry);
+            throw failure;
+          }
+          long ms = SystemClock.elapsedRealtime() - asked;
+          entry.accept(result, chunk.nextOffset());
+          entry.step("speech", use, ms, result.cost(), null);
+          NoteFlow.log(entry.json, at, "speech", target + " · try " + (round + 1), ms, null);
+          if (!use.equals(model)) entry.json.put("fallbackUsed", use);
+          save(history, entry); // Text, cost, and resume offset commit together.
         }
-        entry.accept(result, chunk.nextOffset());
-        entry.step("speech", model, SystemClock.elapsedRealtime() - asked, result.cost(), null);
-        save(history, entry); // Text, cost, and resume offset commit together.
       }
       empty = entry.text().isBlank();
       if (!empty && !entry.json.has("raw")) {
@@ -1602,9 +1837,13 @@ public final class DictationService extends Service {
         entry.json.put("raw", entry.text()).put("original", entry.text());
       }
       entry.json.put("status", empty ? "no speech" : "complete");
+      NoteFlow.speechDone(entry.json);
       entry.json.put("processingMs", entry.json.optLong("processingMs") + SystemClock.elapsedRealtime() - uploadStarted);
       save(history, entry);
       Outbox.resolved(this, "recording:" + id);
+      Problems.clear(this, id);
+      // Meant for a chief: should the panel not send it (the app stopped meanwhile), the outbox does.
+      if (NoteFlow.meantForChief(entry.json)) Outbox.soon(this, 45_000);
       redo = !entry.recordingId().equals(entry.id());
       synchronized (NOTES) {
         // Deleted right after the last save: nothing of it is kept.
@@ -1617,14 +1856,22 @@ public final class DictationService extends Service {
       if (!empty) vault.put("transcript", transcript);
     } catch (Exception ex) {
       cancelled = ex instanceof OpenRouter.Cancelled || job.control.cancelled() || job.discard;
-      failed = friendly(ex);
+      // The service went away (Android, an update): cut off, not stopped by the user. It stays
+      // "pending", so the next start goes on with it (markOrphans, resume) or the outbox says so.
+      boolean shutdown = !alive && !job.stopped && !job.discard;
+      failed = withDetail(friendly(ex), ex);
       synchronized (NOTES) {
         try (HistoryStore history = new HistoryStore(this)) {
           HistoryEntry entry = history.get(id);
           if (entry != null
+              && !shutdown
               && !entry.json.optString("status").equals("complete")
               && !entry.json.optString("status").equals("no speech")) {
-            entry.json.put("status", "needs attention").put("transcribeFailed", failed);
+            entry.json.put("status", "needs attention");
+            if (cancelled) {
+              entry.json.put("transcribeFailed", failed);
+              NoteFlow.event(entry.json, System.currentTimeMillis(), "writing it down stopped: " + failed);
+            } else NoteFlow.speechFailed(entry.json, failed, System.currentTimeMillis());
             history.save(entry);
           }
         } catch (Exception ignored) {
@@ -1635,6 +1882,7 @@ public final class DictationService extends Service {
       if (!cancelled)
         Outbox.failure(this, "recording:" + id, "recording", "Recording (writing it down)", failed);
     } finally {
+      NetLog.forNote(null);
       reporting.incrementAndGet(); // the service stays until finished() took the result
       JOBS.remove(id);
       if (job.discard) discard(this, id);
@@ -1646,12 +1894,30 @@ public final class DictationService extends Service {
     }
   }
 
-  /** Saves the job's copy of its note, unless the note was deleted meanwhile (then it stops). */
+  /**
+   * Saves the job's copy of its note, unless the note was deleted meanwhile (then it stops). What
+   * the note is for and its delivery (NoteFlow.OWNED) come from the saved note: a choice made while
+   * it's written down is never overwritten by this copy.
+   */
   private static void save(HistoryStore history, HistoryEntry entry) throws Exception {
     synchronized (NOTES) {
-      if (history.get(entry.id()) == null) throw new IOException(tr("This note was deleted."));
+      HistoryEntry saved = history.get(entry.id());
+      if (saved == null) throw new IOException(tr("This note was deleted."));
+      NoteFlow.merge(entry.json, saved.json);
       history.save(entry);
     }
+  }
+
+  /** "mai-transcribe-2 and gpt-transcribe": the models a plan uses. */
+  private static String models(String[] plan) {
+    java.util.LinkedHashSet<String> m = new java.util.LinkedHashSet<>();
+    for (int i = 0; i < plan.length; i += 2) m.add(shortModel(plan[i]));
+    return String.join(" " + tr("and") + " ", m);
+  }
+
+  static String shortModel(String id) {
+    int slash = id.indexOf('/');
+    return slash < 0 ? id : id.substring(slash + 1);
   }
 
   /** A recording is written down (or not): on the panel if it's still the panel's, else a toast. */
@@ -1669,9 +1935,29 @@ public final class DictationService extends Service {
         s.message = "";
         // The transcript comes first, on the panel to insert; never on the clipboard by itself.
         transition(COPIED, tr("Your text is ready to insert"));
-      } else Toast.makeText(this, tr("An earlier recording is written down. It's in your notes."), Toast.LENGTH_LONG).show();
+      } else if (!redo) Toast.makeText(this, tr("An earlier recording is written down. It's in your notes."), Toast.LENGTH_LONG).show();
       // After Stop trying the text is kept (it was paid for), but nothing starts by itself.
-      if (!job.stopped) decide(s);
+      if (!job.stopped) {
+        // What the note is for comes from the note, not from the panel: a retry from anywhere, or
+        // after the app was stopped, goes on to the chief it was meant for.
+        HistoryEntry e = load(this, job.id);
+        long now = System.currentTimeMillis();
+        NoteFlow.Delivery d = e == null ? NoteFlow.Delivery.NONE : NoteFlow.delivery(e.json, now);
+        // Don't send tapped on the note meanwhile: the panel's old choice doesn't bring it back.
+        if (s.chief.equals(QUEUED) && e != null && !NoteFlow.meantForChief(e.json) && e.json.has("intentDropped")) s.chief = IDLE;
+        if (!s.chief.equals(QUEUED) && !s.chief.equals(RUNNING) && !s.chief.equals(DONE)) {
+          if (d == NoteFlow.Delivery.DUE) {
+            s.chief = QUEUED;
+            s.chiefAuto = true;
+            s.assistant = NoteFlow.assistant(e.json);
+          } else if (d == NoteFlow.Delivery.NEEDS_OK) {
+            s.chief = FAILED;
+            s.message = tr("Written down. It doesn't go to %1$s by itself (%2$s): read it in the note, then Send.", Assistants.name(prefs, NoteFlow.assistant(e.json)), NoteFlow.waitReason(e.json, now, java.time.ZoneId.systemDefault()));
+            Problems.waitsForYou(this, e);
+          }
+        }
+        decide(s);
+      }
     } else if (failed == null) {
       if (shown) transition(EMPTY, tr("No speech recognized. Ready to record again."));
     } else if (cancelled || job.discard) {
@@ -1679,11 +1965,29 @@ public final class DictationService extends Service {
         if (!job.discard) Toast.makeText(this, failed, Toast.LENGTH_LONG).show();
         closePanel();
       }
-    } else if (shown) {
-      s.message = tr("Not written down: %1$s It's kept in your notes; ↻ tries again.", failed);
-      transition(UNFINISHED, failed);
-    } else
-      Toast.makeText(this, tr("An earlier recording wasn't written down: %1$s It's kept in your notes to retry.", failed), Toast.LENGTH_LONG).show();
+    } else {
+      HistoryEntry e = load(this, job.id);
+      boolean forChief = e != null && NoteFlow.meantForChief(e.json);
+      if (shown) {
+        s.message =
+            forChief
+                ? tr("Not written down, so not sent to %1$s: %2$s It's kept in your notes; ↻ tries again and then sends it.", Assistants.name(prefs, NoteFlow.assistant(e.json)), failed)
+                : tr("Not written down: %1$s It's kept in your notes; ↻ tries again.", failed);
+        transition(UNFINISHED, failed);
+      } else if (!redo)
+        Toast.makeText(this, tr("An earlier recording wasn't written down: %1$s It's kept in your notes to retry.", failed), Toast.LENGTH_LONG).show();
+      if (redo) {
+        // A redo that failed: the note stays as it was, its audio is still in the archive, so the
+        // copy goes and Redo can be tapped again. Said on the note page and here.
+        recording(this, job.id).delete();
+        try {
+          update(this, job.id, n -> n.json.put("status", "redo failed").put("transcribeFailed", failed));
+        } catch (Exception ignored) {
+          /* Deleted meanwhile. */
+        }
+        Toast.makeText(this, tr("Redo failed: %1$s The note is unchanged; you can redo it again.", failed), Toast.LENGTH_LONG).show();
+      } else if (e != null && (forChief || !shown)) Problems.notWritten(this, e, failed); // Fail loudly, until it's written down or discarded.
+    }
     if (closing && working == 0 && JOBS.isEmpty()) finishIdle();
   }
 
@@ -1716,6 +2020,7 @@ public final class DictationService extends Service {
         .remove("sessionId")
         .remove("sessionCreated")
         .remove("recordingId")
+        .remove("sessionIntent")
         .putLong("historyRevision", System.nanoTime())
         .commit();
   }
@@ -1724,7 +2029,7 @@ public final class DictationService extends Service {
     // Dictate & Delegate's own errors are plain IOExceptions with a translated message. Subclasses come from
     // the network stack (connection reset, TLS, timeouts) and carry raw English, if anything.
     if (ex.getClass() == IOException.class && ex.getMessage() != null) return ex.getMessage();
-    if (ex instanceof OpenRouter.Cancelled) return ex.getMessage();
+    if (ex instanceof OpenRouter.Cancelled || ex instanceof OpenRouter.Busy) return ex.getMessage();
     if (ex instanceof java.io.FileNotFoundException
         || ex instanceof java.nio.file.FileSystemException
         || ex instanceof java.io.EOFException
@@ -1750,6 +2055,7 @@ public final class DictationService extends Service {
       if (!j.started) JOBS.remove(j.id); // registered, never run: kept in the notes to retry
     }
     transcribers.shutdownNow();
+    intents.shutdown(); // choices still being saved are saved
     actions.shutdownNow();
     inserter.shutdownNow();
     if (wake.isHeld()) wake.release();

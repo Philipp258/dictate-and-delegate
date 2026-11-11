@@ -39,7 +39,7 @@ final class TestServer {
     new Vault(context).remove(OpenRouter.KEY);
   }
 
-  /** Queues transcripts; null queues a provider error. */
+  /** Queues transcripts; null queues an error that isn't tried again (HTTP 400). */
   static void transcripts(String... texts) throws Exception {
     post("/test/script", new JSONObject().put("transcribe", answers(texts)));
   }
@@ -57,7 +57,7 @@ final class TestServer {
     for (String c : choices) script("decide", new JSONObject().put("turn", c));
   }
 
-  /** Queues text-model replies; null queues a provider error. */
+  /** Queues text-model replies; null queues an error that isn't tried again (HTTP 400). */
   static void replies(String... texts) throws Exception {
     post("/test/script", new JSONObject().put("text", answers(texts)));
   }
@@ -262,7 +262,9 @@ final class TestServer {
   private static JSONArray answers(String... texts) throws JSONException {
     JSONArray list = new JSONArray();
     for (String t : texts)
-      list.put(t == null ? new JSONObject().put("error", "provider") : new JSONObject().put("text", t));
+      // A failure that isn't tried again (400): a provider error (5xx) is "busy" since 3.8.0 and
+      // would take the next queued answers on its retries.
+      list.put(t == null ? new JSONObject().put("error", "invalid") : new JSONObject().put("text", t));
     return list;
   }
 

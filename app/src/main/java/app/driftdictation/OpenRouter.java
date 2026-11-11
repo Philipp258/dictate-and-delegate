@@ -50,7 +50,7 @@ final class OpenRouter {
     } catch (Unauthorized ex) {
       throw new IOException(tr("This key isn't valid. Check that you copied all of it."), ex);
     } catch (Busy ex) {
-      throw new IOException(busy(), ex);
+      throw new IOException(ex.getMessage(), ex);
     }
   }
 
@@ -59,7 +59,7 @@ final class OpenRouter {
     try {
       return send("GET", base() + "/models", null, "", 20000, 60000);
     } catch (Busy ex) {
-      throw new IOException(busy(), ex);
+      throw new IOException(ex.getMessage(), ex);
     }
   }
 
@@ -109,7 +109,7 @@ final class OpenRouter {
     } catch (Unauthorized ex) {
       throw new IOException(tr("Your OpenRouter key isn't valid anymore. Change it in Dictate & Delegate's Settings."), ex);
     } catch (Busy ex) {
-      throw new IOException(busy(), ex);
+      throw new IOException(ex.getMessage(), ex);
     }
   }
 
@@ -243,11 +243,12 @@ final class OpenRouter {
       } catch (Unauthorized ex) {
         throw new IOException(tr("Your OpenRouter key isn't valid anymore. Change it in Dictate & Delegate's Settings."), ex);
       } catch (Busy ex) {
-        // Some hosts answer 429 in bursts; the same request usually passes a moment later.
-        last = new IOException(busy(), ex);
-        if (attempt >= 2) throw last;
-        wait = 1500L * (attempt + 1);
-        why = tr("the model is busy");
+        // Some hosts answer 429 or 5xx in bursts; the same request usually passes a moment later.
+        // A transcription tries again itself (busyTries 0), so it can switch to another model.
+        if (attempt >= control.busyTries) throw ex;
+        last = ex;
+        wait = Math.max(1500L * (attempt + 1), Math.min(ex.retryAfterMs, 30_000));
+        why = ex.shortWhy();
       } catch (Cancelled ex) {
         throw ex;
       } catch (IOException ex) {
@@ -318,6 +319,8 @@ final class OpenRouter {
   /** What one call can be told from outside, and tells: Cancel, and the next try coming. */
   static final class Control {
     final long budgetMs;
+    /** How often an answer of "busy" (429, 5xx) is tried again here; 0: the caller does it. */
+    volatile int busyTries = 2;
     private volatile boolean cancelled, awaiting;
     private volatile Runnable abort;
     private volatile Retrying listener;
@@ -437,13 +440,99 @@ final class OpenRouter {
         || kind.equals("network unreachable") || kind.equals("no route to host") || kind.equals("connect failed");
   }
 
-  /** HTTP 401 and 429, turned into readable messages by the callers. */
+  /** HTTP 401, turned into a readable message by the callers. */
   private static final class Unauthorized extends IOException {}
 
-  private static final class Busy extends IOException {}
+  /**
+   * The model's host is busy or rate-limited (HTTP 429) or had a problem (HTTP 5xx): nothing was
+   * written down or charged, and the same request may pass a moment later or with another model.
+   * Its message is plain words with what OpenRouter said (status, provider, its message).
+   */
+  static final class Busy extends IOException {
+    final int status;
+    final String detail;
+    /** What the answer's Retry-After asked for, 0 without. */
+    final long retryAfterMs;
 
-  private static String busy() {
-    return tr("The model is busy right now. Wait a moment, then try again.");
+    Busy(int status, String detail, long retryAfterMs) {
+      super(
+          status == 429
+              ? tr("The model is busy or rate-limited (%1$s).", detail)
+              : tr("The model provider had a problem (%1$s).", detail));
+      this.status = status;
+      this.detail = detail;
+      this.retryAfterMs = retryAfterMs;
+    }
+
+    /** For the panel's "trying again" line. */
+    String shortWhy() {
+      return status == 429 ? tr("the model is busy (HTTP 429)") : tr("the model provider had a problem (HTTP %1$d)", status);
+    }
+  }
+
+  /**
+   * The tries for one part of a recording while the model answers busy: model, wait before it
+   * (ms), model, wait, … With a fallback: twice the chosen model, twice the fallback, then each once
+   * more after a longer wait (a Retry-After asking longer is honoured for the same model, up to a
+   * minute). Without: the chosen model five times, further apart.
+   */
+  static String[] busyPlan(String model, String fallback) {
+    if (fallback == null || fallback.isEmpty() || fallback.equals(model))
+      return new String[] {model, "0", model, "4000", model, "10000", model, "20000", model, "30000"};
+    return new String[] {model, "0", model, "4000", fallback, "0", fallback, "5000", model, "20000", fallback, "30000"};
+  }
+
+  /** Whether an answer with this status means: busy, try again (or another model). */
+  static boolean busyStatus(int status) {
+    // Not 504/524 (timeouts): the model may have run and charged, so they're never tried again.
+    return status == 429 || status == 500 || status == 502 || status == 503 || status == 529;
+  }
+
+  /** A busy answer that says the request wasn't run, so nothing was charged. */
+  static boolean notRun(int status) {
+    return status == 429 || status == 503;
+  }
+
+  /**
+   * What an error answer says, on one line: "HTTP 429 too many requests · Azure: Rate limit is
+   * exceeded…". OpenRouter's error JSON has message and, from the provider, metadata.provider_name
+   * and metadata.raw.
+   */
+  static String describe(int status, String body) {
+    StringBuilder s = new StringBuilder("HTTP ").append(status).append(NetLog.statusName(status));
+    JSONObject error = null;
+    try {
+      error = new JSONObject(body).optJSONObject("error");
+    } catch (JSONException ignored) {
+      /* Not JSON: the text itself. */
+    }
+    String message = error == null ? body.replaceAll("\\s+", " ").trim() : error.optString("message");
+    JSONObject meta = error == null ? null : error.optJSONObject("metadata");
+    String provider = meta == null ? "" : meta.optString("provider_name");
+    Object raw = meta == null ? null : meta.opt("raw");
+    String rawText = raw == null ? "" : raw.toString().replaceAll("\\s+", " ").trim();
+    if (!provider.isEmpty()) s.append(" from ").append(provider);
+    if (!message.isEmpty()) s.append(": ").append(shorten(message, 200));
+    if (!rawText.isEmpty() && !rawText.equals(message)) s.append(" (").append(shorten(rawText, 300)).append(")");
+    return s.toString();
+  }
+
+  private static String shorten(String s, int max) {
+    return s.length() > max ? s.substring(0, max) + "…" : s;
+  }
+
+  /** Retry-After in ms (seconds or an HTTP date); 0 without one. */
+  static long retryAfter(String value, long now) {
+    if (value == null || value.isBlank()) return 0;
+    try {
+      return Math.max(0, Math.round(Double.parseDouble(value.trim()) * 1000));
+    } catch (NumberFormatException ex) {
+      try {
+        return Math.max(0, java.time.ZonedDateTime.parse(value.trim(), java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME).toInstant().toEpochMilli() - now);
+      } catch (RuntimeException e) {
+        return 0;
+      }
+    }
   }
 
   private static JSONObject send(
@@ -625,8 +714,14 @@ final class OpenRouter {
       byte[] got = stream == null ? new byte[0] : stream.readNBytes(4_000_000);
       net.received(got.length);
       String text = new String(got, StandardCharsets.UTF_8);
+      if (status >= 400) {
+        // All of an error answer is kept in the network log: what it said and when to try again.
+        net.body(text);
+        for (String h : new String[] {"retry-after", "x-ratelimit-limit", "x-ratelimit-remaining", "x-ratelimit-reset", "x-generation-id", "cf-ray"})
+          net.header(h, c.getHeaderField(h));
+      }
       if (status == 401) throw new Unauthorized();
-      if (status == 429) throw new Busy();
+      if (busyStatus(status)) throw new Busy(status, describe(status, text), retryAfter(c.getHeaderField("retry-after"), System.currentTimeMillis()));
       JSONObject json;
       try {
         json = new JSONObject(text);
@@ -636,7 +731,13 @@ final class OpenRouter {
       // OpenRouter may answer 200 with an error object when the provider failed mid-way.
       JSONObject error = json.optJSONObject("error");
       if (status >= 200 && status < 300 && error == null) return json;
-      throw new IOException(error(status, error == null ? "" : error.optString("message")));
+      if (error != null && status < 300) {
+        // 200 with an error: the provider failed mid-way. Its own code says whether it's "busy".
+        net.body(text);
+        int code = error.optInt("code");
+        if (busyStatus(code)) throw new Busy(code, describe(code, text) + " " + tr("(inside an HTTP %1$d answer)", status), 0);
+      }
+      throw new IOException(error(status, error == null ? "" : error.optString("message")) + (status >= 300 ? " [" + describe(status, text) + "]" : ""));
     } catch (SocketTimeoutException ex) {
       if (control.cancelled()) throw new Cancelled(ex);
       if (NetLog.classify(ex).equals("connect timeout"))

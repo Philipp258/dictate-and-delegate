@@ -76,6 +76,17 @@ final class Profile {
           "microsoft/mai-transcribe-2",
           "microsoft/mai-transcribe-1.5");
 
+  /** When the chosen speech model is busy (429, 5xx): another host's model, on the same OpenRouter key. */
+  static final String FALLBACK_DEFAULT = "openai/gpt-transcribe";
+
+  /** The fallback for this model; "" for none (turned off, or the same model). */
+  String fallbackModel(String model) {
+    String id = prefs.getString("fallbackModel", "");
+    if (id.equals("none")) return "";
+    if (id.isEmpty() || !OFFERED.contains(id)) id = FALLBACK_DEFAULT.equals(model) ? DEFAULT_MODEL : FALLBACK_DEFAULT;
+    return id.equals(model) ? "" : id;
+  }
+
   String fixedModel() {
     String id = prefs.getString("model", DEFAULT_MODEL);
     return OFFERED.contains(id) ? id : DEFAULT_MODEL;

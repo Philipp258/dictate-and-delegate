@@ -104,11 +104,13 @@ public class ComparisonTest {
       f.write(new byte[32000]);
     }
     TestServer.transcripts((String) null);
+    // Retry without a note (3.8.0: never "all of them") says what to do instead.
     send(DictationService.RETRY);
     await("error");
     Thread.sleep(4100);
     assertFalse(DictationService.bubbleVisible());
-    assertTrue(DictationService.audio(c).exists());
+    // The leftover audio became a note to retry; nothing was lost.
+    assertEquals(1, DictationService.unfinished(c).size());
     assertFalse(DictationService.busy());
   }
 

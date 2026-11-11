@@ -19,11 +19,12 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
- * What hasn't reached the chief yet, and what went wrong on the way. A note whose send failed
- * stays queued (in the note: chiefQueued, chiefTries, chiefNextTry) and is sent again by itself,
- * further apart each time (delayMs), also after the app restarts or the phone had no network: a
- * job that needs a network does it. The same request ID goes each time, and a try after one that
- * may have arrived checks first, so the chief never gets a note twice.
+ * What hasn't reached the chief yet, and what went wrong on the way. The notes' own state
+ * (NoteFlow) says what's due: a note whose send failed is sent again by itself, further apart each
+ * time (delayMs), also after the app restarts or the phone had no network (a job that needs a
+ * network does it), but only while it's fresh (NoteFlow.AUTO_MS); after that it waits for the
+ * user, who gets a notification. The same request ID goes each time, and a try after one that may
+ * have arrived checks first, so the chief never gets a note twice.
  *
  * <p>Failures (a note not sent, a hands-free message not sent, a recording not transcribed) are
  * kept, and once bb takes a message again they go to the chief as one "[app failure report]",
@@ -37,9 +38,6 @@ import org.json.JSONObject;
 final class Outbox {
   private Outbox() {}
 
-  /** A note's first try failed this long ago: no more tries by itself (Retry still works). */
-  static final long GIVE_UP_MS = 48 * 3600_000L;
-
   /** The failures kept for the next report, at most. */
   static final int FAILURES_MAX = 20;
 
@@ -52,45 +50,6 @@ final class Outbox {
   static long delayMs(int tries) {
     long[] steps = {15_000, 30_000, 60_000, 120_000, 300_000, 600_000};
     return tries <= 0 ? 0 : tries <= steps.length ? steps[tries - 1] : 900_000;
-  }
-
-  // ------------------------------------------------------------------ a note's state
-
-  enum State {
-    /** Not a note for the chief, or it got there. */
-    NONE,
-    SENT,
-    /** Not there yet: tried again by itself. */
-    RETRYING,
-    /** Not there, and not tried again by itself (given up, or from before 3.3.6). */
-    FAILED
-  }
-
-  static State state(JSONObject note) {
-    if (note.has("chiefThread") && !note.has("chiefFailed")) return State.SENT;
-    if (!note.has("chiefFailed")) return State.NONE;
-    return note.optBoolean("chiefQueued") ? State.RETRYING : State.FAILED;
-  }
-
-  /** A send of the note failed (its try number tries) at now: queued again, or given up. */
-  static void failed(JSONObject note, String why, int tries, long now) throws Exception {
-    long first = note.optLong("chiefFailedAt", now);
-    note.put("chiefFailed", why).put("chiefTries", tries).put("chiefFailedAt", first);
-    if (now - first < GIVE_UP_MS) note.put("chiefQueued", true).put("chiefNextTry", now + delayMs(tries));
-    else note.remove("chiefQueued");
-    if (!note.optBoolean("chiefQueued")) note.remove("chiefNextTry");
-  }
-
-  /** It got there: the queue's fields go; chiefTries and chiefFailedAt stay to say it took a while. */
-  static void sent(JSONObject note) {
-    note.remove("chiefQueued");
-    note.remove("chiefNextTry");
-    note.remove("chiefFailed");
-  }
-
-  /** The note is queued and its next try is due at now. */
-  static boolean due(JSONObject note, long now) {
-    return note.optBoolean("chiefQueued") && note.optLong("chiefNextTry", 0) <= now;
   }
 
   // ------------------------------------------------------------------ failures
@@ -199,7 +158,7 @@ final class Outbox {
   }
 
   /**
-   * The log's lines from the time from on, the last max of them (each at most 400 characters). A
+   * The log's lines from the time from on, the last max of them (each at most 1200 characters). A
    * line is stamped when its request started, so one still running at from counts too: a request
    * that hung for minutes before it failed was left out of the report.
    */
@@ -209,7 +168,7 @@ final class Outbox {
       long t = NetLog.time(line);
       if (t < 0) continue;
       if (t < from && t + Math.max(0, NetLog.duration(line)) < from) continue;
-      out.add(line.length() > 400 ? line.substring(0, 400) + "…" : line);
+      out.add(line.length() > 1200 ? line.substring(0, 1200) + "…" : line);
     }
     return out.size() <= max ? out : new ArrayList<>(out.subList(out.size() - max, out.size()));
   }
@@ -269,11 +228,12 @@ final class Outbox {
    */
   static void forget(Context context, int assistant) {
     for (HistoryEntry e : queued(context)) {
-      if (Assistants.of(e.json) != assistant) continue;
+      if (NoteFlow.assistant(e.json) != assistant) continue;
       try {
         DictationService.update(context, e.id(), n -> {
-          n.json.remove("chiefQueued");
-          n.json.remove("chiefNextTry");
+          long now = System.currentTimeMillis();
+          NoteFlow.dropChief(n.json, now);
+          NoteFlow.event(n.json, now, "its assistant was removed; not sent");
         });
       } catch (Exception ignored) {
         /* Deleted meanwhile. */
@@ -329,7 +289,8 @@ final class Outbox {
   static void kick(Context context) {
     JobScheduler js = context.getSystemService(JobScheduler.class);
     if (js != null && js.getPendingJob(JOB) != null) return;
-    if (waiting(context) || failuresWaiting(context) > 0) schedule(context, 0);
+    // Also for notes that wait for the transcript or the user: one may need its notification.
+    if (waiting(context) || failuresWaiting(context) > 0 || !queuedRecordings(context).isEmpty()) schedule(context, 0);
   }
 
   /** Notes queued for the chief. */
@@ -340,14 +301,77 @@ final class Outbox {
   /** The recordings of the queued notes: their attachments are kept until they're sent. */
   static java.util.Set<String> queuedRecordings(Context context) {
     java.util.Set<String> out = new java.util.HashSet<>();
-    for (HistoryEntry e : queued(context)) out.add(e.recordingId());
+    long now = System.currentTimeMillis();
+    // Also those that wait for the transcript or for the user's Send: they may still go.
+    for (HistoryEntry e : recent(context)) {
+      NoteFlow.Delivery d = NoteFlow.delivery(e.json, now);
+      if (d != NoteFlow.Delivery.NONE && d != NoteFlow.Delivery.SENT) out.add(e.recordingId());
+    }
     return out;
   }
 
+  /** A note meant for a chief whose writing down nothing does any more (the app was stopped mid-way), not told yet. */
+  private static boolean cutOff(Context context, HistoryEntry e, long now) {
+    return NoteFlow.meantForChief(e.json)
+        && e.json.optString("status").equals("pending")
+        && !e.json.has("speechAskedAt")
+        && !DictationService.transcribing(e.id())
+        && DictationService.recording(context, e.id()).exists()
+        && now - e.created() < 2 * 24 * 3600_000L;
+  }
+
+  /** Notes on their way to a chief that the outbox may send: due now, or waiting for their next try. */
   private static List<HistoryEntry> queued(Context context) {
     List<HistoryEntry> out = new ArrayList<>();
-    for (HistoryEntry e : recent(context)) if (e.json.optBoolean("chiefQueued")) out.add(e);
+    long now = System.currentTimeMillis();
+    for (HistoryEntry e : recent(context)) {
+      NoteFlow.Delivery d = NoteFlow.delivery(e.json, now);
+      if (d == NoteFlow.Delivery.DUE || d == NoteFlow.Delivery.WAITING) out.add(e);
+    }
     return out;
+  }
+
+  /**
+   * Notes that stopped going by themselves (too old, or the window ran out while it failed): told
+   * once, as a notification. Old queued ones from before 3.8.0 stop here too.
+   */
+  private static void settle(Context context) {
+    long now = System.currentTimeMillis();
+    for (HistoryEntry e : recent(context)) {
+      if (cutOff(context, e, now)) {
+        // Meant for a chief, being written down when Android stopped the app: say so.
+        try {
+          DictationService.update(context, e.id(), n -> {
+            n.json.put("speechAskedAt", now);
+            NoteFlow.event(n.json, now, "writing it down was cut off (the app was stopped); told you");
+          });
+          Problems.notWritten(context, e, tr("The app was stopped while it was being written down."));
+        } catch (Exception ignored) {
+          /* Deleted meanwhile. */
+        }
+        continue;
+      }
+      if (e.json.optBoolean("handsFree") || e.json.has("chiefAskedAt") || !NoteFlow.meantForChief(e.json) || NoteFlow.sent(e.json)) continue;
+      boolean settled = e.json.optBoolean("chiefQueued") && !NoteFlow.fresh(e.json, now);
+      if (!settled && NoteFlow.delivery(e.json, now) != NoteFlow.Delivery.NEEDS_OK) continue;
+      // Notes from long ago (before 3.8.0) stay quiet: the notes list shows them as not sent.
+      long last = Math.max(NoteFlow.anchor(e.json), Math.max(e.json.optLong("chiefLastTry"), e.json.optLong("chiefFailedAt")));
+      if (now - last > 2 * 24 * 3600_000L) continue;
+      try {
+        DictationService.update(context, e.id(), n -> {
+          NoteFlow.settle(n.json, now);
+          n.json.put("chiefAskedAt", now);
+          NoteFlow.event(n.json, now, "stopped going by itself; waits for you");
+        });
+        HistoryEntry fresh = DictationService.load(context, e.id());
+        if (fresh != null && NoteFlow.transcribed(fresh.json)) {
+          if (fresh.json.has("chiefFailed")) Problems.notSent(context, fresh, fresh.json.optString("chiefFailed") + " " + tr("It doesn't go by itself any more."));
+          else Problems.waitsForYou(context, fresh);
+        }
+      } catch (Exception ignored) {
+        /* Deleted meanwhile. */
+      }
+    }
   }
 
   private static List<HistoryEntry> recent(Context context) {
@@ -383,11 +407,14 @@ final class Outbox {
       for (int a = 0; a < Assistants.COUNT; a++) went[a] = force == ALL || force == a;
       // Once one went, that bb takes messages again: the rest for it go too, also those not due
       // yet. One that can't be reached holds up only its own notes.
+      settle(context);
       for (int pass = 0; pass < 2; pass++)
         for (HistoryEntry e : queued(context)) {
-          int a = Assistants.of(e.json);
-          if (failed[a] || !went[a] && !due(e.json, now)) continue;
-          if (DictationService.sendNote(context, e.id()) != null) failed[a] = true; // The others for it wait for the next try.
+          int a = NoteFlow.assistant(e.json);
+          boolean due = NoteFlow.delivery(e.json, now) == NoteFlow.Delivery.DUE;
+          if (failed[a] || !went[a] && !due) continue;
+          String why = DictationService.sendNote(context, e.id(), -1, went[a] ? DictationService.Send.NOW : DictationService.Send.AUTO);
+          if (why != null) failed[a] = true; // The others for it wait for the next try.
           else went[a] = true;
         }
       boolean ok = true;
@@ -471,8 +498,15 @@ final class Outbox {
     long now = System.currentTimeMillis(), next = Long.MAX_VALUE;
     boolean[] waiting = new boolean[Assistants.COUNT];
     for (HistoryEntry e : queued(context)) {
-      next = Math.min(next, e.json.optLong("chiefNextTry", now));
-      waiting[Assistants.of(e.json)] = true;
+      next = Math.min(next, NoteFlow.delivery(e.json, now) == NoteFlow.Delivery.DUE ? now + 5_000 : e.json.optLong("chiefNextTry", now));
+      waiting[NoteFlow.assistant(e.json)] = true;
+    }
+    for (HistoryEntry e : recent(context)) {
+      // A note meant for a chief is being written down: a look in a few minutes, in case the app is stopped.
+      if (NoteFlow.meantForChief(e.json) && e.json.optString("status").equals("pending") && !e.json.has("speechAskedAt") && DictationService.recording(context, e.id()).exists())
+        next = Math.min(next, now + 5 * 60_000L);
+      // A try under way: should the app be stopped mid-way, it's due again once it counts as cut off.
+      if (NoteFlow.delivery(e.json, now) == NoteFlow.Delivery.SENDING) next = Math.min(next, e.json.optLong("chiefSending") + NoteFlow.SENDING_STALE_MS + 1_000);
     }
     // An assistant's report goes after its notes, when one of them got through; alone, at its own time.
     if (failuresWaiting(context) > 0) {
@@ -529,11 +563,23 @@ final class Outbox {
 
   static final int JOB = 4711;
 
+  /** A try within delay ms, unless one is scheduled already (it may be sooner). */
+  static void soon(Context context, long delay) {
+    JobScheduler js = context.getSystemService(JobScheduler.class);
+    long at = System.currentTimeMillis() + delay;
+    if (js != null && js.getPendingJob(JOB) != null && prefs(context).getLong(SCHEDULED, Long.MAX_VALUE) <= at) return;
+    schedule(context, delay);
+  }
+
+  /** When the scheduled try is due (wall clock), for soon(). */
+  private static final String SCHEDULED = "scheduledAt";
+
   /** A try in delay ms, once there's a network; survives restarts. Replaces the one scheduled. */
   static void schedule(Context context, long delay) {
     try {
       JobScheduler js = context.getSystemService(JobScheduler.class);
       if (js == null) return;
+      prefs(context).edit().putLong(SCHEDULED, System.currentTimeMillis() + delay).apply();
       js.schedule(
           new JobInfo.Builder(JOB, new ComponentName(context, Job.class))
               .setMinimumLatency(delay)
@@ -568,15 +614,4 @@ final class Outbox {
     }
   }
 
-  /** The note page's line about a note that isn't there yet. */
-  static String waitingLine(JSONObject note, long now) {
-    int tries = note.optInt("chiefTries", 1);
-    long next = note.optLong("chiefNextTry", now);
-    long minutes = Math.max(0, (next - now + 59_999) / 60_000);
-    return next <= now
-        ? tr("Dictate & Delegate keeps it and sends it again by itself (tried %1$d×, next try now).", tries)
-        : minutes <= 1
-            ? tr("Dictate & Delegate keeps it and sends it again by itself (tried %1$d×, next try within a minute).", tries)
-            : tr("Dictate & Delegate keeps it and sends it again by itself (tried %1$d×, next try in %2$d minutes).", tries, minutes);
-  }
 }

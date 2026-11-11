@@ -26,7 +26,9 @@ import java.util.regex.Pattern;
  * milliseconds and the UTC offset, to match against bb's and ntfy's logs), what it was for, the
  * request ID where there is one, the method, host and path (secrets masked, no query values), the
  * HTTP status or the kind of failure, how long it took, the retry, the sizes and the network at
- * that moment. Never a token, key, cookie, message text or audio.
+ * that moment, the note it was for ("note 1a2b3c4d") and, for an answer that is an error, its
+ * body and the headers that say when to try again (Retry-After, rate limits). Never a token, key,
+ * cookie, message text or audio.
  *
  * <p>Lines are appended to a file, so the log survives restarts; it keeps the last KEEP lines
  * from the last KEEP_DAYS days. Without init (unit tests of other classes) nothing is written.
@@ -64,6 +66,32 @@ final class NetLog {
     return file;
   }
 
+  /** The note the requests on this thread are for: each line says so, and the note's details show its lines. */
+  private static final ThreadLocal<String> NOTE = new ThreadLocal<>();
+
+  /** Requests on this thread from now on are for this note ("" or null: none). */
+  static void forNote(String id) {
+    if (id == null || id.isEmpty()) NOTE.remove();
+    else NOTE.set(id);
+  }
+
+  /** How a note is named in the log: the start of its ID. */
+  static String noteTag(String id) {
+    return "note " + (id.length() > 8 ? id.substring(0, 8) : id);
+  }
+
+  /** The log's lines for a note (its ID's tag), oldest first. */
+  static String forNoteLines(String log, String id) {
+    if (id == null || id.isEmpty()) return "";
+    String tag = SEP + noteTag(id);
+    StringBuilder out = new StringBuilder();
+    for (String line : log.split("\n")) if (line.contains(tag)) out.append(line).append('\n');
+    return out.toString();
+  }
+
+  /** An error answer's body in a line, at most this long. */
+  static final int BODY_MAX = 800;
+
   // ------------------------------------------------------------------ requests
 
   /** Runs one request, logging it: its status (Call.status) or the failure it threw. */
@@ -100,7 +128,8 @@ final class NetLog {
     final long started = clock.getAsLong();
     private final long startNanos = System.nanoTime();
     private final String what, method, target, netBefore;
-    private String request = "", note = "";
+    private final String noteId = NOTE.get();
+    private String request = "", note = "", body = "", headers = "";
     private int retry, status;
     private long sent = -1, received = -1;
     private Throwable failure;
@@ -144,6 +173,21 @@ final class NetLog {
       return this;
     }
 
+    /** An error answer's body (shortened, on one line): what the server said went wrong. */
+    Call body(String text) {
+      if (text == null || text.isBlank()) return this;
+      String t = text.replaceAll("\\s+", " ").trim();
+      body = t.length() > BODY_MAX ? t.substring(0, BODY_MAX) + "…" : t;
+      return this;
+    }
+
+    /** A header worth knowing (when to try again, rate limits): "retry-after=12". */
+    Call header(String name, String value) {
+      if (value == null || value.isBlank()) return this;
+      headers += (headers.isEmpty() ? "" : ", ") + name.toLowerCase(java.util.Locale.ROOT) + "=" + value.trim();
+      return this;
+    }
+
     Call fail(Throwable ex) {
       if (failure == null) failure = ex;
       return this;
@@ -157,7 +201,11 @@ final class NetLog {
       long ms = (System.nanoTime() - startNanos) / 1_000_000;
       String netAfter = net();
       String net = netAfter.equals(netBefore) ? netAfter : netBefore + " → " + netAfter;
-      append(line(started, what, request, method, target, result(status, failure), ms, retry, net, sent, received, note));
+      String l = line(started, what, request, method, target, result(status, failure), ms, retry, net, sent, received, note);
+      if (!headers.isEmpty()) l += SEP + "headers " + headers.replace('\n', ' ');
+      if (!body.isEmpty()) l += SEP + "body " + body;
+      if (noteId != null) l += SEP + noteTag(noteId);
+      append(l);
     }
   }
 

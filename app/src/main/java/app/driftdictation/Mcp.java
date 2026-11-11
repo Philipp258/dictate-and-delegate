@@ -228,8 +228,17 @@ final class Mcp {
           throw new McpException(
               tr("%1$s answered with a redirect (HTTP %2$d). Check the address.", server.name(), status),
               status);
-        if (status >= 400)
+        if (status >= 400) {
+          // What the server said is kept in the network log.
+          try {
+            java.io.InputStream err = c.getErrorStream();
+            if (err != null) net.body(new String(err.readNBytes(4000), StandardCharsets.UTF_8));
+          } catch (IOException ignored) {
+            /* The status says enough. */
+          }
+          net.header("retry-after", c.getHeaderField("Retry-After"));
           throw new McpException(tr("%1$s answered with HTTP %2$d.", server.name(), status), status);
+        }
         String type = String.valueOf(c.getContentType());
         String body = read(c.getInputStream());
         net.received(body.getBytes(StandardCharsets.UTF_8).length);

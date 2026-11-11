@@ -107,4 +107,34 @@ public class OpenRouterTest {
     assertFalse(OpenRouter.unreached(new java.io.IOException("x", new java.net.SocketTimeoutException("Read timed out"))));
     assertFalse(OpenRouter.unreached(new java.io.IOException("The model provider had a problem (HTTP 502).")));
   }
+
+  @Test
+  public void aBusyModelIsTriedTwiceThenTheFallback() {
+    String[] p = OpenRouter.busyPlan("microsoft/mai-transcribe-2", "openai/gpt-transcribe");
+    assertEquals(12, p.length);
+    assertEquals("microsoft/mai-transcribe-2", p[0]);
+    assertEquals("microsoft/mai-transcribe-2", p[2]);
+    assertEquals("openai/gpt-transcribe", p[4]);
+    assertEquals("0", p[5]); // the fallback at once
+    String[] alone = OpenRouter.busyPlan("microsoft/mai-transcribe-2", "");
+    for (int i = 0; i < alone.length; i += 2) assertEquals("microsoft/mai-transcribe-2", alone[i]);
+    assertEquals(alone.length, OpenRouter.busyPlan("m", "m").length);
+  }
+
+  @Test
+  public void busyMeans429And5xx() {
+    assertTrue(OpenRouter.busyStatus(429));
+    assertTrue(OpenRouter.busyStatus(503));
+    assertFalse(OpenRouter.busyStatus(400));
+    assertFalse(OpenRouter.busyStatus(402));
+  }
+
+  @Test
+  public void anErrorAnswerIsDescribedFromItsBody() {
+    assertEquals("HTTP 503 unavailable: nope", OpenRouter.describe(503, "nope"));
+    assertEquals("HTTP 429 too many requests: slow down", OpenRouter.describe(429, "{\"error\":{\"message\":\"slow down\"}}"));
+    assertEquals(12_000, OpenRouter.retryAfter("12", 0));
+    assertEquals(0, OpenRouter.retryAfter("", 0));
+    assertEquals(0, OpenRouter.retryAfter("soon", 0));
+  }
 }

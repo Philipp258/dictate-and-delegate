@@ -48,6 +48,26 @@ public class DeviceFlowTest {
         .runOnMainSync(() -> DictationService.send(context, action));
   }
 
+  /** Retry of one note (3.8.0: Retry is always for one note; there's no retry of all). */
+  private void retry(String id) {
+    InstrumentationRegistry.getInstrumentation()
+        .runOnMainSync(
+            () -> context.startForegroundService(new Intent(context, DictationService.class).setAction(DictationService.RETRY).putExtra("noteId", id)));
+  }
+
+  /** Waits until the note's status is this (a retry from outside the panel runs in the background). */
+  private HistoryEntry noteStatus(String id, String status) throws Exception {
+    for (int i = 0; i < 150; i++) {
+      try (HistoryStore h = new HistoryStore(context)) {
+        HistoryEntry e = h.get(id);
+        if (e != null && e.json.optString("status").equals(status) && !DictationService.transcribing(id)) return e;
+      }
+      Thread.sleep(100);
+    }
+    fail("Note " + id + " didn't reach " + status);
+    return null;
+  }
+
   @Before
   public void setup() throws Exception {
     context = InstrumentationRegistry.getInstrumentation().getTargetContext();
@@ -161,10 +181,34 @@ public class DeviceFlowTest {
     String id = DictationService.unfinished(context).get(0);
     assertTrue(DictationService.recording(context, id).length() > 0);
     assertTrue(vault.get("transcript").isEmpty());
-    send(DictationService.RETRY);
+    retry(id); // the panel shows this very recording: it stays there
     waitFor("copied");
     assertEquals("Recovered prompt.", vault.get("transcript"));
     assertFalse(DictationService.recording(context, id).exists());
+  }
+
+  @Test
+  public void aRetryFromTheNotesNeverTakesThePanel() throws Exception {
+    // 3.7.2: Retry on Home retried every kept recording, each took the panel in turn, and the
+    // assistant button then sent the oldest. Now a retry from outside runs in the background.
+    TestServer.transcripts((String) null, "The second recording.", "The first, retried.");
+    send(DictationService.RECORD);
+    waitFor("recording");
+    Thread.sleep(1600);
+    send(DictationService.STOP);
+    waitFor("unfinished");
+    String old = DictationService.unfinished(context).get(0);
+    send(DictationService.RECORD);
+    waitFor("recording");
+    Thread.sleep(1600);
+    send(DictationService.STOP);
+    waitFor("copied");
+    String current = DictationService.session().noteId;
+    assertNotEquals(old, current);
+    retry(old);
+    noteStatus(old, "complete");
+    assertEquals(current, DictationService.session().noteId);
+    assertEquals("copied", context.getSharedPreferences("settings", 0).getString("state", ""));
   }
 
   @Test
@@ -191,9 +235,10 @@ public class DeviceFlowTest {
     // Taken into the notes to retry; it doesn't block anything.
     assertFalse(DictationService.audio(context).exists());
     assertEquals(1, DictationService.unfinished(context).size());
+    String id = DictationService.unfinished(context).get(0);
     TestServer.transcripts("Recovered after interruption.");
-    send(DictationService.RETRY);
-    waitFor("copied");
+    retry(id);
+    noteStatus(id, "complete");
     assertEquals("Recovered after interruption.", vault.get("transcript"));
   }
 
@@ -204,12 +249,13 @@ public class DeviceFlowTest {
       out.write(new byte[32000]);
     }
     TestServer.transcripts("");
-    send(DictationService.RETRY);
-    waitFor("empty");
+    send(DictationService.ENABLE); // the leftover becomes a note to retry
+    Thread.sleep(500);
+    String id = DictationService.unfinished(context).get(0);
+    retry(id);
+    noteStatus(id, "no speech");
     assertFalse(DictationService.audio(context).exists());
     assertEquals("Keep this previous prompt.", vault.get("transcript"));
-    Thread.sleep(4100);
-    assertFalse(DictationService.bubbleVisible());
     assertFalse(DictationService.busy());
   }
 
@@ -219,13 +265,15 @@ public class DeviceFlowTest {
       f.setLength(AudioFiles.CHUNK_BYTES + 64000);
     }
     TestServer.transcripts("First part.", null, "Second part.");
-    send(DictationService.RETRY);
-    waitFor("unfinished");
-    try (HistoryStore h = new HistoryStore(context)) {
-      assertTrue(h.get(DictationService.unfinished(context).get(0)).text().contains("First part."));
-    }
-    send(DictationService.RETRY);
-    waitFor("copied");
+    send(DictationService.ENABLE); // the leftover becomes a note to retry
+    Thread.sleep(500);
+    String id = DictationService.unfinished(context).get(0);
+    retry(id);
+    HistoryEntry failed = noteStatus(id, "needs attention");
+    assertTrue(failed.text().contains("First part."));
+    assertTrue(failed.json.has("transcribeFailed"));
+    retry(id);
+    noteStatus(id, "complete");
     assertEquals("First part.\nSecond part.", vault.get("transcript"));
   }
 }

@@ -42,7 +42,7 @@ public final class MainActivity extends Activity {
   // Live views of the current page.
   private Button record;
   private TextView status, noteStatus, updateLine;
-  private LinearLayout recovery, recentBox, monthBox, wordsBox, modelList;
+  private LinearLayout recovery, recentBox, monthBox, wordsBox, modelList, needsBox;
   private ListView notesList;
   private EditText editor, practice;
   private String editorBase = "", modelsSort = "recommended", modelsQuery = "";
@@ -182,6 +182,16 @@ public final class MainActivity extends Activity {
       } else show("bb1");
       return;
     }
+    if ("note".equals(target) && prefs.getBoolean("onboarded", false)) {
+      // From a "not written down / not sent" notification: that note, with what went wrong.
+      String id = intent.getStringExtra("note");
+      intent.removeExtra("open");
+      stack.clear();
+      stack.push("home");
+      if (id != null && !id.isEmpty()) openNote(id);
+      else show("home");
+      return;
+    }
     if (target != null && prefs.getBoolean("onboarded", false)) {
       // From the tile: recording isn't possible right now, e.g. without a key.
       String message = takeHandoff();
@@ -290,7 +300,7 @@ public final class MainActivity extends Activity {
     if (page.equals("note")) saveEdits();
     page = next;
     if (!allowScreenshots
-        && (next.equals("note") || next.equals("notes") || next.equals("activity")))
+        && (next.equals("note") || next.equals("notes") || next.equals("activity") || next.equals("notelog")))
       getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
     else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
     record = null;
@@ -300,7 +310,7 @@ public final class MainActivity extends Activity {
     several = null;
     hfMeter = null;
     hfSend = null;
-    recovery = recentBox = monthBox = wordsBox = modelList = refineList = null;
+    recovery = recentBox = monthBox = wordsBox = modelList = refineList = needsBox = null;
     notesList = null;
     editor = practice = null;
     LinearLayout root = ui.vertical();
@@ -345,6 +355,8 @@ public final class MainActivity extends Activity {
       case "setup" -> setupPage();
       case "notes" -> notesPage();
       case "note" -> notePage();
+      case "notelog" -> noteLogPage();
+      case "netlog" -> netLogPage();
       case "usage" -> usagePage();
       case "settings" -> settingsPage();
       case "key" -> keyPage(false);
@@ -1371,13 +1383,17 @@ public final class MainActivity extends Activity {
    * for the chief when something didn't arrive. Never keys, tokens or message text.
    */
   private View copyNetworkLog() {
-    return ui.button(
-        tr("Copy network log"),
-        Ui.Kind.QUIET,
-        v -> {
-          DictationService.copy(this, NetLog.report(appName(), NetLog.read()).trim());
-          toast(tr("Copied. Paste it where you report the problem."));
-        });
+    LinearLayout row = ui.horizontal();
+    row.addView(
+        ui.button(
+            tr("Copy network log"),
+            Ui.Kind.QUIET,
+            v -> {
+              DictationService.copy(this, NetLog.report(appName(), NetLog.read()).trim());
+              toast(tr("Copied. Paste it where you report the problem."));
+            }));
+    row.addView(ui.button(tr("Show network log"), Ui.Kind.QUIET, v -> open("netlog")));
+    return row;
   }
 
   private static String appName() {
@@ -1837,21 +1853,23 @@ public final class MainActivity extends Activity {
       warn.addView(ui.strong(tr("Finish setup to start dictating"), 15));
       warn.setOnClickListener(v -> open("setup"));
     }
+    if (android.os.Build.VERSION.SDK_INT >= 33
+        && OpenRouter.hasKey(this)
+        && !prefs.getBoolean("askedNotifications", false)
+        && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+      // A recording not written down or a note not sent shows as a notification: ask once.
+      prefs.edit().putBoolean("askedNotifications", true).apply();
+      requestPermissions(new String[] {android.Manifest.permission.POST_NOTIFICATIONS}, 8);
+    }
     record =
         ui.add(content, ui.button(tr("Start dictating"), Ui.Kind.PRIMARY, v -> toggleRecording()), 16);
     record.setMinHeight(ui.dp(62));
     status = ui.add(content, ui.text("", 13, Ui.MUTED), 6);
     status.setGravity(Gravity.CENTER);
+    // What needs you, one line each: a recording not written down, a note not sent. Each opens its
+    // note, where Retry or Send acts on that one note only.
+    needsBox = ui.add(content, ui.vertical(), 0);
     recovery = ui.add(content, ui.vertical(), 0);
-    ui.add(
-        recovery,
-        ui.button(
-            tr("Retry"),
-            Ui.Kind.OUTLINE,
-            v -> {
-              if (ready()) send(DictationService.RETRY);
-            }),
-        8);
     ui.add(
         recovery,
         ui.button(
@@ -1984,10 +2002,48 @@ public final class MainActivity extends Activity {
                 loading = false;
                 if (monthBox != null) renderMonth(entries);
                 showRecent(grouped);
+                renderNeeds(grouped);
                 showNotes(grouped);
                 if (reloadNotes) loadNotes();
               });
         });
+  }
+
+  /** Home's "Needs you": the last week's notes that failed or wait for the user, newest first. */
+  private void renderNeeds(List<NoteList.Note> grouped) {
+    if (needsBox == null) return;
+    needsBox.removeAllViews();
+    long now = System.currentTimeMillis();
+    int shown = 0;
+    for (NoteList.Note n : grouped) {
+      HistoryEntry e = flowEntry(n);
+      if (e.json.optBoolean("handsFree") || now - e.created() > 7 * 86_400_000L) continue;
+      NoteFlow.Status st = noteStatus(e);
+      if (!st.problem()) continue;
+      if (shown++ == 0) ui.add(needsBox, ui.label(tr("Needs you")), 14);
+      if (shown > 6) {
+        ui.add(needsBox, ui.button(tr("More in All notes"), Ui.Kind.QUIET, v -> open("notes")), 2);
+        break;
+      }
+      LinearLayout card = ui.add(needsBox, ui.card(0xfffde3d8, 0), 6);
+      TextView head = ui.text(DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(new Date(n.created())) + " · " + AudioFiles.elapsed((long) (e.duration() * 1000)) + (e.text().isBlank() ? "" : " · " + preview(n)), 13, Ui.MUTED);
+      head.setSingleLine(true);
+      head.setEllipsize(TextUtils.TruncateAt.END);
+      card.addView(head);
+      ui.add(card, ui.text(st.line(), 14, Ui.WARN), 4);
+      card.setOnClickListener(v -> openNote(n.id()));
+    }
+  }
+
+  /** The note's state in words, as NoteFlow says it, with the chief's name as the user knows it. */
+  private NoteFlow.Status noteStatus(HistoryEntry e) {
+    String id = e.id();
+    return NoteFlow.status(
+        e.json, System.currentTimeMillis(), DictationService.JOBS.containsKey(id), DictationService.recording(this, id).exists(), chiefName(NoteFlow.assistant(e.json)), java.time.ZoneId.systemDefault());
+  }
+
+  private String chiefName(int assistant) {
+    return several() ? Assistants.name(this, assistant) : tr("your chief of staff");
   }
 
   private void showRecent(List<NoteList.Note> grouped) {
@@ -2271,7 +2327,7 @@ public final class MainActivity extends Activity {
     b.setText(badge);
     b.setVisibility(badge == null ? View.GONE : View.VISIBLE);
     // With two assistants, a note sent to one carries its name in its colour.
-    int to = chiefNote(n.shown()) && several() ? Assistants.of(n.shown().json) : -1;
+    int to = chiefNote(n.shown()) && several() ? NoteFlow.assistant(n.shown().json) : -1;
     b.setTextColor(to < 0 ? Ui.TEAL : Assistants.color(to));
     b.setBackground(ui.shape(to < 0 ? Ui.TEAL_SOFT : (Assistants.color(to) & 0x00ffffff) | 0x1f000000, 0, 6));
     row.setOnClickListener(v -> openNote(n.id()));
@@ -2279,21 +2335,11 @@ public final class MainActivity extends Activity {
   }
 
   private String badge(NoteList.Note n) {
-    String s = n.shown().json.optString("status");
-    if (!s.equals("complete"))
-      return switch (s) {
-        case "pending" -> tr("in progress");
-        case "no speech" -> tr("no speech");
-        default -> tr("unfinished");
-      };
-    if (chiefNote(n.shown())) {
-      String to = several() ? Assistants.name(this, Assistants.of(n.shown().json)) : null;
-      return switch (Outbox.state(n.shown().json)) {
-        case SENT -> to == null ? tr("chief of staff") : to;
-        case RETRYING -> to == null ? tr("sending again") : to + " · " + tr("sending again");
-        default -> to == null ? tr("not sent") : to + " · " + tr("not sent");
-      };
-    }
+    HistoryEntry e = flowEntry(n);
+    String flow =
+        NoteFlow.badge(
+            e.json, System.currentTimeMillis(), DictationService.JOBS.containsKey(e.id()), DictationService.recording(this, e.id()).exists(), several() ? Assistants.name(this, NoteFlow.assistant(e.json)) : null);
+    if (flow != null) return flow;
     if (n.versions().size() > 1) return tr("redone");
     return "original".equals(n.shown().json.optString("version")) ? tr("as said") : null;
   }
@@ -2308,7 +2354,7 @@ public final class MainActivity extends Activity {
 
   /** The note was sent to the chief of staff, or sending it failed. */
   private static boolean chiefNote(HistoryEntry e) {
-    return e.json.has("chiefThread") || e.json.has("chiefFailed") || "chief".equals(e.json.optString("route"));
+    return NoteFlow.meantForChief(e.json) || e.json.optBoolean("handsFree") && e.json.has("chiefThread");
   }
 
   private void openNote(String id) {
@@ -2350,69 +2396,10 @@ public final class MainActivity extends Activity {
             Ui.MUTED),
         4);
     boolean redoing = redoing();
-    String state = e.json.optString("status");
-    if (!state.equals("complete") && !redoing) {
-      LinearLayout warn = ui.add(content, ui.card(0xfffde3d8, 0), 12);
-      boolean kept = DictationService.recording(this, e.id()).exists();
-      String failed = e.json.optString("transcribeFailed");
-      warn.addView(
-          ui.text(
-              switch (state) {
-                case "pending" -> tr("Still transcribing.");
-                case "no speech" -> tr("No speech was recognized in this recording.");
-                default ->
-                    kept
-                        ? (failed.isEmpty()
-                            ? tr("This recording wasn't written down yet. Its audio is kept.")
-                            : tr("This recording wasn't written down: %1$s Its audio is kept.", failed))
-                        : tr(
-                            "This recording didn't finish (%1$s).",
-                            switch (state) {
-                              case "needs attention" -> tr("needs attention");
-                              case "audio discarded" -> tr("audio discarded");
-                              case "imported" -> tr("imported");
-                              default -> state;
-                            });
-              },
-              14,
-              Ui.WARN));
-      if (kept && !state.equals("no speech")) {
-        String id = e.id();
-        LinearLayout buttons = ui.add(warn, ui.horizontal(), 8);
-        buttons.addView(
-            ui.button(
-                tr("Retry"),
-                Ui.Kind.OUTLINE,
-                v -> {
-                  if (!ready()) return;
-                  try {
-                    startForegroundService(
-                        new Intent(this, DictationService.class).setAction(DictationService.RETRY).putExtra("noteId", id));
-                  } catch (Exception ex) {
-                    toast(tr("Could not start. Check permissions and try again."));
-                  }
-                  main.postDelayed(() -> { if (page.equals("note")) show("note"); }, 300);
-                }));
-        buttons.addView(
-            ui.button(
-                tr("Discard audio"),
-                Ui.Kind.QUIET,
-                v ->
-                    new AlertDialog.Builder(this)
-                        .setTitle(tr("Discard this recording's audio?"))
-                        .setMessage(tr("Partial text and reported costs stay in your notes."))
-                        .setPositiveButton(
-                            tr("Discard"),
-                            (d, w) -> {
-                              DictationService.discard(this, id);
-                              show("note");
-                            })
-                        .setNegativeButton(tr("Keep"), null)
-                        .show()));
-      }
-    } else if (redoing && DictationService.JOBS.containsKey(e.id())) {
+    DictationService.Job writing = null;
+    for (DictationService.Job j : DictationService.JOBS.values()) if (redoing && j.recordingId.equals(n.id()) && !j.id.equals(j.recordingId)) writing = j;
+    if (writing != null) {
       LinearLayout warn = ui.add(content, ui.card(Ui.PANEL, 0), 12);
-      DictationService.Job writing = DictationService.JOBS.get(e.id());
       warn.addView(
           ui.text(
               writing.control.cancelled() && writing.control.sent()
@@ -2420,7 +2407,7 @@ public final class MainActivity extends Activity {
                   : tr("Writing it down… You can record something new meanwhile."),
               14,
               Ui.MUTED));
-      String id = e.id();
+      String id = writing.id;
       ui.add(
           warn,
           ui.button(
@@ -2432,10 +2419,9 @@ public final class MainActivity extends Activity {
                 main.postDelayed(() -> { if (page.equals("note")) show("note"); }, 300);
               }),
           8);
-    }
+    } else noteState(flowEntry(n), e);
     boolean chief = chiefNote(e);
     boolean sent = chief && DictationService.sentToChief(e);
-    if (chief) chiefBanner(e, sent);
     if (e.json.has("chiefReply")) chiefReply(e);
     if (e.json.has("processingFailed")) {
       ui.add(
@@ -2512,6 +2498,8 @@ public final class MainActivity extends Activity {
     noteStatus = ui.add(content, ui.text("", 14, Ui.TEAL), 8);
     LinearLayout links = ui.horizontal();
     noteDetails(n, e, redoing, links);
+    // Every step and try of this note, with the real errors and its network log: out of the way, one tap.
+    links.addView(ui.button(tr("Details"), Ui.Kind.QUIET, v -> open("notelog")));
     Button delete = ui.button(tr("Delete note"), Ui.Kind.QUIET, v -> deleteNote());
     delete.setTextColor(Ui.WARN);
     links.addView(delete);
@@ -2539,67 +2527,122 @@ public final class MainActivity extends Activity {
   }
 
   /**
-   * A chief-of-staff note: "Sent to chief of staff ↗" opens the thread in the bb web app; when
-   * sending failed, why, and Send again.
+   * Where the note is (NoteFlow): written down or not, meant for a chief, sent or not, and why, in
+   * plain words; then what can be done about it, for this note only: Retry, Discard audio, Send,
+   * Don't send, Send report. A sent note's button opens its thread. Details (every try, with its
+   * real error and the network log) is always one tap away, at the bottom.
    */
-  private void chiefBanner(HistoryEntry e, boolean sent) {
-    int assistant = Assistants.of(e.json);
-    boolean several = Assistants.several(this) || assistant > 0;
-    if (sent) {
+  private void noteState(HistoryEntry e, HistoryEntry shown) {
+    String id = e.id();
+    long now = System.currentTimeMillis();
+    int assistant = NoteFlow.assistant(e.json);
+    String to = chiefName(assistant);
+    boolean transcribing = DictationService.JOBS.containsKey(id);
+    boolean kept = DictationService.recording(this, id).exists();
+    NoteFlow.Status st = noteStatus(e);
+    NoteFlow.Delivery d = NoteFlow.delivery(e.json, now);
+    if (d == NoteFlow.Delivery.SENT) {
       String link = e.json.optString("chiefLink");
       ui.add(
           content,
           ui.button(
-              several ? tr("Sent to %1$s ↗", Assistants.name(this, assistant)) : tr("Sent to chief of staff ↗"),
+              several() ? tr("Sent to %1$s ↗", to) : tr("Sent to chief of staff ↗"),
               Ui.Kind.PRIMARY,
               v -> {
                 if (link.isEmpty()) toast(tr("Set the bb web address for links in Settings → bb."));
                 else openBb(link);
               }),
           16);
-      ui.add(
-          content,
-          ui.text(
-              tr("Your chief of staff works on it in bb and notifies you through ntfy when it's done or needs you. The button opens the thread."),
-              13,
-              Ui.MUTED),
-          6);
-      int tries = e.json.optInt("chiefTries");
-      if (tries > 0)
-        ui.add(
-            content,
-            ui.text(
-                tr("It went through on try %1$d; the first failed at %2$s.", tries + 1, time(e.json.optLong("chiefFailedAt"))),
-                13,
-                Ui.MUTED),
-            4);
+      ui.add(content, ui.text(st.line(), 13, Ui.MUTED), 6);
       return;
     }
-    boolean retrying = Outbox.state(e.json) == Outbox.State.RETRYING;
-    ui.add(
-        content,
-        ui.text(
-            retrying
-                ? tr("Not sent yet: %1$s", e.json.optString("chiefFailed")) + " " + Outbox.waitingLine(e.json, System.currentTimeMillis())
-                : several
-                    ? tr("Not sent to %1$s: %2$s Below is what you said.", Assistants.name(this, assistant), e.json.optString("chiefFailed"))
-                    : tr("Not sent to your chief of staff: %1$s Below is what you said.", e.json.optString("chiefFailed")),
-            14,
-            Ui.WARN),
-        12);
-    ui.add(content, ui.button(tr("Retry now"), Ui.Kind.OUTLINE, v -> sendAgain()), 8);
-    ui.add(
-        content,
-        ui.button(
-            reportLabel(assistant),
-            Ui.Kind.QUIET,
-            v ->
-                sendReport(
-                    "Note to you, request " + e.json.optString("chiefRequest", "(none)"),
-                    "not sent yet, " + e.json.optInt("chiefTries", 1) + " tries since " + time(e.json.optLong("chiefFailedAt"))
-                        + ": " + e.json.optString("chiefFailed"),
-                    assistant)),
-        4);
+    boolean transcribed = NoteFlow.transcribed(e.json);
+    if (transcribed && d == NoteFlow.Delivery.NONE) {
+      // A plain dictation: nothing to say. It can still go to a chief, once tapped.
+      if (!e.json.optBoolean("handsFree") && !e.json.has("call"))
+        for (int a : Assistants.ready(this)) {
+          int target = a;
+          ui.add(content, ui.button(several() ? tr("Send to %1$s", Assistants.name(this, a)) : tr("Send to your chief of staff"), Ui.Kind.QUIET, v -> sendAgain(id, shown, target)), 4);
+        }
+      return;
+    }
+    LinearLayout card = ui.add(content, ui.card(st.problem() ? 0xfffde3d8 : Ui.PANEL, 0), 12);
+    card.addView(ui.text(st.line(), 14, st.problem() ? Ui.WARN : Ui.BODY));
+    Ui.Flow buttons = ui.add(card, ui.flow(), 8);
+    if (transcribing)
+      buttons.addView(
+          ui.button(
+              tr("Stop trying"),
+              Ui.Kind.QUIET,
+              v -> io.execute(() -> {
+                DictationService.stopTrying(this, id);
+                main.postDelayed(() -> { if (page.equals("note")) show("note"); }, 300);
+              })));
+    else if (!transcribed && kept && !e.json.optString("status").equals("no speech")) {
+      buttons.addView(
+          ui.button(
+              NoteFlow.meantForChief(e.json) && NoteFlow.fresh(e.json, now) ? tr("Retry, then send") : tr("Retry"),
+              Ui.Kind.OUTLINE,
+              v -> {
+                if (!ready()) return;
+                try {
+                  startForegroundService(new Intent(this, DictationService.class).setAction(DictationService.RETRY).putExtra("noteId", id));
+                } catch (Exception ex) {
+                  toast(tr("Could not start: %1$s", DictationService.friendly(ex)));
+                }
+                main.postDelayed(() -> { if (page.equals("note")) show("note"); }, 300);
+              }));
+      buttons.addView(
+          ui.button(
+              tr("Discard audio"),
+              Ui.Kind.QUIET,
+              v ->
+                  new AlertDialog.Builder(this)
+                      .setTitle(tr("Discard this recording's audio?"))
+                      .setMessage(tr("Partial text and reported costs stay in your notes. Nothing is sent."))
+                      .setPositiveButton(
+                          tr("Discard"),
+                          (dlg, w) -> {
+                            DictationService.discard(this, id);
+                            show("note");
+                          })
+                      .setNegativeButton(tr("Keep"), null)
+                      .show()));
+    }
+    if (transcribed && (d == NoteFlow.Delivery.NEEDS_OK || d == NoteFlow.Delivery.WAITING || d == NoteFlow.Delivery.DUE)) {
+      buttons.addView(ui.button(d == NoteFlow.Delivery.NEEDS_OK ? tr("Send to %1$s", to) : tr("Send now"), Ui.Kind.OUTLINE, v -> sendAgain(id, shown, -1)));
+    }
+    if (NoteFlow.meantForChief(e.json) && d != NoteFlow.Delivery.SENDING && d != NoteFlow.Delivery.SENT)
+      buttons.addView(
+          ui.button(
+              tr("Don't send"),
+              Ui.Kind.QUIET,
+              v ->
+                  io.execute(
+                      () -> {
+                        String why = null;
+                        try {
+                          long t = System.currentTimeMillis();
+                          DictationService.update(this, id, n -> {
+                            if (NoteFlow.dropChief(n.json, t)) NoteFlow.event(n.json, t, "you tapped Don't send");
+                          });
+                          Problems.clear(this, id);
+                          prefs.edit().putLong("historyRevision", System.nanoTime()).apply();
+                        } catch (Exception ex) {
+                          why = DictationService.friendly(ex);
+                        }
+                        String w = why;
+                        main.post(() -> {
+                          toast(w == null ? tr("It won't be sent.") : w);
+                          if (page.equals("note")) show("note");
+                        });
+                      })));
+    if (st.problem())
+      buttons.addView(
+          ui.button(
+              reportLabel(NoteFlow.meantForChief(e.json) ? assistant : Outbox.NONE),
+              Ui.Kind.QUIET,
+              v -> sendReport(NoteFlow.meantForChief(e.json) ? "Note to you, request " + e.json.optString("chiefRequest", "(not sent yet)") : "Recording (writing it down)", st.line(), NoteFlow.meantForChief(e.json) ? assistant : Outbox.NONE)));
   }
 
   /** "Send report to Work": the assistant's name with two, else the chief (Outbox.NONE: the first that takes messages). */
@@ -2632,18 +2675,26 @@ public final class MainActivity extends Activity {
         });
   }
 
-  /** Sends a note to the chief of staff once more, after sending failed (the outbox does it too). */
-  private void sendAgain() {
+  /**
+   * The user's Send on this note (to assistant, -1: the one it's meant for): it goes now, also when
+   * it's old; the text above is what goes.
+   */
+  private void sendAgain(String id, HistoryEntry shown, int assistant) {
     if (applying) return;
+    saveEdits();
     applying = true;
-    toast(tr("Sending to your chief of staff…"));
+    toast(tr("Sending…"));
+    String shownId = shown.id();
     io.execute(
         () -> {
           String failed = null;
           try {
-            NoteList.Note n = currentNote();
-            if (n == null) throw new IOException(tr("This note was deleted."));
-            failed = DictationService.sendNote(this, n.shown().id());
+            // What goes is what you said in the version you see (a redo's, if it's shown).
+            HistoryEntry seen = DictationService.load(this, shownId);
+            if (seen == null) throw new IOException(tr("This note was deleted."));
+            String said = seen.json.optString("original", seen.text());
+            if (!shownId.equals(id)) DictationService.update(this, id, n -> n.json.put("chiefText", said));
+            failed = DictationService.sendNote(this, id, assistant, DictationService.Send.USER);
             prefs.edit().putLong("historyRevision", System.nanoTime()).apply();
           } catch (Exception ex) {
             failed = DictationService.friendly(ex);
@@ -2652,7 +2703,7 @@ public final class MainActivity extends Activity {
             main.post(
                 () -> {
                   applying = false;
-                  toast(message == null ? tr("Sent to chief of staff") : message);
+                  toast(message == null ? tr("Sent") : tr("Not sent: %1$s", message));
                   if (page.equals("note")) show("note");
                 });
           }
@@ -2719,6 +2770,65 @@ public final class MainActivity extends Activity {
                   toast(tr("Could not delete audio"));
                 }
               }));
+  }
+
+  /**
+   * A note's details: its state, what it's for, each step's state, every try with its real error
+   * (from the note, kept for good) and the network log's lines for it (requests, results, sizes,
+   * error bodies; kept a week). Selectable, and Copy copies all of it.
+   */
+  private void noteLogPage() {
+    NoteList.Note n;
+    try {
+      n = currentNote();
+    } catch (Exception ex) {
+      n = null;
+    }
+    if (n == null) {
+      heading(tr("Back"), tr("Note not found"), null);
+      return;
+    }
+    HistoryEntry e = n.shown();
+    String text =
+        NoteFlow.details(
+            e.json, noteStatus(e).line(), NetLog.forNoteLines(NetLog.read(), e.id()), java.time.ZoneId.systemDefault(), appName());
+    heading(tr("Back"), tr("Details"), tr("Every step and try of this note, with what went wrong. Copy it to send it on."));
+    ui.add(
+        content,
+        ui.button(
+            tr("Copy"),
+            Ui.Kind.PRIMARY,
+            v -> {
+              DictationService.copy(this, text);
+              toast(tr("Copied"));
+            }),
+        8);
+    TextView t = ui.mono(text, 11, Ui.INK);
+    t.setTextIsSelectable(true);
+    ui.add(content, t, 12);
+  }
+
+  /** The whole network log of the last days, newest last: selectable, with Copy. */
+  private void netLogPage() {
+    String log = NetLog.report(appName(), NetLog.read()).trim();
+    heading(tr("Settings"), tr("Network log"), tr("Every request of the last days: when, what, the result, how long, sizes, and the body of error answers. No keys or what you said."));
+    ui.add(
+        content,
+        ui.button(
+            tr("Copy"),
+            Ui.Kind.PRIMARY,
+            v -> {
+              DictationService.copy(this, log);
+              toast(tr("Copied. Paste it where you report the problem."));
+            }),
+        8);
+    // The newest at the top, at most the last 400 lines on screen (Copy copies all).
+    String[] lines = log.split("\n");
+    StringBuilder shown = new StringBuilder();
+    for (int i = lines.length - 1, k = 0; i >= 0 && k < 400; i--, k++) shown.append(lines[i]).append('\n');
+    TextView t = ui.mono(shown.toString(), 10, Ui.INK);
+    t.setTextIsSelectable(true);
+    ui.add(content, t, 12);
   }
 
   /** Every note's steps, newest first, from what the notes on this device kept. */
@@ -2855,7 +2965,13 @@ public final class MainActivity extends Activity {
   }
 
   private boolean redoing() {
-    return DictationService.transcribing(noteId);
+    return DictationService.redoing(noteId);
+  }
+
+  /** The version that carries the note's journey (intent, delivery): the first one, the recording's own. */
+  private static HistoryEntry flowEntry(NoteList.Note n) {
+    for (HistoryEntry v : n.versions()) if (v.id().equals(v.recordingId())) return v;
+    return n.shown();
   }
 
   /** Saves typed changes to the version you are looking at. */
@@ -2863,17 +2979,19 @@ public final class MainActivity extends Activity {
     if (editor == null || applying) return;
     String now = editor.getText().toString().trim();
     if (now.equals(editorBase.trim())) return;
-    try (HistoryStore h = new HistoryStore(this)) {
+    try {
       NoteList.Note n = currentNote();
       if (n == null) return;
-      HistoryEntry e = n.shown();
+      boolean original = showOriginal;
       // Edits belong to the version you are looking at; "raw" stays what the speech model wrote.
-      if (showOriginal) e.json.put("original", now);
-      else {
-        e.json.put("text", now);
-        e.json.put("processed".equals(e.json.optString("version")) ? "processed" : "original", now);
-      }
-      h.save(e);
+      // Changed under the notes' lock, so a send saved meanwhile isn't undone.
+      DictationService.update(this, n.shown().id(), e -> {
+        if (original) e.json.put("original", now);
+        else {
+          e.json.put("text", now);
+          e.json.put("processed".equals(e.json.optString("version")) ? "processed" : "original", now);
+        }
+      });
       editorBase = now;
       prefs.edit().putLong("historyRevision", System.nanoTime()).apply();
       seenRevision = prefs.getLong("historyRevision", 0);
@@ -3356,6 +3474,33 @@ public final class MainActivity extends Activity {
     ui.add(content, search, 12);
     modelList = ui.add(content, ui.vertical(), 8);
     renderModels();
+    // When the chosen model is busy or rate-limited (HTTP 429, 5xx): another host's model, same key.
+    String chosen = profile.fixedModel(), fallback = profile.fallbackModel(chosen);
+    ui.add(content, ui.label(tr("When it's busy")), 18);
+    ui.add(
+        content,
+        ui.text(
+            fallback.isEmpty()
+                ? tr("No fallback: a busy model is tried 5 times over about a minute, then the recording waits for Retry.")
+                : tr("Tried twice, then %1$s (%2$s), then both once more, over about a minute. Your OpenRouter key pays as usual; the note says which model wrote it down.", modelName(fallback), perMinute(fallback)),
+            13,
+            Ui.MUTED),
+        4);
+    Ui.Flow fallbacks = ui.add(content, ui.flow(), 6);
+    String saved = prefs.getString("fallbackModel", "");
+    for (String id : new String[] {"", "openai/gpt-transcribe", "microsoft/mai-transcribe-2", "assemblyai/universal-3-5-pro", "none"}) {
+      if (id.equals(chosen)) continue;
+      String standard = Profile.FALLBACK_DEFAULT.equals(chosen) ? Profile.DEFAULT_MODEL : Profile.FALLBACK_DEFAULT;
+      String label = id.isEmpty() ? tr("Default (%1$s)", modelName(standard)) : id.equals("none") ? tr("None") : modelName(id);
+      fallbacks.addView(
+          ui.chip(
+              label,
+              saved.equals(id),
+              v -> {
+                prefs.edit().putString("fallbackModel", id).apply();
+                show("models");
+              }));
+    }
     ui.add(
         content,
         ui.text(
@@ -4436,7 +4581,7 @@ public final class MainActivity extends Activity {
               : writing > 0
                   ? plural(writing, "Writing down %1$d recording… You can record something new meanwhile.", "Writing down %1$d recordings… You can record something new meanwhile.")
                   : pending
-                      ? plural(kept, "%1$d recording wasn't written down. Its audio is kept: retry it here or open it in Recent.", "%1$d recordings weren't written down. Their audio is kept: retry them here or open them in Recent.")
+                      ? plural(kept, "%1$d recording wasn't written down. Its audio is kept: open it under Needs you to retry it.", "%1$d recordings weren't written down. Their audio is kept: open each under Needs you to retry it.")
                       : DictationService.EMPTY.equals(prefs.getString("state", ""))
                           ? tr("No speech recognized. Ready to try again.")
                           : "";
@@ -4464,8 +4609,9 @@ public final class MainActivity extends Activity {
             editor != null && !editor.getText().toString().trim().equals(editorBase.trim());
         if (!dirty) {
           if (!redoSession.isEmpty() && !DictationService.JOBS.containsKey(redoSession)) {
+            HistoryEntry redone = DictationService.load(this, redoSession);
             redoSession = "";
-            toast(tr("Redone with a smarter model"));
+            if (redone != null && redone.json.optString("status").equals("complete")) toast(tr("Redone with a smarter model"));
           }
           show("note");
         }

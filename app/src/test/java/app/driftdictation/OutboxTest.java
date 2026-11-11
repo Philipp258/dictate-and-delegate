@@ -23,51 +23,6 @@ public class OutboxTest {
   }
 
   @Test
-  public void aFailedNoteIsQueuedWithItsNextTry() throws Exception {
-    JSONObject note = new JSONObject().put("route", "chief");
-    Outbox.failed(note, "bb isn't reachable right now (HTTP 502).", 1, T);
-    assertEquals(Outbox.State.RETRYING, Outbox.state(note));
-    assertEquals(T, note.getLong("chiefFailedAt"));
-    assertEquals(T + 15_000, note.getLong("chiefNextTry"));
-    assertFalse(Outbox.due(note, T + 14_999));
-    assertTrue(Outbox.due(note, T + 15_000));
-
-    // The second failure keeps when it first failed and waits longer.
-    Outbox.failed(note, "again", 2, T + 20_000);
-    assertEquals(T, note.getLong("chiefFailedAt"));
-    assertEquals(T + 20_000 + 30_000, note.getLong("chiefNextTry"));
-    assertEquals(2, note.getInt("chiefTries"));
-  }
-
-  @Test
-  public void afterTwoDaysItIsNoLongerTriedByItself() throws Exception {
-    JSONObject note = new JSONObject();
-    Outbox.failed(note, "first", 1, T);
-    Outbox.failed(note, "still", 40, T + Outbox.GIVE_UP_MS);
-    assertEquals(Outbox.State.FAILED, Outbox.state(note));
-    assertFalse(note.has("chiefNextTry"));
-    assertFalse(Outbox.due(note, T + Outbox.GIVE_UP_MS * 2));
-  }
-
-  @Test
-  public void aSentNoteLeavesTheQueueButSaysItTookTries() throws Exception {
-    JSONObject note = new JSONObject();
-    Outbox.failed(note, "502", 3, T);
-    Outbox.sent(note);
-    note.put("chiefThread", "thr_c");
-    assertEquals(Outbox.State.SENT, Outbox.state(note));
-    assertFalse(note.has("chiefQueued"));
-    assertEquals(3, note.getInt("chiefTries"));
-    assertTrue(note.has("chiefFailedAt"));
-  }
-
-  @Test
-  public void notesFromBeforeTheOutboxCountAsFailed() throws Exception {
-    assertEquals(Outbox.State.FAILED, Outbox.state(new JSONObject().put("chiefFailed", "old")));
-    assertEquals(Outbox.State.NONE, Outbox.state(new JSONObject()));
-  }
-
-  @Test
   public void failuresOfOneRequestBecomeOneEntry() throws Exception {
     JSONArray list = new JSONArray();
     Outbox.addFailure(list, "chief:abc", "chief", "Note to you, request abc", "HTTP 502", T);
