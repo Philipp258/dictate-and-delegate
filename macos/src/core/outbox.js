@@ -1,9 +1,10 @@
 'use strict';
-// What hasn't reached the chief yet, and what went wrong on the way (Outbox.java). A note whose
-// send failed stays queued (in the note: chiefQueued, chiefTries, chiefNextTry) and is sent again
-// by itself, further apart each time (delayMs), also after the app restarts or the Mac woke up.
-// The same request ID goes each time, and a try after one that may have arrived checks first, so
-// the chief never gets a note twice.
+// What hasn't reached the chief yet, and what went wrong on the way (Outbox.java). The notes' own
+// state (note-flow.js) says what's due: a note whose send failed is sent again by itself, further
+// apart each time (delayMs), also after the app restarts or the Mac woke up, but only while it's
+// fresh (NoteFlow.AUTO_MS); after that it waits for the user, who gets a notification. The same
+// request ID goes each time, and a try after one that may have arrived checks first, so the chief
+// never gets a note twice.
 //
 // Failures (a note not sent, a hands-free message not sent, a recording not transcribed) are kept,
 // and once bb takes a message again they go to the chief as one "[app failure report]", with the
@@ -13,9 +14,7 @@
 // wake (powerMonitor 'resume') start one at once.
 
 const netLog = require('./net-log');
-
-/** A note's first try failed this long ago: no more tries by itself (Retry still works). */
-const GIVE_UP_MS = 48 * 3600_000;
+const flow = require('./note-flow');
 
 /** The failures kept for the next report, at most. */
 const FAILURES_MAX = 20;
@@ -32,44 +31,7 @@ function delayMs(tries) {
   return tries <= 0 ? 0 : tries <= steps.length ? steps[tries - 1] : 900_000;
 }
 
-// ------------------------------------------------------------------ a note's state
-
-const State = { NONE: 'NONE', SENT: 'SENT', RETRYING: 'RETRYING', FAILED: 'FAILED' };
-
 const has = (o, k) => o != null && Object.prototype.hasOwnProperty.call(o, k);
-
-function state(note) {
-  if (has(note, 'chiefThread') && !has(note, 'chiefFailed')) return State.SENT;
-  if (!has(note, 'chiefFailed')) return State.NONE;
-  return note.chiefQueued === true ? State.RETRYING : State.FAILED;
-}
-
-/** A send of the note failed (its try number tries) at now: queued again, or given up. */
-function failed(note, why, tries, now) {
-  const first = has(note, 'chiefFailedAt') ? Number(note.chiefFailedAt) : now;
-  note.chiefFailed = why;
-  note.chiefTries = tries;
-  note.chiefFailedAt = first;
-  if (now - first < GIVE_UP_MS) {
-    note.chiefQueued = true;
-    note.chiefNextTry = now + delayMs(tries);
-  } else {
-    delete note.chiefQueued;
-    delete note.chiefNextTry;
-  }
-}
-
-/** It got there: the queue's fields go; chiefTries and chiefFailedAt stay to say it took a while. */
-function sent(note) {
-  delete note.chiefQueued;
-  delete note.chiefNextTry;
-  delete note.chiefFailed;
-}
-
-/** The note is queued and its next try is due at now. */
-function due(note, now) {
-  return note.chiefQueued === true && (Number(note.chiefNextTry) || 0) <= now;
-}
 
 // ------------------------------------------------------------------ failures
 
@@ -163,7 +125,7 @@ function excerpt(log, from, max) {
     const t = netLog.time(line);
     if (t < 0) continue;
     if (t < from && t + Math.max(0, duration(line)) < from) continue;
-    out.push(line.length > 400 ? line.substring(0, 400) + '…' : line);
+    out.push(line.length > 1200 ? line.substring(0, 1200) + '…' : line);
   }
   return out.length <= max ? out : out.slice(out.length - max);
 }
@@ -181,7 +143,9 @@ function duration(line) {
 
 /**
  * The queue's runner. o: prefs (store.js), notes() → the recent notes (plain objects with id),
- * sendNote(id) → null or why, tell(chiefId, text) (checks first, never twice), chiefId(),
+ * sendNote(id, mode) → null or why (mode 'AUTO' or 'NOW', see Dictation.sendNote), update(id,
+ * change) (one note changed and saved), notify({ id, title, text }) (a notification until it's
+ * resolved), tell(chiefId, text) (checks first, never twice), chiefId(),
  * connected(), inCall(), readLog() → the network log, app (its name and version), zone, clock,
  * timers, requestId(), log(line).
  */
@@ -190,6 +154,8 @@ class Outbox {
     this.prefs = o.prefs;
     this.notes = o.notes;
     this.sendNote = o.sendNote;
+    this.update = o.update || (async () => {});
+    this.notify = o.notify || (() => {});
     this.tell = o.tell;
     this.chiefId = o.chiefId || (() => '');
     this.connected = o.connected || (() => false);
@@ -238,11 +204,46 @@ class Outbox {
     this.prefs.set('outboxReportNext', 0);
   }
 
-  async queued() {
+  async recent() {
     try {
-      return (await this.notes()).filter((n) => n && n.chiefQueued === true);
+      return (await this.notes()).filter((n) => n && typeof n === 'object');
     } catch {
       return [];
+    }
+  }
+
+  /** Notes on their way to the chief that the outbox may send: due now, or waiting for their next try. */
+  async queued() {
+    const now = this.clock();
+    return (await this.recent()).filter((n) => [flow.Delivery.DUE, flow.Delivery.WAITING].includes(flow.delivery(n, now)));
+  }
+
+  /** Notes that stopped going by themselves (too old, or the window ran out while failing): told once. */
+  async settle() {
+    const now = this.clock();
+    for (const n of await this.recent()) {
+      if (n.handsFree === true || has(n, 'chiefAskedAt') || !flow.meantForChief(n) || flow.sent(n)) continue;
+      const settled = n.chiefQueued === true && !flow.fresh(n, now);
+      if (!settled && flow.delivery(n, now) !== flow.Delivery.NEEDS_OK) continue;
+      // Notes from long ago (before 0.4.0) stay quiet: the notes list shows them as not sent.
+      const last = Math.max(flow.anchor(n), Number(n.chiefLastTry) || 0, Number(n.chiefFailedAt) || 0);
+      if (now - last > 2 * 24 * 3600_000) continue;
+      try {
+        await this.update(n.id, (e) => {
+          flow.settle(e, now);
+          e.chiefAskedAt = now;
+          flow.event(e, now, 'stopped going by itself; waits for you');
+        });
+        this.notify({
+          id: n.id,
+          title: 'Not sent to your chief of staff' + (has(n, 'chiefFailed') ? '' : ': waits for you'),
+          text: has(n, 'chiefFailed')
+            ? String(n.chiefFailed) + " It doesn't go by itself any more."
+            : flow.waitReason(n, now).replace(/^./, (c) => c.toUpperCase()) + ", so it doesn't go by itself. Open it to read it, then Send or Don't send.",
+        });
+      } catch (ex) {
+        this.log('outbox: ' + (ex && ex.message));
+      }
     }
   }
 
@@ -257,7 +258,10 @@ class Outbox {
 
   /** The app started or the Mac woke up: a try soon. */
   async kick() {
-    if ((await this.waiting()) || this.failuresWaiting() > 0) this.schedule(0);
+    // Also for notes that wait for the user: one may need its notification.
+    const now = this.clock();
+    const open = (await this.recent()).some((n) => ![flow.Delivery.NONE, flow.Delivery.SENT].includes(flow.delivery(n, now)));
+    if (open || this.failuresWaiting() > 0) this.schedule(0);
   }
 
   /**
@@ -271,11 +275,12 @@ class Outbox {
         const now = this.clock();
         let failedOne = false;
         let went = all;
+        await this.settle();
         // Once one went, bb takes messages again: the rest go too, also those not due yet.
         for (let pass = 0; pass < 2 && !failedOne; pass++) {
           for (const n of await this.queued()) {
-            if (!went && !due(n, now)) continue;
-            if ((await this.sendNote(n.id)) != null) {
+            if (!went && flow.delivery(n, now) !== flow.Delivery.DUE) continue;
+            if ((await this.sendNote(n.id, went ? 'NOW' : 'AUTO')) != null) {
               failedOne = true;
               break; // bb can't be reached: the others wait for the next try.
             }
@@ -334,7 +339,10 @@ class Outbox {
     const now = this.clock();
     let next = Infinity;
     const notes = await this.queued();
-    for (const n of notes) next = Math.min(next, Number(n.chiefNextTry) || now);
+    for (const n of notes) next = Math.min(next, flow.delivery(n, now) === flow.Delivery.DUE ? now + 5_000 : Number(n.chiefNextTry) || now);
+    // A try under way: should the app quit mid-way, it's due again once it counts as cut off.
+    for (const n of await this.recent())
+      if (flow.delivery(n, now) === flow.Delivery.SENDING) next = Math.min(next, Number(n.chiefSending) + flow.SENDING_STALE_MS + 1_000);
     // The report goes after the notes, when one of them got through; alone, at its own time.
     if (!notes.length && this.failuresWaiting() > 0) next = Math.max(now, Number(this.prefs.get('outboxReportNext', now)) || now);
     if (next !== Infinity) this.schedule(Math.max(0, next - now));
@@ -357,33 +365,14 @@ class Outbox {
   }
 }
 
-/** The note page's line about a note that isn't there yet. */
-function waitingLine(note, now) {
-  const tries = note.chiefTries || 1;
-  const next = Number(note.chiefNextTry) || now;
-  const minutes = Math.max(0, Math.ceil((next - now) / 60_000));
-  return next <= now
-    ? 'Dictate & Delegate keeps it and sends it again by itself (tried ' + tries + '×, next try now).'
-    : minutes <= 1
-      ? 'Dictate & Delegate keeps it and sends it again by itself (tried ' + tries + '×, next try within a minute).'
-      : 'Dictate & Delegate keeps it and sends it again by itself (tried ' + tries + '×, next try in ' + minutes + ' minutes).';
-}
-
 module.exports = {
-  GIVE_UP_MS,
   FAILURES_MAX,
   LOG_LINES,
   LABEL,
-  State,
   delayMs,
-  state,
-  failed,
-  sent,
-  due,
   addFailure,
   resolve,
   report,
   excerpt,
-  waitingLine,
   Outbox,
 };

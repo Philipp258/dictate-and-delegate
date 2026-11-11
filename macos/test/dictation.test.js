@@ -853,7 +853,7 @@ test('whenBbFailsTheNoteKeepsWhatYouSaidAndSendsAgain', async () => {
   assert.equal(e.chiefQueued, true);
   assert.equal(e.chiefTries, 1);
   assert.equal(e.chiefRequest, h.calls.chief[0].request);
-  assert.match(h.d.session.message, /^Not sent yet: .* It's kept and goes by itself once bb can be reached\.$/);
+  assert.match(h.d.session.message, /^Not sent yet: .* It's tried again by itself for a few minutes; the note says how it stands\.$/);
   assert.equal(h.panel().buttons.find((b) => b.id === 'chief').name, '🧑‍💼 Send again');
   assert.equal(h.clipboard.text, 'something I still need');
   // Send again.
@@ -871,14 +871,14 @@ test('whenBbFailsTheNoteKeepsWhatYouSaidAndSendsAgain', async () => {
   assert.equal(h.calls.chief[1].again, true);
   assert.equal(h.calls.chief[0].again, false);
   assert.equal(h.d.session.chief, D.DONE);
-  // An error that wasn't written for the user reads as bb unreachable.
+  // An error that wasn't written for the user reads as bb unreachable, with what it said.
   const h2 = harness();
   withChief(h2);
   h2.fx.chiefError = new TypeError('fetch failed');
   await h2.dictate();
   h2.d.tapChief();
   await h2.d.idle();
-  assert.equal(h2.note().chiefFailed, "bb couldn't be reached. Try again.");
+  assert.equal(h2.note().chiefFailed, "bb couldn't be reached. Try again. (fetch failed)");
 });
 
 test('withoutAChiefThereIsNoChiefButton', async () => {
@@ -1182,4 +1182,107 @@ test('jevsAnswerIsOnlyTheTemplate', () => {
   assert.deepEqual(D.readAnswers(null), { template: '', cost: null });
   assert.equal(D.jevDetail({ template: 'Weekly update' }), 'Weekly update');
   assert.equal(D.jevDetail({ template: '' }), '');
+});
+
+// ---------------------------------------------------------------- the note's journey (0.4.0)
+
+const flow = require('../src/core/note-flow');
+const { Busy } = require('../src/core/openrouter');
+
+test('aRetriedNoteMeantForTheChiefGoesToTheChief', async () => {
+  // 0.3.8: the Chief choice lived only in the panel, so Retry transcribed the note and stopped there.
+  const h = harness();
+  withChief(h);
+  h.fx.transcribeError = new Error('The connection to OpenRouter was lost.');
+  await h.d.start();
+  h.mic.speak(1200);
+  h.d.tapChief(); // while recording
+  await h.d.stop();
+  await h.d.idle();
+  assert.equal(h.d.state, D.ERROR);
+  const id = h.prefs.get('sessionId', '');
+  let e = h.notes.get(id);
+  assert.equal(flow.meantForChief(e), true);
+  assert.match(e.transcribeFailed, /was lost/);
+  assert.match(flow.status(e, Date.now(), false, true, 'your chief of staff').line, /^For your chief of staff: not written down/);
+  h.fx.transcribeError = null;
+  await h.d.retry();
+  await h.d.idle();
+  assert.equal(h.calls.chief.length, 1);
+  assert.equal(h.calls.chief[0].text, 'um hi Jana see you at ten');
+  e = h.notes.get(id);
+  assert.equal(flow.sent(e), true);
+  assert.ok(e.log.some((x) => x.step === 'bb' && x.ok));
+});
+
+test('aChiefChoiceTakenBackStaysTakenBack', async () => {
+  const h = harness();
+  withChief(h);
+  h.fx.transcribeError = new Error('The connection to OpenRouter was lost.');
+  await h.d.start();
+  h.mic.speak(1200);
+  h.d.tapChief();
+  h.d.tapChief(); // taken back
+  await h.d.stop();
+  await h.d.idle();
+  h.fx.transcribeError = null;
+  await h.d.retry();
+  await h.d.idle();
+  assert.equal(h.calls.chief.length, 0);
+});
+
+test('aBusyModelFallsBackToTheOtherProvidersModelAndEveryTryIsOnTheNote', async () => {
+  const h = harness();
+  const used = [];
+  h.d.transcribeChunk = async (wav, words, model, opts) => {
+    used.push([model, opts && opts.busyTries]);
+    if (model === 'microsoft/mai-transcribe-2') throw new Busy(429, 'HTTP 429 too many requests from Azure: Rate limit is exceeded.', 0);
+    return { text: 'from the fallback', cost: 0.001 };
+  };
+  await h.d.start();
+  h.mic.speak(1200);
+  const stopping = h.d.stop();
+  for (let i = 0; i < 50 && h.d.state !== D.COPIED; i++) {
+    await new Promise((r) => setImmediate(r));
+    h.advance(1000);
+  }
+  await stopping;
+  await h.d.idle();
+  assert.equal(h.d.state, D.COPIED, h.d.detail);
+  assert.deepEqual(used.map((u) => u[0]), ['microsoft/mai-transcribe-2', 'microsoft/mai-transcribe-2', 'openai/gpt-transcribe']);
+  assert.equal(used[0][1], 0); // busy answers are this loop's, not the client's
+  const e = h.note();
+  assert.equal(e.text, 'from the fallback');
+  assert.equal(e.fallbackUsed, 'openai/gpt-transcribe');
+  const tries = e.log.filter((x) => x.step === 'speech');
+  assert.equal(tries.length, 3);
+  assert.match(tries[0].error, /HTTP 429 too many requests from Azure/);
+  assert.equal(tries[2].ok, true);
+  // A 429 wasn't run, so nothing unknown is left to charge.
+  assert.equal(e.unconfirmed, 0);
+});
+
+test('whenEveryTryIsBusyTheNoteSaysSoAndKeepsTheAudio', async () => {
+  const h = harness({ prefs: { fallbackModel: 'none' } });
+  h.d.transcribeChunk = async () => {
+    throw new Busy(429, 'HTTP 429 too many requests: Rate limit exceeded', 0);
+  };
+  const problems = [];
+  h.d.on('problem', (p) => problems.push(p));
+  await h.d.start();
+  h.mic.speak(1200);
+  const stopping = h.d.stop();
+  for (let i = 0; i < 200 && h.d.state !== D.ERROR; i++) {
+    await new Promise((r) => setImmediate(r));
+    h.advance(1000);
+  }
+  await stopping;
+  assert.equal(h.d.state, D.ERROR);
+  assert.match(h.d.detail, /Tried 5 times .* all busy\. Last answer: The model is busy or rate-limited \(HTTP 429/);
+  const e = h.notes.get(h.prefs.get('sessionId', ''));
+  assert.equal(e.status, 'needs attention');
+  assert.match(e.transcribeFailed, /HTTP 429/);
+  assert.equal(h.d.hasSavedRecording(), true);
+  assert.equal(problems.length, 1);
+  assert.equal(problems[0].title, 'Recording not written down');
 });

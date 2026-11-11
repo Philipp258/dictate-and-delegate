@@ -13,7 +13,9 @@ const fs = require('fs');
 const path = require('path');
 const { EventEmitter } = require('events');
 const { tr, format, SerialQueue, withTimeout } = require('./util');
-const outboxLib = require('./outbox');
+const flow = require('./note-flow');
+const netLogLib = require('./net-log');
+const { busyPlan, notRun } = require('./openrouter');
 
 // States, as DictationService's (also the "state" a tray or the app may show).
 const READY = 'ready',
@@ -53,6 +55,8 @@ const CHIEF_STEP = 'bb',
 
 // Profile.java: the speech models offered, and the default.
 const DEFAULT_MODEL = 'microsoft/mai-transcribe-2';
+/** When the chosen speech model is busy (429, 5xx): another host's model, on the same OpenRouter key. */
+const FALLBACK_DEFAULT = 'openai/gpt-transcribe';
 const OFFERED = new Set([
   'openai/gpt-transcribe',
   'openai/gpt-4o-transcribe',
@@ -390,6 +394,8 @@ function newSession() {
     refineRun: 0,
     /** Mac: Insert automatically waits for this dictation's text (true) or is done/off (false). */
     autoInsert: false,
+    /** Chief was queued by the note's own saved intent (a retry), not a tap now: it goes only while fresh. */
+    chiefAuto: false,
   };
 }
 
@@ -499,7 +505,9 @@ class Dictation extends EventEmitter {
     this.work = new Set();
 
     if (this.pending.exists()) {
-      // An interrupted recording: retry() or discard() (the app's recovery offers both).
+      // An interrupted recording: retry() or discard() (the app's recovery offers both). One the
+      // app quit during, before it became a note, may be half a sentence: it waits for the user.
+      if (!this.prefs.get('recordingId', '')) this.prefs.set('sessionInterrupted', true);
       this.state = ERROR;
       this.detail = tr('Saved recording found. Open Dictate & Delegate to retry or discard.');
       this.feedbackTimer = this.timers.setTimeout(() => this.finishFeedback(), FEEDBACK_MS);
@@ -670,6 +678,7 @@ class Dictation extends EventEmitter {
     switch (s.chief) {
       case QUEUED:
         s.chief = IDLE;
+        this.keepIntent(false);
         break;
       case RUNNING:
         break;
@@ -689,10 +698,42 @@ class Dictation extends EventEmitter {
           return;
         }
         s.chief = QUEUED;
+        s.chiefAuto = false;
+        this.keepIntent(true);
         this.startQueued();
     }
     this.changed();
     this.touch();
+  }
+
+  /**
+   * The Chief's choice (on: chosen, else taken back) is saved at once: on the note once there is
+   * one, else for the recording (prefs sessionIntent), which upload() hands to its new note. So ✕,
+   * a retry, quitting or a restart can't lose it.
+   */
+  keepIntent(on) {
+    const now = this.clock();
+    const id = this.session.noteId || this.prefs.get('sessionId', '');
+    if (on) this.prefs.set('sessionIntent', { at: now });
+    else this.prefs.remove('sessionIntent');
+    if (!id) return Promise.resolve();
+    return this.run(async () => {
+      if (!(await this.loadNote(id))) return; // not a note yet: upload() takes it from prefs
+      await this.update(id, (e) => {
+        if (on) {
+          flow.wantChief(e, now);
+          flow.event(e, now, 'you chose to send it to the chief');
+        } else if (flow.dropChief(e, now)) flow.event(e, now, 'you took back sending it to the chief');
+      });
+    });
+  }
+
+  /** The fallback for a busy speech model (Profile.fallbackModel): "" for none. */
+  fallbackModel(model) {
+    let id = this.prefs.get('fallbackModel', '');
+    if (id === 'none') return '';
+    if (!id || !OFFERED.has(id)) id = model === FALLBACK_DEFAULT ? DEFAULT_MODEL : FALLBACK_DEFAULT;
+    return id === model ? '' : id;
   }
 
   say(message) {
@@ -714,7 +755,8 @@ class Dictation extends EventEmitter {
     }
     if (s.chief === QUEUED) {
       s.chief = RUNNING;
-      this.run(async () => this.sent(s, await this.sendNote(s.noteId)));
+      const mode = s.chiefAuto ? 'AUTO' : 'USER';
+      this.run(async () => this.sent(s, await this.sendNote(s.noteId, mode)));
     }
     this.autoInsert(s);
     this.changed();
@@ -735,6 +777,8 @@ class Dictation extends EventEmitter {
       if (!this.hasKey()) throw new DictationError(tr("Add your OpenRouter key in Dictate & Delegate's Settings first."));
       this.newSession();
       this.prefs.remove('recordingId');
+      this.prefs.remove('sessionIntent');
+      this.prefs.remove('sessionInterrupted');
       this.prefs.set('sessionModel', this.fixedModel());
       this.prefs.set('sessionId', this.uuid());
       this.prefs.set('sessionCreated', this.clock());
@@ -823,8 +867,11 @@ class Dictation extends EventEmitter {
     this.stopTicker();
     const failure = await this.stopMicrophone();
     if (this.destroyed) return;
-    if (failure || !transcribe)
+    if (failure || !transcribe) {
+      // Ended without Stop: never sent anywhere without the user (NoteFlow.fresh).
+      this.prefs.set('sessionInterrupted', true);
       this.transition(ERROR, failure ? friendly(failure) : tr('Recording interrupted. Saved audio can be retried.'));
+    }
     else await this.upload();
   }
 
@@ -907,6 +954,20 @@ class Dictation extends EventEmitter {
   // ---------------------------------------------------------------- transcription
 
   async upload() {
+    const id = this.prefs.get('sessionId', '') || this.uuid();
+    this.prefs.set('sessionId', id);
+    return netLogLib.forNote(id, () => this.uploadNow());
+  }
+
+  /** Saves the upload's copy of its note; what the note is for and its delivery come from the saved one (NoteFlow.merge). */
+  async saveMerged(entry) {
+    await this.notesQueue.run(async () => {
+      flow.merge(entry, await this.loadNote(entry.id));
+      await this.saveNote(entry);
+    });
+  }
+
+  async uploadNow() {
     const pending = this.pending;
     if (!pending.exists() || pending.length() < 2) {
       try {
@@ -930,34 +991,80 @@ class Dictation extends EventEmitter {
         entry = createEntry(sessionId, model, pending.length() / BYTES_PER_SECOND, this.clock());
         entry.recordingId = this.prefs.get('recordingId', sessionId);
         entry.created = this.prefs.get('sessionCreated', this.clock());
+        if (this.prefs.get('sessionInterrupted', false) === true) entry.interrupted = true;
+        // The Chief tapped while recording: the note is for the chief.
+        const chosen = this.prefs.get('sessionIntent', null);
+        if (chosen && typeof chosen === 'object') {
+          flow.wantChief(entry, Number(chosen.at) || this.clock());
+          flow.event(entry, Number(chosen.at) || this.clock(), 'you chose to send it to the chief while recording');
+        }
         await this.saveNote(entry);
       }
+      if (entry.status === 'needs attention') entry.status = 'pending';
+      delete entry.transcribeFailed;
       // No language: the speech models detect it, also when you switch mid-note.
       const words = this.hintWords();
+      // Busy answers (429, 5xx) are tried again here, switching to the fallback model.
+      const plan = busyPlan(model, this.fallbackModel(model));
+      let part = 0;
       for (;;) {
         const length = pending.length();
         if ((entry.offset || 0) >= length - (length % 2)) break;
         if (this.destroyed) return;
         const chunk = readChunk(pending, entry.offset || 0);
-        entry.unconfirmed = (entry.unconfirmed || 0) + 1;
-        await this.saveNote(entry); // A lost response leaves an explicit unknown charge.
-        const asked = this.clock();
-        let result;
-        try {
-          result = await this.transcribeChunk(chunk.wav, words, model);
-        } catch (failed) {
-          addStep(entry, 'speech', model, this.clock() - asked, null, friendly(failed));
-          await this.saveNote(entry);
-          throw failed;
+        part++;
+        const firstTry = this.clock();
+        let result = null;
+        for (let round = 0; !result; round++) {
+          const use = plan[round][0];
+          entry.unconfirmed = (entry.unconfirmed || 0) + 1;
+          await this.saveMerged(entry); // A lost response leaves an explicit unknown charge.
+          const asked = this.clock();
+          const target = use + ' · part ' + part + ' · ' + elapsed(Math.round(((chunk.nextOffset - (entry.offset || 0)) * 1000) / BYTES_PER_SECOND)) + ' · try ' + (round + 1);
+          try {
+            result = (await this.transcribeChunk(chunk.wav, words, use, { busyTries: 0 })) || { text: '', cost: null };
+          } catch (failed) {
+            const ms = this.clock() - asked;
+            const why = friendly(failed);
+            addStep(entry, 'speech', use, ms, null, why);
+            flow.log(entry, asked, 'speech', target, ms, why);
+            if (!(failed && failed.busy === true)) {
+              await this.saveMerged(entry);
+              throw failed;
+            }
+            // Nothing was written down; a 429 or 503 wasn't run, so it wasn't charged either.
+            if (notRun(failed.status)) entry.unconfirmed = Math.max(0, (entry.unconfirmed || 0) - 1);
+            await this.saveMerged(entry);
+            if (round + 1 >= plan.length)
+              throw new DictationError(
+                tr('Tried %1$d times over %2$d s (%3$s), all busy. Last answer: %4$s', round + 1, Math.ceil((this.clock() - firstTry) / 1000), [...new Set(plan.map((p) => p[0].split('/').pop()))].join(' ' + tr('and') + ' '), failed.message),
+              );
+            const next = plan[round + 1][0];
+            const pause = Math.max(plan[round + 1][1], next === use ? Math.min(failed.retryAfterMs || 0, 60_000) : 0);
+            plan[round + 1] = [next, pause];
+            if (this.state === UPLOADING) {
+              this.detail =
+                pause > 0
+                  ? tr('Transcribing… %1$s, trying again in %2$d s (try %3$d).', failed.shortWhy() + (next === use ? '' : ', ' + tr('now with %1$s', next.split('/').pop())), Math.ceil(pause / 1000), round + 2)
+                  : tr('Transcribing… %1$s, trying again now (try %2$d).', failed.shortWhy() + (next === use ? '' : ', ' + tr('now with %1$s', next.split('/').pop())), round + 2);
+              this.changed();
+            }
+            if (pause > 0) await new Promise((r) => this.timers.setTimeout(r, pause));
+            if (this.destroyed) return;
+            continue;
+          }
+          const ms = this.clock() - asked;
+          const cost = plain(result.cost);
+          entry.text = appendText(entry.text || '', result.text || '');
+          entry.offset = chunk.nextOffset;
+          entry.requests = (entry.requests || 0) + 1;
+          entry.unconfirmed = Math.max(0, (entry.unconfirmed || 0) - 1);
+          charge(entry, cost);
+          addStep(entry, 'speech', use, ms, cost, null);
+          flow.log(entry, asked, 'speech', target, ms, null);
+          if (use !== model) entry.fallbackUsed = use;
+          await this.saveMerged(entry); // Text, cost and resume offset commit together.
         }
-        const cost = result ? plain(result.cost) : null;
-        entry.text = appendText(entry.text || '', (result && result.text) || '');
-        entry.offset = chunk.nextOffset;
-        entry.requests = (entry.requests || 0) + 1;
-        entry.unconfirmed = Math.max(0, (entry.unconfirmed || 0) - 1);
-        charge(entry, cost);
-        addStep(entry, 'speech', model, this.clock() - asked, cost, null);
-        await this.saveNote(entry); // Text, cost and resume offset commit together.
         if (this.destroyed) return;
       }
       const empty = !(entry.text || '').trim();
@@ -977,9 +1084,11 @@ class Dictation extends EventEmitter {
         }
       }
       entry.status = empty ? 'no speech' : 'complete';
+      flow.speechDone(entry);
       entry.processingMs = (entry.processingMs || 0) + this.clock() - uploadStarted;
-      await this.notesQueue.run(() => this.saveNote(entry));
+      await this.saveMerged(entry);
       this.emit('notes', entry.id);
+      this.emit('resolved', entry.id);
       this.outbox.resolved('recording:' + sessionId);
       const redo = recordingIdOf(entry) !== entry.id;
       try {
@@ -1006,25 +1115,54 @@ class Dictation extends EventEmitter {
         s.transcript = entry.text;
         s.redo = redo;
         s.autoInsert = this.prefs.get('autoInsert', false) === true;
+        // What the note is for comes from the note, not the panel: a retry goes on to the chief.
+        const saved = (await this.loadNote(sessionId)) || entry;
+        const d = flow.delivery(saved, this.clock());
+        // Don't send tapped on the note meanwhile: the panel's old choice doesn't bring it back.
+        if (s.chief === QUEUED && !flow.meantForChief(saved) && 'intentDropped' in saved) s.chief = IDLE;
+        if (s.chief === QUEUED || s.chief === RUNNING || s.chief === DONE) {
+          /* The panel's own choice: it goes as tapped. */
+        } else if (d === flow.Delivery.DUE) {
+          s.chief = QUEUED;
+          s.chiefAuto = true;
+        } else if (d === flow.Delivery.NEEDS_OK) {
+          s.chief = FAILED;
+          s.message = tr("Written down. It doesn't go to %1$s by itself (%2$s): read it in the note, then Send.", tr('your chief of staff'), flow.waitReason(saved, this.clock()));
+          this.emit('problem', { id: sessionId, title: tr('Not sent to %1$s: waits for you', tr('your chief of staff')), text: s.message });
+        }
         this.transition(COPIED, tr('Your text is ready to insert'));
         this.decide();
       } catch {
         this.transition(ERROR, tr('Transcript saved in history. Open Dictate & Delegate to copy it.'));
       }
     } catch (ex) {
+      let forChief = false;
+      const why = friendly(ex);
+      if (this.destroyed) return; // Quitting: it stays "pending", to go on next time.
       try {
-        const entry = await this.loadNote(sessionId);
-        if (entry && entry.status !== 'complete' && entry.status !== 'no speech') {
-          entry.status = 'needs attention';
-          await this.saveNote(entry);
-        }
+        await this.update(sessionId, (e) => {
+          if (e.status !== 'complete' && e.status !== 'no speech') {
+            e.status = 'needs attention';
+            flow.speechFailed(e, why, this.clock());
+          }
+          forChief = flow.meantForChief(e);
+        });
       } catch {
         /* Keep the original error and recoverable audio. */
       }
       this.emit('notes', sessionId);
       // For the next failure report: the recording is kept for Retry.
-      this.outbox.failure('recording:' + sessionId, 'recording', 'Recording (writing it down)', friendly(ex));
-      if (!this.destroyed) this.transition(ERROR, friendly(ex));
+      this.outbox.failure('recording:' + sessionId, 'recording', 'Recording (writing it down)', why);
+      // Fail loudly: a notification too, until it's written down or discarded.
+      this.emit('problem', {
+        id: sessionId,
+        title: forChief ? tr('Not written down, not sent to %1$s', tr('your chief of staff')) : tr('Recording not written down'),
+        text: why + ' ' + tr('The audio is kept: open it to retry.'),
+      });
+      this.transition(
+        ERROR,
+        forChief ? tr("Not written down, so not sent to %1$s: %2$s It's kept; Retry tries again and then sends it.", tr('your chief of staff'), why) : why,
+      );
     }
   }
 
@@ -1052,7 +1190,7 @@ class Dictation extends EventEmitter {
     } catch {
       throw new DictationError(tr('Could not update history.'));
     }
-    for (const key of ['sessionModel', 'sessionId', 'sessionCreated', 'recordingId']) this.prefs.remove(key);
+    for (const key of ['sessionModel', 'sessionId', 'sessionCreated', 'recordingId', 'sessionIntent', 'sessionInterrupted']) this.prefs.remove(key);
     if (id) this.emit('notes', id);
   }
 
@@ -1216,14 +1354,16 @@ class Dictation extends EventEmitter {
   // ---------------------------------------------------------------- the chief
 
   /**
-   * Hands what was said, with pasted text as context and a request ID, to the chief-of-staff
-   * thread in bb. On failure the note records why and stays queued in the Outbox, which sends it
-   * again by itself (with the same request ID, so it never arrives twice). Returns null, or why it
-   * failed.
+   * Hands what was said, with pasted text as context and the note's request ID, to the chief, if
+   * NoteFlow lets it go for who asks: AUTO only a fresh note that's due (by itself), NOW also one
+   * waiting for its next try (bb just took something), USER any (the user tapped Chief or Send now;
+   * it's meant for the chief from then on). On failure the note keeps why; while it's fresh the
+   * outbox tries again (same request ID, checked first, so it never arrives twice). Returns null
+   * when it's there (now or before), else why not.
    */
-  async sendNote(id) {
+  async sendNote(id, mode = 'USER') {
     while (this.sendingNotes.has(id)) await this.sendingNotes.get(id).catch(noop);
-    const p = this.sendNoteOnce(id);
+    const p = netLogLib.forNote(id, () => this.sendNoteOnce(id, mode));
     this.sendingNotes.set(id, p);
     try {
       return await p;
@@ -1232,22 +1372,54 @@ class Dictation extends EventEmitter {
     }
   }
 
-  async sendNoteOnce(id) {
+  async sendNoteOnce(id, mode) {
+    const now = this.clock();
+    let request = null,
+      again = false,
+      refusal = null;
+    try {
+      // Claimed in one change: whether it may go, and its request ID saved before anything goes out.
+      await this.update(id, (e) => {
+        if (flow.sent(e)) {
+          refusal = '';
+          return;
+        }
+        if (mode === 'USER') {
+          if (!flow.meantForChief(e)) flow.wantChief(e, now);
+          flow.confirm(e, now);
+        }
+        const d = flow.delivery(e, now);
+        const may =
+          d === flow.Delivery.DUE || (d === flow.Delivery.WAITING && mode !== 'AUTO') || (d === flow.Delivery.NEEDS_OK && mode === 'USER');
+        if (!may) {
+          refusal =
+            d === flow.Delivery.NEEDS_TRANSCRIPT
+              ? tr("It isn't written down yet.")
+              : d === flow.Delivery.SENDING
+                ? tr("It's being sent already.")
+                : d === flow.Delivery.NONE
+                  ? tr("It isn't meant for a chief.")
+                  : tr('It waits for you: open the note to read it, then Send.');
+          return;
+        }
+        again = !!e.chiefRequest;
+        request = e.chiefRequest || this.newRequestId();
+        flow.beginSend(e, request, now);
+      });
+    } catch (ex) {
+      return friendly(ex);
+    }
+    if (refusal !== null) return refusal === '' ? null : refusal;
     const entry = await this.loadNote(id);
     if (!entry) return tr('This note was deleted.');
-    // Sent meanwhile (by the outbox, or a Retry before this one): nothing to do.
-    if (has(entry, 'chiefThread') && !has(entry, 'chiefFailed')) return null;
-    const said = saidOf(entry);
+    // chiefText: the user sent it from a redo's version, whose words go.
+    const said = typeof entry.chiefText === 'string' ? entry.chiefText : saidOf(entry);
     let chief = null;
     try {
       chief = this.chiefThread();
     } catch {
       chief = null;
     }
-    // The same request ID on every try: the chief's reply finds the note, and a try that may have
-    // arrived isn't sent twice.
-    const again = has(entry, 'chiefFailed') && !!entry.chiefRequest;
-    const request = again ? entry.chiefRequest : this.newRequestId();
     const asked = this.clock();
     let why = null,
       files = null;
@@ -1255,9 +1427,12 @@ class Dictation extends EventEmitter {
       if (!chief || !chief.id) throw new DictationError(tr('No chief of staff is set up. Set one up in Settings → bb.'));
       files = await this.sendToChief(said, { request, recordingId: recordingIdOf(entry), chiefId: chief.id, again });
     } catch (ex) {
-      why = plainMessage(ex) ? ex.message : tr("bb couldn't be reached. Try again.");
+      const words = plainMessage(ex) ? ex.message : tr("bb couldn't be reached. Try again.");
+      const detail = ex && ex.message && !words.includes(ex.message) ? ' (' + String(ex.message).replace(/\s+/g, ' ').slice(0, 300) + ')' : '';
+      why = words + detail;
     }
     const ms = this.clock() - asked;
+    let saved = null;
     try {
       await this.update(id, (e) => {
         const step = addStep(e, CHIEF_STEP, CHIEF_TARGET, ms, null, why);
@@ -1265,26 +1440,26 @@ class Dictation extends EventEmitter {
         if (files && files.files > 0) Object.assign(step, { files: files.files, filesHow: files.how });
         if (files && files.refused > 0) step.uploadRefused = files.refused;
         if (files && Array.isArray(files.failed) && files.failed.length) step.filesFailed = files.failed.join('; ');
-        e.route = 'chief';
-        e.chiefRequest = request;
-        if (why !== null) {
-          outboxLib.failed(e, why, (e.chiefTries || 0) + 1, this.clock());
-          return;
-        }
-        outboxLib.sent(e);
-        e.chiefThread = chief.id;
-        e.chiefLink = chief.link || '';
-        e.chiefSent = this.clock();
+        flow.log(e, asked, 'bb', 'the chief · request ' + request + (again ? ' (checked first)' : ''), ms, why);
+        if (why !== null) flow.sendFailed(e, why, this.clock());
+        else flow.sendDone(e, chief.id, chief.link || '', this.clock());
+        saved = { ...e };
       });
     } catch (ex) {
       return why === null ? friendly(ex) : why;
     }
     const key = 'chief:' + request;
-    if (why !== null) this.outbox.failure(key, 'chief', 'Note to you, request ' + request, why);
-    else if (again) {
-      this.outbox.resolved(key);
-      this.outbox.worked();
-    } else if (this.outbox.failuresWaiting() > 0) this.outbox.worked(); // A failure is kept for each queued note.
+    if (why !== null) {
+      this.outbox.failure(key, 'chief', 'Note to you, request ' + request, why);
+      if (saved && (flow.delivery(saved, this.clock()) === flow.Delivery.NEEDS_OK || (Number(saved.chiefTries) || 0) >= 2))
+        this.emit('problem', { id, title: tr('Not sent to %1$s', tr('your chief of staff')), text: why });
+    } else {
+      this.emit('resolved', id);
+      if (again || (saved && (Number(saved.chiefTries) || 0) > 0)) {
+        this.outbox.resolved(key);
+        this.outbox.worked();
+      } else if (this.outbox.failuresWaiting() > 0 || (await this.outbox.waiting())) this.outbox.worked(); // bb takes messages: what waits goes too.
+    }
     return why;
   }
 
@@ -1296,7 +1471,7 @@ class Dictation extends EventEmitter {
       s.chief = FAILED;
       s.message =
         e && e.chiefQueued === true
-          ? tr("Not sent yet: %1$s It's kept and goes by itself once bb can be reached.", failed === null ? '' : failed)
+          ? tr("Not sent yet: %1$s It's tried again by itself for a few minutes; the note says how it stands.", failed === null ? '' : failed)
           : tr('Not sent to your chief of staff: %1$s', failed === null ? '' : failed);
     } else {
       s.chief = DONE;

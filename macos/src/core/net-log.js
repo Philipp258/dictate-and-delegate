@@ -13,6 +13,36 @@
 // synchronous file calls one at a time, so they need no lock.
 
 const fs = require('fs');
+const { AsyncLocalStorage } = require('async_hooks');
+
+/** The note the requests in this async context are for: each line says so (Java: a ThreadLocal). */
+const NOTE = new AsyncLocalStorage();
+
+/** Runs fn with its requests tagged as this note's. */
+function forNote(id, fn) {
+  return id ? NOTE.run(String(id), fn) : fn();
+}
+
+/** How a note is named in the log: the start of its ID. */
+function noteTag(id) {
+  const s = String(id);
+  return 'note ' + (s.length > 8 ? s.substring(0, 8) : s);
+}
+
+/** The log's lines for a note, oldest first. */
+function forNoteLines(log, id) {
+  if (!id) return '';
+  const tag = SEP_ + noteTag(id);
+  return String(log || '')
+    .split('\n')
+    .filter((l) => l.includes(tag))
+    .map((l) => l + '\n')
+    .join('');
+}
+
+/** An error answer's body in a line, at most this long. */
+const BODY_MAX = 800;
+const SEP_ = ' | ';
 
 const KEEP = 1000;
 const KEEP_MS = 7 * 24 * 3600 * 1000;
@@ -91,6 +121,24 @@ class Call {
     this._received = -1;
     this.failure = null;
     this.ended = false;
+    this.noteId = NOTE.getStore() || '';
+    this._body = '';
+    this._headers = '';
+  }
+
+  /** An error answer's body (shortened, on one line): what the server said went wrong. */
+  body(text) {
+    if (text == null || !String(text).trim()) return this;
+    const t = String(text).replace(/\s+/g, ' ').trim();
+    this._body = t.length > BODY_MAX ? t.substring(0, BODY_MAX) + '…' : t;
+    return this;
+  }
+
+  /** A header worth knowing (when to try again, rate limits): "retry-after=12". */
+  header(name, value) {
+    if (value == null || !String(value).trim()) return this;
+    this._headers += (this._headers ? ', ' : '') + String(name).toLowerCase() + '=' + String(value).trim();
+    return this;
   }
 
   request(id) {
@@ -136,10 +184,12 @@ class Call {
     if (this.failure != null) state.stale();
     const netAfter = net();
     const n = netAfter === this.netBefore ? netAfter : this.netBefore + ' → ' + netAfter;
-    append(
-      line(this.started, this.what, this._request, this.method, this.target, result(this._status, this.failure),
-        ms, this._retry, n, this._sent, this._received, this._note),
-    );
+    let l = line(this.started, this.what, this._request, this.method, this.target, result(this._status, this.failure),
+      ms, this._retry, n, this._sent, this._received, this._note);
+    if (this._headers) l += SEP + 'headers ' + this._headers.replace(/\n/g, ' ');
+    if (this._body) l += SEP + 'body ' + this._body;
+    if (this.noteId) l += SEP + noteTag(this.noteId);
+    append(l);
   }
 }
 
@@ -434,6 +484,10 @@ function report(app, log) {
 }
 
 module.exports = {
+  forNote,
+  noteTag,
+  forNoteLines,
+  BODY_MAX,
   KEEP,
   KEEP_MS,
   TRIM_BYTES,

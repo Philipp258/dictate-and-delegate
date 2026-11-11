@@ -31,7 +31,7 @@ const bridgeLib = require('../core/bb-bridge');
 const oauthLib = require('../core/bb-oauth');
 const skillsLib = require('../core/chief-skills');
 const { friendly, CHIEF_STEP } = require('../core/dictation');
-const outboxLib = require('../core/outbox');
+const flow = require('../core/note-flow');
 const { elapsed } = require('../core/audio-files');
 const templatesLib = require('../core/templates');
 
@@ -215,6 +215,7 @@ function validators() {
     retainAudio: bool,
     windowLog: bool,
     model: oneOf([...profileLib.OFFERED]),
+    fallbackModel: oneOf(['', 'none', ...profileLib.OFFERED]),
     [textModel.PREF_CLAUDE]: oneOf(anthropic.MODELS.map((c) => c.id)),
     [HandsFree.VOICE]: oneOf(voiceLib.CHOICES.map((c) => c.id)),
     [HandsFree.SEND_WORDS]: text(400),
@@ -339,14 +340,22 @@ function hm(ms) {
   return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
 }
 
-/** The note was sent to the chief of staff, or sending it failed. */
+/** The note is meant for the chief (sent, on its way, or waiting), or a call's message that went. */
 function chiefNote(e) {
-  return has(e.json, 'chiefThread') || has(e.json, 'chiefFailed') || str(e.json.route) === 'chief';
+  return flow.meantForChief(e.json) || (e.json.handsFree === true && has(e.json, 'chiefThread'));
 }
 
 function sentToChief(e) {
-  return has(e.json, 'chiefThread') && !has(e.json, 'chiefFailed');
+  return flow.sent(e.json);
 }
+
+/** The version that carries the note's journey (intent, delivery): the recording's own, the first. */
+function flowEntry(n) {
+  return n.versions.find((v) => v && typeof v.id === 'function' && v.id() === v.recordingId()) || n.shown;
+}
+
+/** What's live for a note: being written down now, and whether its audio waits as the saved recording. */
+const NOT_LIVE = { transcribing: () => false, kept: () => false };
 
 /** What happened to this note: refined, sent to the chief, or the transcript as said. */
 function routeLabel(e) {
@@ -356,13 +365,10 @@ function routeLabel(e) {
   return tr('Transcript only');
 }
 
-function badge(n) {
-  const s = str(n.shown.json.status);
-  if (s !== 'complete') return s === 'pending' ? tr('in progress') : s === 'no speech' ? tr('no speech') : tr('unfinished');
-  if (chiefNote(n.shown)) {
-    const state = outboxLib.state(n.shown.json);
-    return state === outboxLib.State.SENT ? tr('chief of staff') : state === outboxLib.State.RETRYING ? tr('sending again') : tr('not sent');
-  }
+function badge(n, live = NOT_LIVE) {
+  const e = flowEntry(n);
+  const b = flow.badge(e.json, Date.now(), live.transcribing(e.id()), live.kept(e.id()));
+  if (b) return b;
   if (n.versions.length > 1) return tr('redone');
   return str(n.shown.json.version) === 'original' ? tr('as said') : null;
 }
@@ -377,7 +383,7 @@ function callTitle(c) {
   return '📞 ' + tr('Call with your chief') + ' · ' + (n === 1 ? tr('1 message') : tr('%1$d messages', n));
 }
 
-function noteSummary(n) {
+function noteSummary(n, live = NOT_LIVE) {
   const p = preview(n);
   return {
     type: 'note',
@@ -386,7 +392,7 @@ function noteSummary(n) {
     preview: p.length > 400 ? p.substring(0, 400) : p,
     elapsed: elapsed(Math.round(n.shown.duration() * 1000)),
     cost: cost(n.cost(), n.incompleteCost()),
-    badge: badge(n),
+    badge: badge(n, live),
   };
 }
 
@@ -402,13 +408,13 @@ function callSummary(c) {
     elapsed: elapsed(Math.round(c.duration() * 1000)),
     cost: cost(c.cost(), c.incompleteCost()),
     // First to last, as an opened call lists them.
-    turns: c.turns.slice().reverse().map(noteSummary),
+    turns: c.turns.slice().reverse().map((t) => noteSummary(t)),
   };
 }
 
 /** Notes and calls, newest first, as All notes and Home list them. */
-function listItems(notes) {
-  return NoteList.withCalls(notes).map((item) => (item instanceof NoteList.Call ? callSummary(item) : noteSummary(item)));
+function listItems(notes, live = NOT_LIVE) {
+  return NoteList.withCalls(notes).map((item) => (item instanceof NoteList.Call ? callSummary(item) : noteSummary(item, live)));
 }
 
 // ------------------------------------------------------------------ the API
@@ -431,6 +437,32 @@ function createMethods(ctx, shell = {}, push = () => {}) {
   let skillsTimer = null;
 
   const call = (name, ...args) => (typeof shell[name] === 'function' ? shell[name](...args) : undefined);
+  /** The dictation's live state for a note (live), and the note's journey in words (flowStatus). */
+  const live = () => {
+    const s = call('dictationState') || {};
+    const id = prefs.get('sessionId', '');
+    return {
+      transcribing: (noteId) => !!s.busy && s.state === 'uploading' && noteId === id,
+      kept: (noteId) => !!s.hasSavedRecording && noteId === id,
+    };
+  };
+  /** When the chosen speech model is busy: the fallback (pref fallbackModel; "" default, "none" off) and the choices. */
+  const fallbackInfo = () => {
+    const chosen = profile.fixedModel();
+    const standard = chosen === 'openai/gpt-transcribe' ? 'microsoft/mai-transcribe-2' : 'openai/gpt-transcribe';
+    const saved = str(prefs.get('fallbackModel', ''));
+    const used = saved === 'none' ? '' : saved && profileLib.OFFERED.has(saved) && saved !== chosen ? saved : standard;
+    const choices = ['', 'openai/gpt-transcribe', 'microsoft/mai-transcribe-2', 'assemblyai/universal-3-5-pro', 'none']
+      .filter((id) => id !== chosen)
+      .map((id) => ({ id, label: id === '' ? tr('Default (%1$s)', modelName(standard)) : id === 'none' ? tr('None') : modelName(id), on: saved === id }));
+    return {
+      line: used
+        ? tr('Tried twice, then %1$s (%2$s), then both once more, over about a minute. Your OpenRouter key pays as usual; the note says which model wrote it down.', modelName(used), perMinute(used))
+        : tr('No fallback: a busy model is tried 5 times over about a minute, then the recording waits for Retry.'),
+      choices,
+    };
+  };
+  const flowStatus = (e, l = live()) => flow.status(e.json, Date.now(), l.transcribing(e.id()), l.kept(e.id()), tr('your chief of staff'));
   /** Mac: the chief's name was only a routing word and is gone, so the report goes to "your chief". */
   const reportLabel = () => tr('Send report to your chief');
   const hasKey = (name) => {
@@ -795,8 +827,20 @@ function createMethods(ctx, shell = {}, push = () => {}) {
       const entries = history.all();
       const grouped = NoteList.group(entries);
       const stats = homeStats(entries);
+      const l = live();
+      const now = Date.now();
+      // What needs you, one line each: a recording not written down, a note not sent (last week).
+      const needs = [];
+      for (const n of grouped) {
+        const e = flowEntry(n);
+        if (e.json.handsFree === true || now - e.created() > 7 * 86_400_000) continue;
+        const st = flowStatus(e, l);
+        if (st.problem) needs.push({ id: n.id(), created: n.created(), elapsed: elapsed(Math.round(e.duration() * 1000)), preview: e.text().trim() ? preview(n) : '', line: st.line });
+      }
       return {
-        recent: listItems(grouped).slice(0, 3),
+        needs: needs.slice(0, 6),
+        moreNeeds: needs.length > 6,
+        recent: listItems(grouped, l).slice(0, 3),
         month: {
           spent: amount(stats.spent),
           talked: duration(stats.seconds),
@@ -810,7 +854,7 @@ function createMethods(ctx, shell = {}, push = () => {}) {
     notes(query = '') {
       const grouped = NoteList.group(history.all());
       const shown = NoteList.search(grouped, String(query || ''));
-      return { total: grouped.length, items: listItems(shown) };
+      return { total: grouped.length, items: listItems(shown, live()) };
     },
 
     /** One note, as its page shows it. */
@@ -821,16 +865,29 @@ function createMethods(ctx, shell = {}, push = () => {}) {
       const j = e.json;
       const status = str(j.status);
       const s = call('dictationState');
-      const redoing = !!(s && s.busy && s.recordingId === n.id());
-      let warning = '';
-      if (status !== 'complete' && !redoing) {
-        if (status === 'pending') warning = tr('Still transcribing.');
-        else if (status === 'no speech') warning = tr('No speech was recognized in this recording.');
-        else {
-          const why = { 'needs attention': tr('needs attention'), 'audio discarded': tr('audio discarded'), imported: tr('imported') }[status] || status;
-          warning = tr("This recording didn't finish (%1$s). Retry it from Home.", why);
-        }
-      }
+      const redoing = !!(s && s.busy && s.recordingId === n.id() && prefs.get('sessionId', '') !== n.id());
+      const fe = flowEntry(n);
+      const l = live();
+      const st = flowStatus(fe, l);
+      const d = flow.delivery(fe.json, Date.now());
+      const kept = l.kept(fe.id());
+      const transcribing = l.transcribing(fe.id());
+      const fj = fe.json;
+      // Where the note is, in words, and what can be done about it, for this note only.
+      const state = {
+        line: st.line,
+        problem: st.problem,
+        plain: d === flow.Delivery.NONE && flow.transcribed(fj),
+        sent: d === flow.Delivery.SENT,
+        link: str(fj.chiefLink),
+        canRetry: !transcribing && kept && !flow.transcribed(fj) && status !== 'no speech',
+        retryLabel: flow.meantForChief(fj) && flow.fresh(fj, Date.now()) ? tr('Retry, then send') : tr('Retry'),
+        canSend: flow.transcribed(fj) && [flow.Delivery.NEEDS_OK, flow.Delivery.WAITING, flow.Delivery.DUE].includes(d),
+        sendLabel: d === flow.Delivery.NEEDS_OK ? tr('Send to your chief of staff') : tr('Send now'),
+        canSendPlain: d === flow.Delivery.NONE && flow.transcribed(fj) && fj.handsFree !== true && !has(fj, 'call'),
+        canDontSend: flow.meantForChief(fj) && d !== flow.Delivery.SENDING && d !== flow.Delivery.SENT,
+      };
+      const warning = '';
       const chief = chiefNote(e);
       const sent = chief && sentToChief(e);
       const twoVersions = has(j, 'processed') && str(j.processed) !== str(j.original);
@@ -854,15 +911,15 @@ function createMethods(ctx, shell = {}, push = () => {}) {
         recorded: tr('%1$s recorded', elapsed(Math.round(e.duration() * 1000))),
         status,
         warning,
+        state,
         redoing,
         chief: chief
           ? {
               sent,
               link: str(j.chiefLink),
               failed: str(j.chiefFailed),
-              // Not there yet, and sent again by itself: when, and how often it was tried.
-              retrying: outboxLib.state(j) === outboxLib.State.RETRYING,
-              waiting: outboxLib.state(j) === outboxLib.State.RETRYING ? outboxLib.waitingLine(j, Date.now()) : '',
+              retrying: d === flow.Delivery.WAITING,
+              waiting: '',
               tries: Number(j.chiefTries) || 0,
               failedAt: hm(j.chiefFailedAt),
             }
@@ -990,9 +1047,9 @@ function createMethods(ctx, shell = {}, push = () => {}) {
       if (id) {
         const n = currentNote(String(id));
         if (!n) throw new Error(tr('This note was deleted.'));
-        const j = n.shown.json;
-        what = 'Note to you, request ' + (str(j.chiefRequest) || '(none)');
-        why = 'not sent yet, ' + (Number(j.chiefTries) || 1) + ' tries since ' + hm(j.chiefFailedAt) + ': ' + str(j.chiefFailed);
+        const fe = flowEntry(n);
+        what = flow.meantForChief(fe.json) ? 'Note to you, request ' + (str(fe.json.chiefRequest) || '(not sent yet)') : 'Recording (writing it down)';
+        why = flowStatus(fe).line;
       } else {
         const s = call('dictationState');
         what = 'Recording (writing it down)';
@@ -1002,14 +1059,46 @@ function createMethods(ctx, shell = {}, push = () => {}) {
       if (id) notesChanged(String(id));
       return went ? tr('Report sent') : tr("bb can't be reached right now. The report goes by itself once it can.");
     },
+    /** The user's Send: what goes is what you said in the version you see (a redo's, if it's shown). */
     async sendAgain(id) {
       if (typeof shell.sendNote !== 'function') throw new Error(tr('Not available yet.'));
       const n = currentNote(String(id));
       if (!n) throw new Error(tr('This note was deleted.'));
-      const failed = await shell.sendNote(n.shown.id());
+      const fe = flowEntry(n);
+      if (fe.id() !== n.shown.id() && typeof shell.updateNote === 'function') {
+        const said = typeof n.shown.json.original === 'string' ? n.shown.json.original : n.shown.text();
+        await shell.updateNote(fe.id(), (e) => {
+          e.chiefText = said;
+        });
+      }
+      const failed = await shell.sendNote(fe.id(), 'USER');
       notesChanged(String(id));
-      if (failed) throw new Error(failed);
-      return tr('Sent to chief of staff');
+      if (failed) throw new Error(tr('Not sent: %1$s', failed));
+      return tr('Sent');
+    },
+    /** Don't send: the note stays a dictation; nothing goes by itself. */
+    async dontSend(id) {
+      if (typeof shell.updateNote !== 'function') throw new Error(tr('Not available yet.'));
+      const n = currentNote(String(id));
+      if (!n) throw new Error(tr('This note was deleted.'));
+      const now = Date.now();
+      await shell.updateNote(flowEntry(n).id(), (e) => {
+        if (flow.dropChief(e, now)) flow.event(e, now, "you tapped Don't send");
+      });
+      notesChanged(String(id));
+      return tr("It won't be sent.");
+    },
+    /** Details: every step and try of the note, with its network log lines, as text to read or copy. */
+    noteDetails(id) {
+      const n = currentNote(String(id));
+      if (!n) throw new Error(tr('This note was deleted.'));
+      const fe = flowEntry(n);
+      return flow.details(fe.json, flowStatus(fe).line, netLog.forNoteLines(netLog.read(), fe.id()), 'Dictate & Delegate ' + ctx.version + ' for macOS');
+    },
+    /** The whole network log, newest first on screen (Copy network log copies it all). */
+    networkLog() {
+      const os = require('os');
+      return netLog.report('Dictate & Delegate ' + ctx.version + ' for macOS (Darwin ' + os.release() + ')', netLog.read()).trim();
     },
     async redo(id) {
       if (typeof shell.redo !== 'function') throw new Error(tr('Not available yet.'));
@@ -1144,9 +1233,10 @@ function createMethods(ctx, shell = {}, push = () => {}) {
 
     /** Speech models from models.json, searched and sorted ("recommended", "accuracy", "cost", "speed"). */
     speechModels(query = '', sort = 'recommended') {
-      if (!catalog) return { priceDate: '—', selected: profile.fixedModel(), models: [] };
+      if (!catalog) return { priceDate: '—', selected: profile.fixedModel(), models: [], fallback: fallbackInfo() };
       const selected = profile.fixedModel();
       return {
+        fallback: fallbackInfo(),
         priceDate: catalog.priceDate,
         selected,
         models: ModelRanking.filter(catalog.models, String(query || ''), String(sort || 'recommended')).map((m) => ({

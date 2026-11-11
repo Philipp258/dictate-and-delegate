@@ -107,8 +107,9 @@ it('failuresSayWhatToDo', async () => {
   const wav = AudioFiles.wav(Buffer.alloc(320));
   await script({ transcribe: [{ error: 'credits' }] });
   await assert.rejects(client().transcribe(wav, 'openai/whisper-1'), /credits are used up/);
+  // A server error is "busy" since 0.4.0: a dictation tries again itself (busyTries 0).
   await script({ transcribe: [{ error: 'provider' }] });
-  await assert.rejects(client().transcribe(wav, 'openai/whisper-1'), /The model provider had a problem \(HTTP 502\)/);
+  await assert.rejects(client().transcribe(wav, 'openai/whisper-1', [], { busyTries: 0 }), /The model provider had a problem \(HTTP 502/);
   await script({ transcribe: [{ error: 'invalid' }] });
   await assert.rejects(client().transcribe(wav, 'openai/whisper-1'), /HTTP 400\): Fake invalid request/);
   // 429 is retried twice, then it's busy.
@@ -116,7 +117,7 @@ it('failuresSayWhatToDo', async () => {
   assert.equal((await client().transcribe(wav, 'openai/whisper-1')).text, 'second try');
   await control('POST', '/test/reset', {});
   await script({ transcribe: [{ error: 'busy' }, { error: 'busy' }, { error: 'busy' }, { text: 'too late' }] });
-  await assert.rejects(client().transcribe(wav, 'openai/whisper-1'), /busy right now/);
+  await assert.rejects(client().transcribe(wav, 'openai/whisper-1'), /busy or rate-limited \(HTTP 429/);
   assert.equal((await requests()).length, 3);
   await assert.rejects(client(vault({ openrouterKey: 'bad' })).transcribe(wav, 'openai/whisper-1'), /isn't valid anymore/);
   await assert.rejects(client(vault({})).transcribe(wav, 'openai/whisper-1'), /Add your OpenRouter key/);
@@ -156,7 +157,7 @@ it('jevThatIsTooSlowIsGivenUp', async () => {
   assert.ok(Date.now() - started < 900);
   await script({ decide: [{ error: 'busy' }] });
   // No retries for Jev: nothing waits for it.
-  await assert.rejects(Jev.ask(client(), 'x', ['T']), /busy right now/);
+  await assert.rejects(Jev.ask(client(), 'x', ['T']), /busy or rate-limited/);
 });
 
 it('theHandsFreeJudgeSaysWhetherTheTurnIsDone', async () => {

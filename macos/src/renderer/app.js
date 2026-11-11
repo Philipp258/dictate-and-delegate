@@ -1056,6 +1056,18 @@ async function pageHome(root) {
     p(S.attachmentsPending ? (S.attachmentsPending === 1 ? '1 attachment for this dictation' : fmt('%1$d attachments for this dictation', S.attachmentsPending)) : 'Talking about something? Add it, like an offer you reply to.', 'muted small'),
     btn('📎 Add', 'quiet', () => act(() => api('attach')), { attrs: { id: 'attach' } })));
   const data = await api('home');
+  // What needs you, one line each; each opens its note, where Retry or Send acts on that note only.
+  if (data.needs && data.needs.length) {
+    add(root, h('div', { class: 'label gap-16' }, 'Needs you'));
+    for (const x of data.needs)
+      add(root, h(
+        'button',
+        { class: 'card warncard clickable gap-8 btn block', style: 'height:auto;display:block;text-align:left;font-weight:400', onclick: () => open('note', { id: x.id }) },
+        p(dateTime(x.created) + ' · ' + x.elapsed + (x.preview ? ' · ' + x.preview.slice(0, 80) : ''), 'muted small'),
+        p(x.line, 'warn gap-4'),
+      ));
+    if (data.moreNeeds) add(root, h('div', { class: 'btns gap-4' }, btn('More in All notes', 'quiet', () => go('notes'))));
+  }
   const max = Math.max(0, ...data.month.days);
   add(root, h(
     'button',
@@ -1146,44 +1158,50 @@ async function pageNote(root) {
     return;
   }
   add(root, [back(), p(dateTime(n.created) + ' · ' + n.recorded, 'muted small')]);
-  if (n.warning) add(root, card('warncard gap-12', p(n.warning, 'warn')));
-  if (n.chief) {
-    if (n.chief.sent)
-      add(root, [
-        h('div', { class: 'btns gap-16' }, btn('Sent to chief of staff ↗', 'primary', () => (n.chief.link ? openUrl(n.chief.link) : toast('Set the bb web address for links in Settings → bb.')))),
-        p("Your chief of staff works on it in bb and notifies you through ntfy when it's done or needs you. The button opens the thread.", 'muted small gap-8'),
-        n.chief.tries > 0 ? p(fmt('It went through on try %1$d; the first failed at %2$s.', n.chief.tries + 1, n.chief.failedAt), 'muted small gap-4') : null,
-      ]);
-    else
-      add(root, [
-        p(
-          n.chief.retrying
-            ? fmt('Not sent yet: %1$s', n.chief.failed) + ' ' + n.chief.waiting
-            : fmt('Not sent to your chief of staff: %1$s Below is what you said.', n.chief.failed),
-          'warn gap-12',
-        ),
-        h(
-          'div',
-          { class: 'btns gap-8' },
-          n.canSendAgain
-            ? btn('Retry now', 'outline', async (e) => {
-                toast('Sending to your chief of staff…');
-                const r = await attempt(e.currentTarget, () => api('sendAgain', id));
-                if (r) toast(r);
-                render();
-              })
-            : null,
-          n.canSendReport
-            ? btn(n.reportLabel, 'quiet', async (e) => {
-                toast('Sending the report…');
-                const r = await attempt(e.currentTarget, () => api('sendReport', id));
-                if (r) toast(r);
-                render();
-              })
-            : null,
-        ),
-      ]);
-  }
+  // Where the note is, in plain words, and what can be done about it, for this note only.
+  const st = n.state;
+  const refresh = () => setTimeout(() => ui.page === 'note' && render(), 300);
+  const sendNow = (label, kind) =>
+    btn(label, kind, async (e) => {
+      await saveEdits();
+      toast('Sending…');
+      const r = await attempt(e.currentTarget, () => api('sendAgain', id));
+      if (r) toast(r);
+      render();
+    });
+  if (st && st.sent && !n.redoing)
+    add(root, [
+      h('div', { class: 'btns gap-16' }, btn('Sent to chief of staff ↗', 'primary', () => (st.link ? openUrl(st.link) : toast('Set the bb web address for links in Settings → bb.')))),
+      p(st.line, 'muted small gap-8'),
+    ]);
+  else if (st && st.plain && !n.redoing) {
+    if (st.canSendPlain && S.bb && S.bb.ready) add(root, h('div', { class: 'btns gap-8' }, sendNow('Send to your chief of staff', 'quiet')));
+  } else if (st && !n.redoing)
+    add(root, card(
+      (st.problem ? 'warncard' : 'panel') + ' gap-12',
+      p(st.line, st.problem ? 'warn' : ''),
+      h(
+        'div',
+        { class: 'btns gap-8' },
+        st.canRetry ? btn(st.retryLabel, 'outline', () => act(() => api('retryRecording'), null).then(refresh)) : null,
+        st.canSend ? sendNow(st.sendLabel, 'outline') : null,
+        st.canDontSend
+          ? btn("Don't send", 'quiet', async (e) => {
+              const r = await attempt(e.currentTarget, () => api('dontSend', id));
+              if (r) toast(r);
+              render();
+            })
+          : null,
+        st.problem && n.canSendReport
+          ? btn(n.reportLabel, 'quiet', async (e) => {
+              toast('Sending the report…');
+              const r = await attempt(e.currentTarget, () => api('sendReport', id));
+              if (r) toast(r);
+              render();
+            })
+          : null,
+      ),
+    ));
   if (n.chiefReply)
     add(root, card('tint gap-16', label('From your chief of staff'), h('div', { class: 'text pre gap-4', style: 'font-size:15px;user-select:text' }, n.chiefReply), h('div', { class: 'btns gap-8' }, btn('Copy', 'quiet', () => act(() => api('copy', n.chiefReply), toast)))));
   if (n.processingFailed)
@@ -1266,6 +1284,8 @@ async function pageNote(root) {
     add(root, card('', n.steps.map((s, i) => p(s.line, (s.failed ? 'warn' : 'body') + ' small' + (i ? ' gap-4' : '')))));
   }
   const links = h('div', { class: 'btns gap-16' });
+  // Every step and try of this note, with the real errors and its network log: out of the way, one click.
+  links.append(btn('Details', 'quiet', () => open('notedetails', { id })));
   if (n.audio)
     links.append(btn('Delete audio', 'quiet', async () => {
       await attempt(null, () => api('deleteNoteAudio', id));
@@ -1282,6 +1302,23 @@ async function pageNote(root) {
     goBack();
   }, { danger: true }));
   root.append(links);
+}
+
+/** A note's details: every step and try, with what went wrong, and its network log; Copy copies it all. */
+async function pageNoteDetails(root) {
+  const text = await api('noteDetails', ui.params.id);
+  heading(root, 'Details', 'Every step and try of this note, with what went wrong. Copy it to send it on.');
+  add(root, h('div', { class: 'btns gap-8' }, btn('Copy', 'primary', () => act(() => api('copy', text), () => toast('Copied')))));
+  add(root, h('div', { class: 'mono pre gap-12', style: 'font-size:11px;color:var(--ink);user-select:text;white-space:pre-wrap' }, text));
+}
+
+/** The whole network log, newest first on screen (at most 400 lines; Copy copies all). */
+async function pageNetLog(root) {
+  const log = await api('networkLog');
+  heading(root, 'Network log', 'Every request of the last days: when, what, the result, how long, sizes, and the body of error answers. No keys or what you said.');
+  add(root, h('div', { class: 'btns gap-8' }, btn('Copy', 'primary', () => act(() => api('copyNetworkLog'), toast))));
+  const lines = log.split('\n');
+  add(root, h('div', { class: 'mono pre gap-12', style: 'font-size:10px;color:var(--ink);user-select:text;white-space:pre-wrap' }, lines.slice(Math.max(0, lines.length - 400)).reverse().join('\n')));
 }
 
 async function pageActivity(root) {
@@ -1359,7 +1396,7 @@ function pageSettings(root) {
       row({ title: 'Export settings', sub: 'Settings and keys as a file, to move to another Mac', onclick: exportSettings }),
       row({ title: 'Import settings', sub: 'From a file exported on another Mac', onclick: importSettings }),
       row({ title: 'App log', sub: 'Copy it for a bug report', onclick: () => act(() => api('copyAppLog'), toast) }),
-      row({ title: 'Network log', sub: "Every connection to bb, ntfy and the models: copy it when something didn't arrive", onclick: () => act(() => api('copyNetworkLog'), toast) }),
+      row({ title: 'Network log', sub: "Every connection to bb, ntfy and the models, with error answers: see or copy it when something didn't arrive", onclick: () => open('netlog') }),
       prefRow('Window log', 'Logs what opens windows and takes the focus, for a bug report', 'windowLog', S.windowLog),
       row({ title: 'Copy window log', sub: 'Paste it where you report the problem', onclick: () => act(() => api('copyWindowLog'), toast) }),
       row({ title: 'Delete local data', sub: 'Notes, audio, templates, keys, bb sign-in and settings', onclick: deleteLocalData, warn: true })),
@@ -1445,6 +1482,17 @@ async function pageModels(root) {
   });
   add(root, [h('div', { class: 'gap-12' }, sorts), h('div', { class: 'gap-12' }, search), list, foot]);
   await draw();
+  // When the chosen model is busy or rate-limited (HTTP 429, 5xx): another host's model, same key.
+  const fb = (await api('speechModels', '', 'recommended')).fallback;
+  if (fb)
+    add(root, [
+      h('div', { class: 'label gap-16' }, "When it's busy"),
+      p(fb.line, 'muted small gap-4'),
+      h('div', { class: 'gap-8' }, chips(fb.choices.map((c) => [c.id, c.label]), (fb.choices.find((c) => c.on) || { id: '' }).id, async (v) => {
+        await attempt(null, () => api('setPref', 'fallbackModel', v));
+        render();
+      })),
+    ]);
 }
 
 async function pageVoices(root) {
@@ -1929,6 +1977,8 @@ const PAGES = {
   home: pageHome,
   notes: pageNotes,
   note: pageNote,
+  notedetails: pageNoteDetails,
+  netlog: pageNetLog,
   activity: pageActivity,
   usage: pageUsage,
   handsfree: pageHandsFree,
@@ -1966,7 +2016,7 @@ for (const type of ['dragover', 'drop']) document.addEventListener(type, (e) => 
 
 for (const b of document.querySelectorAll('#sidebar .nav')) b.addEventListener('click', () => go(b.dataset.section));
 
-dd.on('navigate', (page) => go(target(page)));
+dd.on('navigate', (page) => (String(page).startsWith('note:') ? go('note', { id: String(page).slice(5) }) : go(target(page))));
 
 dd.on('event', (name, payload) => {
   switch (name) {
@@ -2018,6 +2068,10 @@ window.addEventListener('focus', () => {
   } catch (e) {
     toast(e.message);
   }
-  ui.page = first ? target(first) : S && S.onboarded ? 'home' : 'welcome';
+  if (first.startsWith('note:')) {
+    // From a "not written down / not sent" notification: that note.
+    ui.page = 'note';
+    ui.params = { id: first.slice(5) };
+  } else ui.page = first ? target(first) : S && S.onboarded ? 'home' : 'welcome';
   render(true);
 })();

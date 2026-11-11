@@ -7,6 +7,18 @@ const ob = require('../src/core/outbox');
 const netLog = require('../src/core/net-log');
 const BbBridge = require('../src/core/bb-bridge');
 const { MemoryPrefs } = require('../src/core/store');
+const flow = require('../src/core/note-flow');
+
+/** A note meant for the chief, recorded a minute before at, written down, whose send failed at at (tries times). */
+function failedNote(id, at, tries = 1) {
+  const n = { id, created: at - 60_000, duration: 10, status: 'complete', text: 'Hello' };
+  flow.wantChief(n, at - 50_000);
+  for (let i = 0; i < tries; i++) {
+    flow.beginSend(n, 'r' + id, at);
+    flow.sendFailed(n, 'HTTP 502', at);
+  }
+  return n;
+}
 
 const T = 1_793_460_000_000; // 2026-10-31 16:20:00 in Berlin
 
@@ -21,46 +33,6 @@ test('triesComeFurtherApartUpToAQuarterHour', () => {
   assert.equal(ob.delayMs(6), 600_000);
   assert.equal(ob.delayMs(7), 900_000);
   assert.equal(ob.delayMs(50), 900_000);
-});
-
-test('aFailedNoteIsQueuedWithItsNextTry', () => {
-  const note = { route: 'chief' };
-  ob.failed(note, "bb isn't reachable right now (HTTP 502).", 1, T);
-  assert.equal(ob.state(note), ob.State.RETRYING);
-  assert.equal(note.chiefFailedAt, T);
-  assert.equal(note.chiefNextTry, T + 15_000);
-  assert.ok(!ob.due(note, T + 14_999));
-  assert.ok(ob.due(note, T + 15_000));
-  // The second failure keeps when it first failed and waits longer.
-  ob.failed(note, 'again', 2, T + 20_000);
-  assert.equal(note.chiefFailedAt, T);
-  assert.equal(note.chiefNextTry, T + 20_000 + 30_000);
-  assert.equal(note.chiefTries, 2);
-});
-
-test('afterTwoDaysItIsNoLongerTriedByItself', () => {
-  const note = {};
-  ob.failed(note, 'first', 1, T);
-  ob.failed(note, 'still', 40, T + ob.GIVE_UP_MS);
-  assert.equal(ob.state(note), ob.State.FAILED);
-  assert.ok(!('chiefNextTry' in note));
-  assert.ok(!ob.due(note, T + ob.GIVE_UP_MS * 2));
-});
-
-test('aSentNoteLeavesTheQueueButSaysItTookTries', () => {
-  const note = {};
-  ob.failed(note, '502', 3, T);
-  ob.sent(note);
-  note.chiefThread = 'thr_c';
-  assert.equal(ob.state(note), ob.State.SENT);
-  assert.ok(!('chiefQueued' in note));
-  assert.equal(note.chiefTries, 3);
-  assert.ok('chiefFailedAt' in note);
-});
-
-test('notesFromBeforeTheOutboxCountAsFailed', () => {
-  assert.equal(ob.state({ chiefFailed: 'old' }), ob.State.FAILED);
-  assert.equal(ob.state({}), ob.State.NONE);
 });
 
 test('failuresOfOneRequestBecomeOneEntry', () => {
@@ -140,21 +112,25 @@ function runner({ notes = [], bbUp = true, inCall = false } = {}) {
   let now = T;
   const told = [];
   const sentNotes = [];
+  const modes = [];
+  const notified = [];
   const timers = [];
   const o = new ob.Outbox({
     prefs: new MemoryPrefs(),
     notes: async () => notes,
-    sendNote: async (id) => {
+    sendNote: async (id, mode) => {
       sentNotes.push(id);
+      modes.push(mode);
       const n = notes.find((x) => x.id === id);
       if (!o.bbUp) {
-        ob.failed(n, 'HTTP 502', (n.chiefTries || 0) + 1, now);
+        flow.sendFailed(n, 'HTTP 502', now);
         return 'HTTP 502';
       }
-      ob.sent(n);
-      n.chiefThread = 'thr_c';
+      flow.sendDone(n, 'thr_c', '', now);
       return null;
     },
+    update: async (id, change) => change(notes.find((x) => x.id === id)),
+    notify: (p) => notified.push(p),
     tell: async (id, text) => {
       if (!o.bbUp) throw new Error("bb isn't reachable right now (HTTP 502).");
       told.push({ id, text });
@@ -171,20 +147,19 @@ function runner({ notes = [], bbUp = true, inCall = false } = {}) {
   });
   o.bbUp = bbUp;
   o.inCallNow = inCall;
-  return { o, told, sentNotes, timers, notes, advance: (ms) => (now += ms) };
+  return { o, told, sentNotes, modes, notified, timers, notes, advance: (ms) => (now += ms) };
 }
 
 test('dueNotesGoAndOnceOneWentTheRestAndTheReportFollow', async () => {
-  const a = { id: 'a' };
-  const b = { id: 'b' };
-  ob.failed(a, 'HTTP 502', 1, T - 20_000); // due
-  ob.failed(b, 'HTTP 502', 3, T); // not due for a minute
+  const a = failedNote('a', T - 20_000); // due
+  const b = failedNote('b', T, 3); // not due for a minute
   const r = runner({ notes: [b, a] });
   r.o.failure('chief:ra', 'chief', 'Note to you, request ra', 'HTTP 502');
   assert.equal(await r.o.flush(false), true);
   assert.deepEqual(r.sentNotes, ['a', 'b']);
-  assert.equal(ob.state(a), ob.State.SENT);
-  assert.equal(ob.state(b), ob.State.SENT);
+  assert.deepEqual(r.modes, ['AUTO', 'NOW']);
+  assert.equal(flow.delivery(a, T), flow.Delivery.SENT);
+  assert.equal(flow.delivery(b, T), flow.Delivery.SENT);
   assert.equal(r.told.length, 1);
   assert.ok(r.told[0].text.startsWith('[app failure report]'));
   assert.ok(r.told[0].text.endsWith('Report ID: r-rep1'));
@@ -192,18 +167,16 @@ test('dueNotesGoAndOnceOneWentTheRestAndTheReportFollow', async () => {
 });
 
 test('whileBbIsDownNothingElseIsTriedAndTheNextTryIsScheduled', async () => {
-  const a = { id: 'a' };
-  const b = { id: 'b' };
-  ob.failed(a, 'HTTP 502', 1, T - 20_000);
-  ob.failed(b, 'HTTP 502', 1, T - 20_000);
+  const a = failedNote('a', T - 20_000);
+  const b = failedNote('b', T - 20_000);
   const r = runner({ notes: [a, b], bbUp: false });
   r.o.failure('chief:ra', 'chief', 'Note', 'HTTP 502');
   assert.equal(await r.o.flush(false), false);
   assert.deepEqual(r.sentNotes, ['a']); // b waits: bb can't be reached
   assert.equal(r.told.length, 0);
   assert.equal(a.chiefTries, 2);
-  // The next try: b's (due now), then a's.
-  assert.equal(r.timers[r.timers.length - 1].ms, 0);
+  // The next try: b's (due now, in a few seconds), then a's.
+  assert.equal(r.timers[r.timers.length - 1].ms, 5_000);
 });
 
 test('theReportWaitsUntilTheCallIsOver', async () => {
@@ -230,4 +203,20 @@ test('aReportThatDidntGoIsTriedLaterWithTheSameId', async () => {
   assert.equal(r.told.length, 1);
   assert.ok(r.told[0].text.includes('I tapped Send report at 16:20:00: not sent yet'));
   assert.ok(r.told[0].text.endsWith('Report ID: r-rep1'));
+});
+
+test('anOldNoteIsNeverSentByItselfAndYouAreToldOnce', async () => {
+  // Queued by 0.3.8, which tried for two days: three hours old now.
+  const old = failedNote('old', T - 3 * 3600_000);
+  old.chiefQueued = true;
+  old.chiefNextTry = T - 1000;
+  const r = runner({ notes: [old] });
+  await r.o.flush(false);
+  assert.deepEqual(r.sentNotes, []);
+  assert.equal(old.chiefQueued, undefined);
+  assert.equal(flow.delivery(old, T), flow.Delivery.NEEDS_OK);
+  assert.equal(r.notified.length, 1);
+  assert.equal(r.notified[0].id, 'old');
+  await r.o.flush(false);
+  assert.equal(r.notified.length, 1); // told once
 });

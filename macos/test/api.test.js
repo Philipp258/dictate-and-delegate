@@ -184,17 +184,19 @@ test('sameAcceleratorIgnoresModifierOrder', () => {
 });
 
 test('routeAndBadgeLikeMainActivity', () => {
-  const chief = entry({ id: 'c', chiefThread: 'thr_1' });
-  const failed = entry({ id: 'f', route: 'chief', chiefFailed: 'bb down' });
+  const done = { status: 'complete', text: 'Hi', created: 1, duration: 1 };
+  const chief = entry({ id: 'c', chiefThread: 'thr_1', ...done });
+  const failed = entry({ id: 'f', route: 'chief', chiefFailed: 'bb down', chiefTries: 1, ...done });
   const refined = entry({ id: 'r', processed: 'x' });
   assert.equal(api.routeLabel(chief), 'Sent to chief of staff');
   assert.equal(api.routeLabel(failed), 'Not sent to chief of staff');
   assert.equal(api.routeLabel(refined), 'Refined');
   assert.equal(api.routeLabel(entry({ id: 'p' })), 'Transcript only');
   assert.equal(api.badge({ shown: chief, versions: [chief] }), 'chief of staff');
-  assert.equal(api.badge({ shown: failed, versions: [failed] }), 'not sent');
-  assert.equal(api.badge({ shown: entry({ id: 'x', status: 'pending' }), versions: [] }), 'in progress');
-  assert.equal(api.badge({ shown: entry({ id: 'o', version: 'original' }), versions: [1] }), 'as said');
+  assert.equal(api.badge({ shown: failed, versions: [failed] }), 'chief of staff · not sent');
+  // Not written down: its audio isn't the saved recording here (no dictation), so it's gone.
+  assert.equal(api.badge({ shown: entry({ id: 'x', status: 'pending' }), versions: [] }), 'audio gone');
+  assert.equal(api.badge({ shown: entry({ id: 'o', version: 'original', ...done }), versions: [1] }), 'as said');
   assert.equal(api.checkDetail('text · Apartment application'), 'Refine · Apartment application');
   assert.equal(api.checkDetail('HTTP 500'), null);
 });

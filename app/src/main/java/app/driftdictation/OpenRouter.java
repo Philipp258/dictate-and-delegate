@@ -737,7 +737,9 @@ final class OpenRouter {
         int code = error.optInt("code");
         if (busyStatus(code)) throw new Busy(code, describe(code, text) + " " + tr("(inside an HTTP %1$d answer)", status), 0);
       }
-      throw new IOException(error(status, error == null ? "" : error.optString("message")) + (status >= 300 ? " [" + describe(status, text) + "]" : ""));
+      // The real answer too, unless the words carry it already (a provider's details are added).
+      String message = error == null ? "" : error.optString("message"), words = error(status, message), said = status >= 300 ? describe(status, text) : "";
+      throw new IOException(words + (!said.isEmpty() && (message.isEmpty() || !words.contains(message) || said.contains(" from ")) ? " [" + said + "]" : ""));
     } catch (SocketTimeoutException ex) {
       if (control.cancelled()) throw new Cancelled(ex);
       if (NetLog.classify(ex).equals("connect timeout"))

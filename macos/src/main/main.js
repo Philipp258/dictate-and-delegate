@@ -145,6 +145,13 @@ function start() {
   async function ready() {
     ctx = await createContext({ log: (line) => process.env.DD_TRACE && fs.appendFileSync(process.env.DD_TRACE, line + '\n') });
     ctx.log(`app: Dictate & Delegate ${app.getVersion()} started (Electron ${process.versions.electron}, macOS ${process.getSystemVersion ? process.getSystemVersion() : ''})`);
+    // Fail loudly, never by quitting: a JavaScript error is logged with its stack (Settings → App log)
+    // and shown as a notification; the app, your notes and a saved recording stay.
+    process.on('uncaughtException', (e) => {
+      ctx.log('app: error: ' + ((e && e.stack) || e));
+      problemNotice({ id: '', title: 'Something went wrong in Dictate & Delegate', text: String((e && e.message) || e) + ' (details in Settings → App log)' });
+    });
+    process.on('unhandledRejection', (e) => ctx.log('app: unhandled: ' + ((e && e.stack) || e)));
     audio = new AudioBridge({ log: ctx.log });
     ctx.outbox = createOutbox();
     dictation = createDictation();
@@ -235,6 +242,9 @@ function start() {
     }, 6 * 3600_000);
     // Notes not at the chief yet, and failures not reported: a try now, and when the Mac wakes up.
     ctx.outbox.kick();
+    // A recording left from before (the app quit while recording or writing it down): say so.
+    if (dictation.hasSavedRecording())
+      problemNotice({ id: ctx.prefs.get('sessionId', ''), title: 'Recording not written down', text: 'A saved recording is waiting. Open Dictate & Delegate to retry or discard it.' });
     powerMonitor.on('resume', () => ctx.outbox.kick());
   }
 
@@ -244,7 +254,9 @@ function start() {
     return new Outbox({
       prefs: ctx.prefs,
       notes: async () => ctx.history.list(300, 0).map((e) => e.json),
-      sendNote: (id) => dictation.sendNote(id),
+      sendNote: (id, mode) => dictation.sendNote(id, mode || 'AUTO'),
+      update: (id, change) => dictation.update(id, change),
+      notify: (p) => problemNotice(p),
       tell: (id, text) => ctx.bb.tell(id, text, [], true),
       chiefId: () => ctx.bb.chiefId(),
       connected: () => ctx.bb.connected(),
@@ -270,7 +282,7 @@ function start() {
         stop: () => audio.micStop(),
       },
       hasKey: () => openrouter.hasKey(ctx.vault),
-      transcribe: (wav, words, model) => ctx.openRouter.transcribe(wav, model || ctx.profile.fixedModel(), words),
+      transcribe: (wav, words, model, opts) => ctx.openRouter.transcribe(wav, model || ctx.profile.fixedModel(), words, opts),
       decide: (t, o) => ctx.decide(t, o),
       templates: () => ctx.templates.names(),
       refine: (text, o) => ctx.refine(text, o),
@@ -322,7 +334,36 @@ function start() {
     });
     d.on('notice', (text) => ctx.log(`dictation: ${text}`));
     d.on('notes', (id) => ctx.emit('notes', id));
+    // Fail loudly: a recording not written down or a note not sent is a notification too.
+    d.on('problem', (p) => problemNotice(p));
+    d.on('resolved', (id) => clearProblem(id));
     return d;
+  }
+
+  /** One notification per note that wasn't written down or sent, until it's resolved; a click opens the note. */
+  const problems = new Map();
+  function problemNotice({ id, title, text }) {
+    try {
+      const { Notification } = require('electron');
+      if (!Notification.isSupported()) return;
+      clearProblem(id);
+      const n = new Notification({ title, body: text });
+      n.on('click', () => openMain(id ? 'note:' + id : 'home'));
+      n.show();
+      if (id) problems.set(id, n);
+      ctx.log(`problem: ${title}: ${text}`);
+    } catch (e) {
+      ctx.log(`problem notification: ${e.message}`);
+    }
+  }
+
+  function clearProblem(id) {
+    const n = id && problems.get(id);
+    if (!n) return;
+    problems.delete(id);
+    try {
+      n.close();
+    } catch {}
   }
 
   function toggleDictation() {
@@ -707,7 +748,8 @@ function start() {
       notifierState: () => (notifier ? notifier.state : 'off'),
       dictationState: () => ({ ...dictation.snapshot(), hasSavedRecording: dictation.hasSavedRecording(), recordingId: ctx.prefs.get('recordingId', '') }),
       refineNote: (id, template) => dictation.refineNote(id, template),
-      sendNote: (id) => dictation.sendNote(id),
+      sendNote: (id, mode) => dictation.sendNote(id, mode || 'USER'),
+      updateNote: (id, change) => dictation.update(id, change),
       // Send report: what failed goes to the chief now, or as soon as bb takes messages again.
       sendReport: async (what, why) => {
         ctx.outbox.askReport(what, why);
