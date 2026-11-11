@@ -297,8 +297,10 @@ class RemoteDictation {
     const s = this.active;
     if (!s || s.id !== id) return this.notActive(id, 'stop');
     if (s.phase !== 'listening') return this.tellAgain(s);
-    s.phase = 'stopping';
+    // Told at once (the app that asked waits for it); writing it down follows the microphone's stop.
+    s.phase = 'transcribing';
     this.clearTimer(s);
+    this.tell(s, States.TRANSCRIBING);
     // Not awaited: writing it down can take a while, and the next request mustn't wait for it.
     this.track(this.dictation.stop().catch((ex) => this.log('remote: stop: ' + ((ex && ex.stack) || ex))));
   }

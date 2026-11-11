@@ -195,7 +195,10 @@ test('aRemoteStartRecordsForTheChiefAndAStopSendsItWithTheContext', async () => 
   assert.equal(listening.at, h.clock.now);
 
   h.mic.speak(1200);
-  await h.request('dictate-stop');
+  await h.remote.message({ id: 'stop1', time: Math.floor(h.clock.now / 1000), event: 'message', title: 'Drum Along', message: 'End the dictation and send it.', tags: ['dd-remote', 'dictate-stop', 'session-drum-1'] }, 'https://ntfy.example');
+  await h.remote.requests.idle();
+  assert.deepEqual(h.states(), ['listening', 'transcribing'], 'transcribing is told as the stop arrives');
+  await h.settle();
   assert.deepEqual(h.states(), ['listening', 'transcribing', 'sent']);
   const done = h.last();
   assert.equal(done.text, 'turn the tempo up to one twenty');
@@ -442,7 +445,7 @@ test('noSpeechIsAFailure', async () => {
   const h = harness();
   await h.request('dictate-start');
   await h.request('dictate-stop'); // nothing recorded
-  assert.deepEqual(h.states(), ['listening', 'failed']);
+  assert.deepEqual(h.states(), ['listening', 'transcribing', 'failed']);
   assert.match(h.last().error, /No audio captured/);
 });
 

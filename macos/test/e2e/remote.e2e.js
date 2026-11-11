@@ -41,7 +41,7 @@ module.exports = async function (dd) {
         throw new Error(e.message + ' ' + JSON.stringify(await states(session)) + ' dictation ' + JSON.stringify(d.snapshot()).slice(0, 400));
       });
     const ask = (action, session, body = '', headers = {}) =>
-      fetch(`${ntfy.url}/${remoteTopic}`, { method: 'POST', headers: { Title: 'Drum Along', Tags: `dd-remote,${action},session-${session}`, ...headers }, body });
+      fetch(`${ntfy.url}/${remoteTopic}`, { method: 'POST', headers: { Title: 'Drum Along', Priority: 'high', Tags: `dd-remote,${action},session-${session}`, ...headers }, body });
 
     // 1. Start, record, stop: sent to the chief with the context; every state told.
     await or.post('/test/script', { transcribe: [{ text: 'Play the chorus again, a bit slower.', cost: 0.001 }] });
@@ -53,8 +53,10 @@ module.exports = async function (dd) {
     assert.equal(d.snapshot().session.chief, 'queued', 'for the chief from the start');
     assert.match(d.snapshot().detail, /started by Drum Along/);
     await sleep(2000);
-    await ask('dictate-stop', 'kit-1');
-    await waitState('kit-1', 'transcribing');
+    const stopAt = Date.now();
+    await ask('dictate-stop', 'kit-1', 'End the dictation and send it.');
+    await waitState('kit-1', 'transcribing', 3000); // the bridge waits 10 s for it
+    console.log(`E2E remote: transcribing told ${Date.now() - stopAt} ms after the stop was published`);
     const sent = await waitState('kit-1', 'sent');
     assert.equal(sent.text, 'Play the chorus again, a bit slower.');
     const message = (await tells()).find((c) => c.includes('Play the chorus again'));
