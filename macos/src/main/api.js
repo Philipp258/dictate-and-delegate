@@ -235,6 +235,7 @@ function validators() {
     micDevice: text(300),
     bubbleOpacity: int(20, 100),
     macNotifications: bool,
+    remoteDictation: bool,
     [MAC_VOICE]: text(200),
   };
 }
@@ -672,6 +673,7 @@ function createMethods(ctx, shell = {}, push = () => {}) {
         callHotkey: (await call('callHotkey')) ?? prefs.get('callHotkey', CALL_HOTKEY_DEFAULT),
         hotkeyProblems: (await call('hotkeyProblems')) || {},
         notifier: (await call('notifierState')) || '',
+        remote: (await call('remoteState')) || null,
         labels: {
           speech: modelName(profile.fixedModel()),
           speechPerMinute: perMinute(profile.fixedModel()),
@@ -734,6 +736,7 @@ function createMethods(ctx, shell = {}, push = () => {}) {
           micDevice: prefs.get('micDevice', ''),
           bubbleOpacity: Number(prefs.get('bubbleOpacity', 65)),
           macNotifications: prefs.get('macNotifications', true) !== false,
+          remoteDictation: prefs.get('remoteDictation', true) !== false,
           macVoice: prefs.get(MAC_VOICE, ''),
         },
         retainAudio: prefs.get('retainAudio', true) !== false,

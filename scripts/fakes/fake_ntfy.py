@@ -2,7 +2,8 @@
 """A fake ntfy server for tests: what the chief's paste messages and Dictate & Delegate's stream need.
 
   POST|PUT /<topic>          publish: the body is the message; Title/X-Title, Tags/X-Tags/ta,
-                             Actions/X-Actions and Click headers are kept
+                             Actions/X-Actions, Click and Priority/X-Priority/p headers are kept
+                             (X-Fake-Time: unix seconds to give the message, for tests of old ones)
   GET /<topic>/json          the JSON stream ntfy serves: an "open" event, the messages since
                              ?since=<unix seconds> (or "all"), then new ones as they're published,
                              with a keepalive every 20 s; ?poll=1 sends what's there and closes
@@ -75,10 +76,20 @@ class Handler(BaseHTTPRequestHandler):
         if click:
             m["click"] = click
         actions = header(self.headers, "X-Actions", "Actions", "Action")
+        priority = header(self.headers, "X-Priority", "Priority", "Prio", "p")
+        if priority:
+            names = {"min": 1, "low": 2, "default": 3, "high": 4, "max": 5, "urgent": 5}
+            m["priority"] = names.get(priority.lower(), int(priority) if priority.isdigit() else 3)
+        fake_time = header(self.headers, "X-Fake-Time")
+        if fake_time.isdigit():
+            m["time"] = int(fake_time)
+        entry = {"method": "publish", "topic": topic, "title": title, "tags": tags,
+                 "actions": actions, "message": m["message"]}
+        if priority:
+            entry["priority"] = m["priority"]
         with lock:
             messages.append(m)
-            log.append({"method": "publish", "topic": topic, "title": title, "tags": tags,
-                        "actions": actions, "message": m["message"]})
+            log.append(entry)
             lock.notify_all()
         self.reply(200, m)
 

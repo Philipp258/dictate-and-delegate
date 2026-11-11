@@ -448,7 +448,8 @@ class Dictation extends EventEmitter {
    * clock() → ms, timers { setTimeout, clearTimeout }, log(line), uuid() → string, requestId() → string.
    *
    * Events: 'change' (snapshot) on every change; 'notice' (text) where Android shows a toast, e.g.
-   * while the panel is hidden; 'notes' (note id) after a note was saved.
+   * while the panel is hidden; 'notes' (note id) after a note was saved; 'cancelled' when ✕ threw
+   * a recording away; 'handedToCall' when 📞 made it a hands-free call.
    */
   constructor(o = {}) {
     super();
@@ -765,7 +766,12 @@ class Dictation extends EventEmitter {
 
   // ---------------------------------------------------------------- recording
 
-  async start() {
+  /**
+   * Starts a dictation. remote (Mac, remote dictation): { session, by, context, at } when another
+   * app asked for it; it's for the chief from the start, as a Chief tap while recording (saved at
+   * once), and the note keeps who asked and the context to send along.
+   */
+  async start({ remote = null } = {}) {
     if (this.busy() || this.destroyed) return;
     if (this.pending.exists()) {
       this.hidden = false;
@@ -782,6 +788,14 @@ class Dictation extends EventEmitter {
       this.prefs.set('sessionModel', this.fixedModel());
       this.prefs.set('sessionId', this.uuid());
       this.prefs.set('sessionCreated', this.clock());
+      this.prefs.remove('sessionRemote');
+      this.prefs.remove('sessionHeld');
+      if (remote) {
+        this.prefs.set('sessionRemote', remote);
+        this.session.chief = QUEUED;
+        this.session.chiefAuto = false;
+        this.prefs.set('sessionIntent', { at: this.clock() });
+      }
       this.recordFailure = null;
       this.pending.create();
       this.capturing = true;
@@ -805,7 +819,10 @@ class Dictation extends EventEmitter {
     // User controls the lifetime. No timeout or voice-activity/silence detector ends recording.
     this.started = this.clock();
     this.hidden = false;
-    this.transition(RECORDING, tr('Recording until you tap Stop. Switch apps freely.'));
+    this.transition(
+      RECORDING,
+      remote ? tr('Recording for %1$s, started by %2$s.', tr('your chief of staff'), remote.by) : tr('Recording until you tap Stop. Switch apps freely.'),
+    );
     this.tick();
     if (this.recordFailure) this.stopRecording(false);
   }
@@ -875,6 +892,17 @@ class Dictation extends EventEmitter {
     else await this.upload();
   }
 
+  /**
+   * Mac, remote dictation: stops and writes it down, but it doesn't go to the chief by itself; it
+   * waits under Needs you until the user reads it and clicks Send. why: in words, for the note.
+   */
+  async stopToKeep(why) {
+    if (this.state !== RECORDING) return;
+    if (this.session.chief === QUEUED) this.session.chief = IDLE; // The note keeps its intent; it waits for Send.
+    this.prefs.set('sessionHeld', String(why));
+    return this.stopRecording(true);
+  }
+
   /** ✕ while recording: the audio is thrown away, nothing is transcribed or sent, so it costs nothing. */
   async cancel() {
     if (this.state !== RECORDING) return;
@@ -894,6 +922,7 @@ class Dictation extends EventEmitter {
       return;
     }
     this.emit('notice', tr('Cancelled. Nothing was transcribed or sent.'));
+    this.emit('cancelled');
     this.transition(READY, READY_DETAIL);
   }
 
@@ -929,6 +958,7 @@ class Dictation extends EventEmitter {
       this.log('call: ' + friendly(ex));
       this.emit('notice', friendly(ex));
     }
+    this.emit('handedToCall');
     this.transition(READY, READY_DETAIL);
   }
 
@@ -992,11 +1022,25 @@ class Dictation extends EventEmitter {
         entry.recordingId = this.prefs.get('recordingId', sessionId);
         entry.created = this.prefs.get('sessionCreated', this.clock());
         if (this.prefs.get('sessionInterrupted', false) === true) entry.interrupted = true;
+        // Started by another app (Mac, remote dictation): who asked, and the context to send along.
+        const remote = this.prefs.get('sessionRemote', null);
+        if (remote && typeof remote === 'object') entry.remote = remote;
         // The Chief tapped while recording: the note is for the chief.
         const chosen = this.prefs.get('sessionIntent', null);
         if (chosen && typeof chosen === 'object') {
           flow.wantChief(entry, Number(chosen.at) || this.clock());
-          flow.event(entry, Number(chosen.at) || this.clock(), 'you chose to send it to the chief while recording');
+          flow.event(
+            entry,
+            Number(chosen.at) || this.clock(),
+            entry.remote
+              ? 'started by ' + entry.remote.by + ' for the chief (remote dictation, session ' + entry.remote.session + ')'
+              : 'you chose to send it to the chief while recording',
+          );
+        }
+        const held = this.prefs.get('sessionHeld', '');
+        if (held) {
+          entry.held = String(held);
+          flow.event(entry, this.clock(), "stopped, and it doesn't go by itself: " + held);
         }
         await this.saveNote(entry);
       }
@@ -1190,7 +1234,7 @@ class Dictation extends EventEmitter {
     } catch {
       throw new DictationError(tr('Could not update history.'));
     }
-    for (const key of ['sessionModel', 'sessionId', 'sessionCreated', 'recordingId', 'sessionIntent', 'sessionInterrupted']) this.prefs.remove(key);
+    for (const key of ['sessionModel', 'sessionId', 'sessionCreated', 'recordingId', 'sessionIntent', 'sessionInterrupted', 'sessionRemote', 'sessionHeld']) this.prefs.remove(key);
     if (id) this.emit('notes', id);
   }
 
@@ -1413,7 +1457,7 @@ class Dictation extends EventEmitter {
     const entry = await this.loadNote(id);
     if (!entry) return tr('This note was deleted.');
     // chiefText: the user sent it from a redo's version, whose words go.
-    const said = typeof entry.chiefText === 'string' ? entry.chiefText : saidOf(entry);
+    const said = withContext(typeof entry.chiefText === 'string' ? entry.chiefText : saidOf(entry), entry.remote);
     let chief = null;
     try {
       chief = this.chiefThread();
@@ -1698,6 +1742,17 @@ class Dictation extends EventEmitter {
   }
 }
 
+/**
+ * What goes to the chief: what was said, then the context of the app that started the dictation
+ * (remote dictation), as its own block, so it's never mistaken for what was said.
+ */
+function withContext(said, remote) {
+  const context = remote && typeof remote === 'object' ? String(remote.context || '').trim() : '';
+  if (!context) return said;
+  const by = String(remote.by || 'another app').replace(/["<>]/g, "'");
+  return String(said).trim() + '\n\n<context from="' + by + '">\n' + context + '\n</context>';
+}
+
 function stopHandle(h) {
   if (!h) return;
   try {
@@ -1714,6 +1769,7 @@ module.exports = {
   MemoryPendingAudio,
   FilePendingAudio,
   friendly,
+  withContext,
   readChunk,
   wav,
   appendText,

@@ -5,7 +5,7 @@ description: "How to read messages from Dictate & Delegate, the voice app on {{N
 
 # Dictate & Delegate
 
-Messages from Dictate & Delegate are voice dictations, written down by a speech model, so expect the odd misheard word. Text the user pasted follows the dictation in `<pasted>` blocks. Each message ends with `[request: <id>]`.
+Messages from Dictate & Delegate are voice dictations, written down by a speech model, so expect the odd misheard word. Text the user pasted follows the dictation in `<pasted>` blocks. A dictation that another app started can carry that app's context after what was said, in a `<context from="…">` block: background from that app, not the user's words. Each message ends with `[request: <id>]`.
 
 **Stay responsive: delegate.** Do only one quick lookup or one command you already know yourself. Everything beyond that (research, browser actions, comparisons, debugging, retries after a failure) goes to a child thread with a clear brief (context, intent, what done looks like), and you keep answering:
 

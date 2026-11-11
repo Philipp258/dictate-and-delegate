@@ -1678,6 +1678,16 @@ async function pageStart(root) {
     strong('Hands-free shortcut', 'gap-16'),
     p('Starts a hands-free call with your chief; pressed during a call, it ends it.', 'muted small gap-4'),
     h('div', { class: 'gap-8' }, recorder('call'))));
+  const remote = S.remote || {};
+  const connection = { open: 'Listening for requests', retrying: 'Connection lost, trying again', off: 'Not listening: no ntfy topic yet (Settings → Notifications)' }[remote.connection] || remote.connection || '';
+  add(root, [
+    label('Started from another app'),
+    card('list',
+      prefRow('Let your assistant start a dictation',
+        'Something outside, such as a gesture in another app, can ask your assistant to start a dictation here. It records as with your shortcut and goes to your chief of staff when it says stop, with that app\'s context added. Requests come through your ntfy topic with “-remote” added, and that app is told each step. When this is off, it is told so.',
+        'remoteDictation', S.mac.remoteDictation)),
+    connection ? p(connection + (remote.last ? ' · Last: ' + remote.last : ''), 'muted small gap-8') : null,
+  ]);
   const method = S.mac.insertMethod;
   const pick = (v) => async () => {
     await attempt(null, () => api('setPref', 'insertMethod', v));

@@ -25,6 +25,7 @@ const { createContext } = require('./context');
 const { AudioBridge } = require('./audio-bridge');
 const insertion = require('./insert');
 const { Notifier } = require('./notifier');
+const { RemoteDictation } = require('../core/remote-dictation');
 const { Dictation, FilePendingAudio } = require('../core/dictation');
 const { Outbox } = require('../core/outbox');
 const netLog = require('../core/net-log');
@@ -64,7 +65,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 function start() {
-  let ctx, audio, dictation, panel, mainWindow, notifier, call, updater;
+  let ctx, audio, dictation, panel, mainWindow, notifier, call, updater, remote;
   let pendingUrls = [];
   const callListeners = new Set();
 
@@ -204,18 +205,24 @@ function start() {
     } catch (e) {
       ctx.log(`app: settings API not loaded (${e.message})`);
     }
+    remote = createRemote();
     registerHotkeys();
     ctx.on('settings', (key) => {
       if (key === HOTKEY || key === CALL_HOTKEY) registerHotkeys();
       if (['ntfyServer', 'bbMode', 'bbHandle', 'bbUrl', 'chiefId', 'macNotifications'].includes(key)) notifier.refresh();
+      remote.refresh(); // Cheap: it reconnects only when the server or topic changed.
     });
-    ctx.on('skills', () => notifier.refresh());
+    ctx.on('skills', () => {
+      notifier.refresh();
+      remote.refresh();
+    });
     notifier.refresh();
+    remote.refresh();
     // Keep the chief's skills current (they carry the topic, name and links), as Android does on start.
     if (ctx.bb.connected()) ctx.skills.sync(false);
     for (const url of pendingUrls.splice(0)) handleUrl(url);
     if (process.env.DD_E2E) {
-      global.__dd = { ctx, audio, dictation: () => dictation, panel: () => panel, call: () => call, openMain, panelAction, startCall, toggleDictation, notifier: () => notifier, mainWindow: () => mainWindow, activation, updater: () => updater };
+      global.__dd = { ctx, audio, dictation: () => dictation, panel: () => panel, call: () => call, openMain, panelAction, startCall, toggleDictation, notifier: () => notifier, remote: () => remote, mainWindow: () => mainWindow, activation, updater: () => updater };
       const done = (code, message) => {
         const line = message + '\n';
         if (process.env.DD_TRACE) fs.appendFileSync(process.env.DD_TRACE, line);
@@ -338,6 +345,33 @@ function start() {
     d.on('problem', (p) => problemNotice(p));
     d.on('resolved', (id) => clearProblem(id));
     return d;
+  }
+
+  // ---------------------------------------------------------------- remote dictation
+
+  /** Another app starts a dictation for the chief through <topic>-remote (core/remote-dictation.js). */
+  function createRemote() {
+    return new RemoteDictation({
+      dictation,
+      prefs: ctx.prefs,
+      loadNote: async (id) => ctx.history.load(id),
+      endpoint: () => {
+        try {
+          return ctx.bb.hasNtfyTopic() ? { server: ctx.bb.ntfyServer(), topic: ctx.bb.ntfyTopic() } : null;
+        } catch {
+          return null;
+        }
+      },
+      checks: {
+        inCall: () => !!(call && call.active()),
+        chiefReady: () => ctx.bb.ready(),
+        hasKey: () => openrouter.hasKey(ctx.vault),
+        microphone: () => (process.platform === 'darwin' ? systemPreferences.getMediaAccessStatus('microphone') : 'granted'),
+      },
+      problem: ({ title, text }) => problemNotice({ id: '', title, text }),
+      log: ctx.log,
+      version: app.getVersion(),
+    });
   }
 
   /** One notification per note that wasn't written down or sent, until it's resolved; a click opens the note. */
@@ -746,6 +780,7 @@ function start() {
         return insertion.insert(text, { method: ctx.prefs.get(INSERT_METHOD, 'paste'), log: ctx.log });
       },
       notifierState: () => (notifier ? notifier.state : 'off'),
+      remoteState: () => (remote ? remote.status() : null),
       dictationState: () => ({ ...dictation.snapshot(), hasSavedRecording: dictation.hasSavedRecording(), recordingId: ctx.prefs.get('recordingId', '') }),
       refineNote: (id, template) => dictation.refineNote(id, template),
       sendNote: (id, mode) => dictation.sendNote(id, mode || 'USER'),

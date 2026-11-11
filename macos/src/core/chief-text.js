@@ -381,7 +381,8 @@ function classify(m) {
  * oldest first, from sinceSeconds (default: now) on. Reconnects after a dropped connection with a
  * growing pause (minBackoffMs doubling up to maxBackoffMs, back to the start once a connection
  * works), resuming after the last message seen; messages are told apart by their id. onState(
- * "open"|"retrying", error) says how the connection stands. Returns {stop, done}.
+ * "open"|"retrying", error) says how the connection stands; what names it in the network log.
+ * Returns {stop, done}.
  */
 function subscribe({
   server,
@@ -394,6 +395,7 @@ function subscribe({
   maxBackoffMs = 60_000,
   idleMs = 90_000,
   clock = () => Date.now(),
+  what = 'ntfy subscription',
 }) {
   const controller = new AbortController();
   let stopped = false;
@@ -422,7 +424,7 @@ function subscribe({
         await readStream(fetchImpl, streamUrl(server, topic, since, false), {
           signal: controller.signal,
           idleMs,
-          what: 'ntfy subscription',
+          what,
           secret: topic,
           reconnect,
           onLine: async (m) => {

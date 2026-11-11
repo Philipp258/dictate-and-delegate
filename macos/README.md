@@ -49,6 +49,17 @@ and your saved keys stay.
 - **⌃⌥⇧Space** starts or ends a **hands-free call** (or 📞 on the panel while dictating; pressed
   while dictating, the call takes the dictation over). The call bar shows the state, Send now and
   the red hang-up; during a call ⌃⇧Space and the headset's play/pause button send.
+- **Remote dictation** (Settings → Start → "Let your assistant start a dictation", on by default;
+  Mac only): something outside, through your assistant, starts a dictation for the chief over ntfy,
+  on your topic with `-remote` added (so the phone never sees it). Requests are messages tagged
+  `dd-remote`, one of `dictate-start` / `dictate-stop` / `dictate-cancel`, and `session-<id>`
+  (`[A-Za-z0-9_-]{4,40}`); the title names who asks, and a start's message is context sent to the
+  chief after what was said, in a `<context from="…">` block. Requests more than 20 s old (ntfy's
+  `time`) do nothing. The Mac answers on the same topic (tags `dd-remote,dictate-state,session-<id>`,
+  priority min) with a JSON body `{session, state, text?, request?, error?, app, at}`, state one of
+  listening, transcribing, sent (the transcript and request ID), failed (why), cancelled, expired.
+  Without a stop within 2 minutes it stops; the note is written down but waits under Needs you.
+  Ending it on the Mac (shortcut, Stop, ✕, 📞) is told too. Code: `src/core/remote-dictation.js`.
 - The Dock icon opens the window with everything else: notes, settings, and the call.
 - **Copy network log** (Settings → bb, Settings → Data, Hands-free → Recent events) copies a line
   for every network request of the last 7 days (at most 1,000), to find out why something didn't

@@ -18,7 +18,9 @@
 // - Every try of either step is logged on the note (log), with its real error.
 //
 // Mac: one assistant, so `assistant` is always 0; the fields are the Android ones so notes read
-// the same.
+// the same. Mac only (remote dictation): `remote` says which app started it ({ session, by,
+// context, at }); `held` (why, in words) means it was stopped without going by itself, so it waits
+// for Send like one cut off without Stop.
 
 const { tr } = require('./util');
 
@@ -85,6 +87,7 @@ function fresh(n, now) {
   const ok = num(n.chiefOkAt);
   // Cut off without Stop (the microphone, quitting): it may be half a sentence, so it waits for the user.
   if (n.interrupted === true && ok === 0) return false;
+  if (n.held && ok === 0) return false;
   if (num(n.stoppedAt) > ok) return false;
   return now - anchor(n) <= AUTO_MS;
 }
@@ -253,6 +256,7 @@ function when(ms, now) {
 function waitReason(n, now) {
   const ok = num(n.chiefOkAt);
   if (num(n.stoppedAt) > ok) return tr('you stopped it');
+  if (n.held && ok === 0) return String(n.held);
   if (n.interrupted === true && ok === 0) return tr('the recording was cut off without Stop');
   return tr('it was recorded %1$s', when(recordedAt(n), now));
 }
@@ -364,6 +368,12 @@ function details(n, statusLine, netLines, app) {
           ? 'the chief (from before 0.4.0)'
           : 'just a dictation') +
     '\n';
+  if (n.remote && typeof n.remote === 'object')
+    s +=
+      'Started by: ' + (n.remote.by || '?') + ' (remote dictation, session ' + (n.remote.session || '?') + ', ' + full(n.remote.at) + ')' +
+      (n.remote.context ? ', context sent along: ' + String(n.remote.context).replace(/\s+/g, ' ') : ', no context') +
+      '\n';
+  if (n.held) s += "Doesn't go by itself: " + n.held + '\n';
   if (has(n, 'chiefOkAt')) s += 'Send tapped: ' + full(n.chiefOkAt) + '\n';
   s += 'Writing down: ' + (n.status || '');
   if (has(n, 'transcribeFailed')) s += ' · failed: ' + n.transcribeFailed;
