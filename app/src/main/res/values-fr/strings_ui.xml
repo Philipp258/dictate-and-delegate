@@ -401,6 +401,7 @@
     <string name="t_73c2d986" formatted="false">Enregistré, chiffré · Affiner utilise tes crédits Anthropic</string>
     <string name="t_74350de7" formatted="false">À propos</string>
     <string name="t_749dd663" formatted="false">%1$s · Anthropic, ta clé</string>
+    <string name="t_7578d138" formatted="false">Copier tous les appels conservés</string>
     <string name="t_75c4b7f4" formatted="false">pas encore envoyé</string>
     <string name="t_75cfcf01" formatted="false">Se déconnecter</string>
     <string name="t_76010d0f" formatted="false">Rien pour l\'instant.</string>
@@ -628,6 +629,7 @@
     <string name="t_b6cac25b_one" formatted="false">%1$d fichier</string>
     <string name="t_b6cac25b_other" formatted="false">%1$d fichiers</string>
     <string name="t_b70ef253" formatted="false">Le fournisseur du modèle a rencontré un problème (HTTP %1$d). L\'enregistrement est conservé ; réessaie.</string>
+    <string name="t_b72ee5d7" formatted="false">La transcription en direct n\'a donné aucun mot pour %1$.1f s de ta parole : transcrit depuis l\'audio</string>
     <string name="t_b73899b6" formatted="false">Utiliser Dictate &amp; Delegate</string>
     <string name="t_b7425b3c" formatted="false">Distinguer ta voix du bruit de fond</string>
     <string name="t_b7db5df4" formatted="false">Tester la connexion</string>

@@ -401,6 +401,7 @@
     <string name="t_73c2d986" formatted="false">Salva, criptografada · Refinar usa teus créditos Anthropic</string>
     <string name="t_74350de7" formatted="false">Sobre</string>
     <string name="t_749dd663" formatted="false">%1$s · Anthropic, tua chave</string>
+    <string name="t_7578d138" formatted="false">Copiar todas as chamadas guardadas</string>
     <string name="t_75c4b7f4" formatted="false">ainda não enviada</string>
     <string name="t_75cfcf01" formatted="false">Terminar sessão</string>
     <string name="t_76010d0f" formatted="false">Nada ainda.</string>
@@ -628,6 +629,7 @@
     <string name="t_b6cac25b_one" formatted="false">%1$d arquivo</string>
     <string name="t_b6cac25b_other" formatted="false">%1$d arquivos</string>
     <string name="t_b70ef253" formatted="false">O fornecedor do modelo teve um problema (HTTP %1$d). A gravação foi guardada; tenta novamente.</string>
+    <string name="t_b72ee5d7" formatted="false">A transcrição ao vivo não trouxe palavras em %1$.1f s da tua fala: transcrito a partir do áudio</string>
     <string name="t_b73899b6" formatted="false">Usar o Dictate &amp; Delegate</string>
     <string name="t_b7425b3c" formatted="false">Distinguir a tua voz do fundo</string>
     <string name="t_b7db5df4" formatted="false">Testar ligação</string>

@@ -3953,6 +3953,17 @@ public final class MainActivity extends Activity {
               toast(tr("Copied. Paste it where you report the problem."));
             }),
         6);
+    // Every call the phone still keeps (its last 1000 lines), for a call further back than three.
+    ui.add(
+        content,
+        ui.button(
+            tr("Copy all kept calls"),
+            Ui.Kind.OUTLINE,
+            v -> {
+              DictationService.copy(this, lastCalls(Integer.MAX_VALUE));
+              toast(tr("Copied. Paste it where you report the problem."));
+            }),
+        6);
     String[] lines = log.split("\n");
     TextView events =
         ui.mono(String.join("\n", java.util.Arrays.copyOfRange(lines, Math.max(0, lines.length - 80), lines.length)), 11, Ui.MUTED);

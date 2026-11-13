@@ -403,6 +403,7 @@
     <string name="t_73c2d986" formatted="false">Saved, encrypted · Refine uses your Anthropic credits</string>
     <string name="t_74350de7" formatted="false">About</string>
     <string name="t_749dd663" formatted="false">%1$s · Anthropic, your key</string>
+    <string name="t_7578d138" formatted="false">Copy all kept calls</string>
     <string name="t_75c4b7f4" formatted="false">not sent yet</string>
     <string name="t_75cfcf01" formatted="false">Sign out</string>
     <string name="t_76010d0f" formatted="false">Nothing yet.</string>
@@ -633,6 +634,7 @@
     <string name="t_b6cac25b_one" formatted="false">%1$d file</string>
     <string name="t_b6cac25b_other" formatted="false">%1$d files</string>
     <string name="t_b70ef253" formatted="false">The model provider had a problem (HTTP %1$d). The recording is kept; try again.</string>
+    <string name="t_b72ee5d7" formatted="false">Live transcription brought no words for %1$.1f s of your speech: written down from its audio</string>
     <string name="t_b73899b6" formatted="false">Using Dictate &amp; Delegate</string>
     <string name="t_b7425b3c" formatted="false">Telling your voice from the background</string>
     <string name="t_b7db5df4" formatted="false">Test connection</string>

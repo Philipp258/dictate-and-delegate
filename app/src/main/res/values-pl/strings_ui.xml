@@ -403,6 +403,7 @@
     <string name="t_73c2d986" formatted="false">Zapisano, zaszyfrowano · Dopracuj używa Twoich środków w Anthropic</string>
     <string name="t_74350de7" formatted="false">Informacje</string>
     <string name="t_749dd663" formatted="false">%1$s · Anthropic, Twój klucz</string>
+    <string name="t_7578d138" formatted="false">Kopiuj wszystkie zachowane rozmowy</string>
     <string name="t_75c4b7f4" formatted="false">jeszcze nie wysłano</string>
     <string name="t_75cfcf01" formatted="false">Wyloguj się</string>
     <string name="t_76010d0f" formatted="false">Jeszcze nic.</string>
@@ -633,6 +634,7 @@
     <string name="t_b6cac25b_one" formatted="false">%1$d plik</string>
     <string name="t_b6cac25b_other" formatted="false">%1$d pliku</string>
     <string name="t_b70ef253" formatted="false">Wystąpił problem u dostawcy modelu (HTTP %1$d). Nagranie zostało zachowane; spróbuj ponownie.</string>
+    <string name="t_b72ee5d7" formatted="false">Transkrypcja na żywo nie dała słów przez %1$.1f s twojej mowy: spisano z nagrania</string>
     <string name="t_b73899b6" formatted="false">Korzystanie z Dictate &amp; Delegate</string>
     <string name="t_b7425b3c" formatted="false">Odróżnianie Twojego głosu od tła</string>
     <string name="t_b7db5df4" formatted="false">Testuj połączenie</string>

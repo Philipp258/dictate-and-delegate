@@ -399,6 +399,7 @@
     <string name="t_73c2d986" formatted="false">Opgeslagen, versleuteld · Verfijnen gebruikt je Anthropic-tegoed</string>
     <string name="t_74350de7" formatted="false">Over</string>
     <string name="t_749dd663" formatted="false">%1$s · Anthropic, jouw sleutel</string>
+    <string name="t_7578d138" formatted="false">Alle bewaarde gesprekken kopiëren</string>
     <string name="t_75c4b7f4" formatted="false">nog niet verzonden</string>
     <string name="t_75cfcf01" formatted="false">Uitloggen</string>
     <string name="t_76010d0f" formatted="false">Nog niets.</string>
@@ -623,6 +624,7 @@
     <string name="t_b6cac25b_one" formatted="false">%1$d bestand</string>
     <string name="t_b6cac25b_other" formatted="false">%1$d bestanden</string>
     <string name="t_b70ef253" formatted="false">Er was een probleem bij de modelprovider (HTTP %1$d). De opname is bewaard; probeer het opnieuw.</string>
+    <string name="t_b72ee5d7" formatted="false">Live transcriptie gaf geen woorden voor %1$.1f s van je spraak: uit de audio uitgeschreven</string>
     <string name="t_b73899b6" formatted="false">Dictate &amp; Delegate gebruiken</string>
     <string name="t_b7425b3c" formatted="false">Je stem onderscheiden van de achtergrond</string>
     <string name="t_b7db5df4" formatted="false">Verbinding testen</string>

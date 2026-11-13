@@ -1860,10 +1860,15 @@ public class HandsFreeTest {
     // Send pressed before the first live words came (or a short turn they never came for).
     Fake f = new Fake("Book the table.");
     new FakeLive(f);
+    List<HandsFreeSession.Cue> cues = new CopyOnWriteArrayList<>();
+    f.session.cues = cues::add;
     f.quiet(1000);
     f.talk();
     until(() -> f.session.pending().equals("Book the table."));
     assertTrue(String.join("\n", f.log).contains("no live text for 1."));
+    // Not silent: no preview this turn, so it's on screen and heard.
+    assertTrue(reasons(f), reasons(f).contains("Live transcription brought no words for 1."));
+    assertTrue(cues.toString(), cues.contains(HandsFreeSession.Cue.FAILED));
     f.session.sendNow();
     until(() -> f.sent.size() == 1);
     assertEquals("Book the table.", f.sent.get(0));
@@ -2989,11 +2994,14 @@ public class HandsFreeTest {
   }
 
   @Test
-  public void liveTranscriptionWithoutItsKeySaysSoForAWhileOnTheCallBarAndAllCallOnScreen() throws Exception {
+  public void liveTranscriptionWithoutItsKeySaysSoAllCallOnTheCallBarWithASound() throws Exception {
     Fake f = new Fake();
+    List<HandsFreeSession.Cue> cues = new CopyOnWriteArrayList<>();
+    f.session.cues = cues::add;
     assertEquals("", f.session.liveKeyMissing());
     assertFalse(HandsFreeService.liveOffShown(f.session));
     f.session.liveKeyMissing("AssemblyAI");
+    assertEquals("heard, not only shown", List.of(HandsFreeSession.Cue.FAILED), cues);
     String off = "Live transcription is off: no AssemblyAI key (Settings → Hands-free)";
     assertTrue(reasons(f), reasons(f).startsWith(off));
     assertTrue(String.join("\n", f.log), String.join("\n", f.log).contains("→ " + off));
@@ -3004,10 +3012,9 @@ public class HandsFreeTest {
     assertEquals("Voice failed · Kokoro: HTTP 503", HandsFreeService.shortLabel(f.session));
     f.now.addAndGet(HandsFreeSession.VOICE_ERROR_MS);
     assertEquals("Live off · no AssemblyAI key", HandsFreeService.shortLabel(f.session));
-    // A minute on the call bar; on the screen the whole call.
+    // On the call bar the whole call (not only its first minute), and on the screen.
     f.now.addAndGet(HandsFreeSession.LIVE_OFF_MS - HandsFreeSession.VOICE_ERROR_MS);
-    assertFalse(HandsFreeService.liveOffShown(f.session));
-    assertEquals("Listening", HandsFreeService.shortLabel(f.session));
+    assertEquals("Live off · no AssemblyAI key", HandsFreeService.shortLabel(f.session));
     assertEquals("AssemblyAI", f.session.liveKeyMissing());
   }
 
@@ -3168,11 +3175,15 @@ public class HandsFreeTest {
   public void speechWithoutLiveWordsSaysSoUntilWordsCome() throws Exception {
     Fake f = new Fake("");
     FakeLive live = new FakeLive(f);
+    List<HandsFreeSession.Cue> cues = new CopyOnWriteArrayList<>();
+    f.session.cues = cues::add;
     f.quiet(1000);
     // Speech counts from when it took the turn (0.4 s in): 0.8 s, then 1.2 s each.
     for (int i = 0; i < 4; i++) f.speak();
     assertEquals("", f.session.trouble());
+    assertFalse(cues.contains(HandsFreeSession.Cue.FAILED));
     f.speak();
+    assertEquals("heard once, not only shown", 1, java.util.Collections.frequency(cues, HandsFreeSession.Cue.FAILED));
     assertTrue(f.session.trouble(), f.session.trouble().startsWith("No words for 5 s of sound"));
     assertEquals("No words for 5 s", f.session.troubleShort());
     assertTrue(reasons(f), reasons(f).contains("No words came for 5 s of sound"));

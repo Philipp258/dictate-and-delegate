@@ -752,6 +752,7 @@ final class HandsFreeSession {
   String troubleShort() {
     LiveText l = live;
     if (l != null && !l.working()) return tr("No live text · words at pauses");
+    if (!liveOff.isEmpty()) return tr("Live off · no %1$s key", liveOff); // The whole call, not only its start.
     long ms = speechSinceWords.get();
     if (streaming() && ms >= NO_WORDS_MS) return tr("No words for %1$d s", ms / 1000);
     return "";
@@ -1054,6 +1055,7 @@ final class HandsFreeSession {
       log(String.format(java.util.Locale.ROOT, "live transcription: no words for %d s of speech (background %.0f; it %s)", now / 1000, segmenter.background(),
           l == null ? "isn't there" : l.working() ? "says it's working" : "failed"));
       reason("No words came for %1$d s of sound: live transcription may not be working, or it's noise", now / 1000);
+      cue(Cue.FAILED); // Heard too: the screen may not be in sight (driving).
     } else if (now >= NO_WORDS_MS && now / 1000 != was / 1000) listener.changed(); // The seconds on screen.
   }
 
@@ -1189,6 +1191,7 @@ final class HandsFreeSession {
     liveOff = provider;
     liveOffAt = clock.getAsLong();
     reason("Live transcription is off: no %1$s key (Settings → Hands-free)", provider);
+    cue(Cue.FAILED); // Heard too: no preview and no instant send word all call.
   }
 
   /** The provider whose key live transcription is missing this call, "" when it isn't. */
@@ -2149,6 +2152,7 @@ final class HandsFreeSession {
           streamed = false;
           log(String.format(java.util.Locale.ROOT, "live text looks stuck (%d words for %.1f s of speech): this turn is written down from its audio", words, seconds));
           reason("Live transcription looks stuck (%1$d words for %2$.0f s): your words are written down instead", words, seconds);
+          cue(Cue.FAILED);
         }
       }
       String liveText = null;
@@ -2166,6 +2170,9 @@ final class HandsFreeSession {
         if (streamed && liveText.isEmpty() && !audio.isEmpty()) {
           // Audio but no live words (yet): written down from the audio rather than dropped.
           log(String.format(java.util.Locale.ROOT, "no live text for %.1f s of your speech: written down from its audio", seconds));
+          // Not silent: no preview this turn, and a send word in it waits for the pause.
+          reason("Live transcription brought no words for %1$.1f s of your speech: written down from its audio", seconds);
+          if (speechSinceWords.get() < NO_WORDS_MS) cue(Cue.FAILED); // Else it sounded already (noWords).
           streamed = false;
           offLive = why.equals("pause");
           liveWas = l.text().length();

@@ -399,6 +399,7 @@
     <string name="t_73c2d986" formatted="false">Gespeichert, verschlüsselt · Verfeinern nutzt dein Anthropic-Guthaben</string>
     <string name="t_74350de7" formatted="false">Über</string>
     <string name="t_749dd663" formatted="false">%1$s · Anthropic, eigener Schlüssel</string>
+    <string name="t_7578d138" formatted="false">Alle gespeicherten Anrufe kopieren</string>
     <string name="t_75c4b7f4" formatted="false">noch nicht gesendet</string>
     <string name="t_75cfcf01" formatted="false">Abmelden</string>
     <string name="t_76010d0f" formatted="false">Noch nichts da.</string>
@@ -623,6 +624,7 @@
     <string name="t_b6cac25b_one" formatted="false">%1$d Datei</string>
     <string name="t_b6cac25b_other" formatted="false">%1$d Dateien</string>
     <string name="t_b70ef253" formatted="false">Der Modellanbieter hatte ein Problem (HTTP %1$d). Die Aufnahme bleibt erhalten; versuche es erneut.</string>
+    <string name="t_b72ee5d7" formatted="false">Die Live-Transkription brachte für %1$.1f s deiner Sprache keine Worte: aus der Aufnahme aufgeschrieben</string>
     <string name="t_b73899b6" formatted="false">Dictate &amp; Delegate nutzen</string>
     <string name="t_b7425b3c" formatted="false">Deine Stimme vom Hintergrund unterscheiden</string>
     <string name="t_b7db5df4" formatted="false">Verbindung testen</string>
