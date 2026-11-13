@@ -140,6 +140,7 @@
     <string name="t_27a3f255" formatted="false">Senden: Nicht als Sprache Gewertetes wird aufgeschrieben, dann gesendet</string>
     <string name="t_27a92292" formatted="false">bb hat die Anmeldung nicht erlaubt.</string>
     <string name="t_27c5b8ea" formatted="false">Schlüssel entfernen</string>
+    <string name="t_27dba3d7" formatted="false">keine Antwort in %1$d s</string>
     <string name="t_280e7831" formatted="false">Deine Auswahl konnte nicht in der Notiz gespeichert werden: %1$s</string>
     <string name="t_2893e4d7" formatted="false">Anweisungsprüfung</string>
     <string name="t_289c316d" formatted="false">Aufgeschrieben. Sie geht nicht von selbst an %1$s (%2$s): Lies sie in der Notiz und tippe dann auf Senden.</string>
@@ -159,6 +160,7 @@
     <string name="t_2cad992e" formatted="false">Datei</string>
     <string name="t_2ce33943" formatted="false">Standard</string>
     <string name="t_2d53863e" formatted="false">Zu diesem Diktat hinzufügen</string>
+    <string name="t_2d68f394" formatted="false">Anruf abgebrochen: nichts wurde gesendet.</string>
     <string name="t_2d8e320f" formatted="false">Bericht wird gesendet…</string>
     <string name="t_2dace0e0" formatted="false">Erlaube Dictate &amp; Delegate zuerst den Mikrofonzugriff.</string>
     <string name="t_2dad13e3" formatted="false">Sprache</string>
@@ -221,6 +223,7 @@
     <string name="t_3e520da4" formatted="false">Beende Anruf: du hast dich verabschiedet</string>
     <string name="t_3e5678cd" formatted="false">Am schnellsten</string>
     <string name="t_3ebb7bec" formatted="false">Verfeinern</string>
+    <string name="t_3ed1699b" formatted="false">Die Anrufleiste kann nicht über anderen Apps erscheinen. Beende den Anruf über seine Benachrichtigung oder auf Home.</string>
     <string name="t_3ed47f18" formatted="false">Aufschreiben dauerte über %1$.0f s: versuche es noch einmal</string>
     <string name="t_3eef8148_one" formatted="false">%1$d Version</string>
     <string name="t_3eef8148_other" formatted="false">%1$d Versionen</string>
@@ -328,9 +331,11 @@
     <string name="t_5a337533" formatted="false">Nötige Sprechdauer, um dran zu sein, innerhalb von 1,5 Sekunden (Sekunden)</string>
     <string name="t_5a36973e" formatted="false">Text wird verfeinert…</string>
     <string name="t_5a6e8ec5" formatted="false">Noch keine Ereignisse. Sie erscheinen hier nach deinem ersten Gespräch im Freisprechen.</string>
+    <string name="t_5aea46a7" formatted="false">%1$s ist nicht eingerichtet: Einstellungen → bb. Es wurde kein Anruf gestartet.</string>
     <string name="t_5afff0dd" formatted="false">Wische nach unten, bearbeite die Schnelleinstellungen und füge Dictate &amp; Delegate hinzu.</string>
     <string name="t_5b08232c" formatted="false">Spracherkennung</string>
     <string name="t_5bc4deda" formatted="false">%1$s $ pro Million Zeichen</string>
+    <string name="t_5c4323d8" formatted="false">Der Anruf konnte nicht starten: %1$s. Nichts wurde gesendet.</string>
     <string name="t_5c53b93a" formatted="false">Mikrofon wurde unterbrochen. Gespeichertes Audio kann wiederholt werden.</string>
     <string name="t_5c9445ff" formatted="false">Der Name in deiner bb-Adresse: &lt;handle&gt;.getbb.app. Dein Browser öffnet die Kontoseite von bb; autorisiere Dictate &amp; Delegate dort.</string>
     <string name="t_5cacb072" formatted="false">Dieser Anruf bisher: %1$s</string>
@@ -460,6 +465,7 @@
     <string name="t_863d2a86" formatted="false">🧑‍💼 Chief</string>
     <string name="t_86657af4" formatted="false">Geräusch direkt nach der Antwort ignoriert (Mikrofon pausiert)</string>
     <string name="t_86889c2c" formatted="false">✓  %1$s (%2$s) erstellt.</string>
+    <string name="t_86c0d448" formatted="false">Verbinde mit deinem Chief…</string>
     <string name="t_874caa6a" formatted="false">Mikrofon nicht verfügbar.</string>
     <string name="t_87747dc3" formatted="false">Über Kachel oder Lautstärketaste starten; Einfügen setzt den Text an die Cursorposition.</string>
     <string name="t_8831703d" formatted="false">Chief: %1$s</string>
@@ -478,6 +484,7 @@
     <string name="t_8bf10d56" formatted="false">Verwerfen</string>
     <string name="t_8c8185ec" formatted="false">An %1$s senden</string>
     <string name="t_8cb43c6e" formatted="false">Stimme fehlgeschlagen: %1$s</string>
+    <string name="t_8cbf9011" formatted="false">keine Berechtigung für das Mikrofon</string>
     <string name="t_8cc9e4c3" formatted="false">📎 Hinzufügen</string>
     <string name="t_8d448705" formatted="false">Eine frühere Aufnahme ist aufgeschrieben. Sie ist in deinen Notizen.</string>
     <string name="t_8d8041f9" formatted="false">Deine Stimme muss um diesen Faktor lauter als der Hintergrund sein</string>
@@ -615,6 +622,7 @@
     <string name="t_b48c5f39" formatted="false">Jev · nichts startet von selbst</string>
     <string name="t_b4c82195" formatted="false">Dictate &amp; Delegate nutzt Sprach- und Textmodelle über OpenRouter mit deinem eigenen Key. Du zahlst OpenRouter direkt für deine Nutzung; Dictate &amp; Delegate hat keinen Server und nimmt keinen Anteil.</string>
     <string name="t_b50cba8b" formatted="false">Vom Chief einfügen</string>
+    <string name="t_b5384083" formatted="false">%1$s ist nicht erreichbar: %2$s. Der Anruf wurde beendet; nichts wurde gesendet.</string>
     <string name="t_b561b378" formatted="false">1 · Kachel in den Schnelleinstellungen</string>
     <string name="t_b5ae1bae" formatted="false">bb</string>
     <string name="t_b60e80e5" formatted="false">zu groß, um so weitergeleitet zu werden</string>
@@ -687,11 +695,13 @@
     <string name="t_c73cbcb8" formatted="false">Speichern und testen</string>
     <string name="t_c7ad7feb" formatted="false">Keine Verbindung zu OpenRouter. Prüfe deine Internetverbindung und versuche es erneut.</string>
     <string name="t_c7b2a2f8" formatted="false">noch kein Schlüssel</string>
+    <string name="t_c7ef5d40" formatted="false">Anruf fehlgeschlagen</string>
     <string name="t_c8210626" formatted="false">Sprachausgabe-Modell</string>
     <string name="t_c82c4a5b" formatted="false">Update auf %1$s</string>
     <string name="t_c82c6114" formatted="false">Sie ist für keinen Chief gedacht.</string>
     <string name="t_c90e13f1" formatted="false">Nur an Talker gesendet. Der Chief hat es nicht erhalten: %1$s</string>
     <string name="t_c96b1a45" formatted="false">Startet…</string>
+    <string name="t_c99694b4" formatted="false">Verbinde…</string>
     <string name="t_c997df74" formatted="false">bb hat die Anmeldung abgelehnt: %1$s</string>
     <string name="t_c998a38e" formatted="false">Audio ist abgelaufen oder wurde gelöscht. Text ist weiterhin gespeichert.</string>
     <string name="t_c9e76ec6" formatted="false">Live-Transkription ist aus: kein %1$s-Schlüssel (Einstellungen → Freisprechen)</string>
@@ -783,6 +793,7 @@
     <string name="t_e1a58ddc" formatted="false">Geht jetzt an %1$s.</string>
     <string name="t_e1a911fe" formatted="false">Schlüssel gespeichert</string>
     <string name="t_e1b8de72" formatted="false">Meldet sich von seinem bb ab und vergisst hier seinen Chief und seine Einstellungen. Seine Notizen bleiben; noch nicht gesendete werden nicht erneut versucht. In bb ändert sich nichts.</string>
+    <string name="t_e1cbbe5a" formatted="false">Fehlgeschlagene Anrufe</string>
     <string name="t_e24b4cba" formatted="false">Anmeldung fehlgeschlagen: %1$s</string>
     <string name="t_e2530adf" formatted="false">Hier einfügen</string>
     <string name="t_e2774654" formatted="false">In ntfy öffnen</string>
@@ -839,6 +850,7 @@
     <string name="t_ef0f5831" formatted="false">Zweiter Assistent</string>
     <string name="t_ef217ee7" formatted="false">Erneut versuchen</string>
     <string name="t_ef3fb140" formatted="false">Nicht senden</string>
+    <string name="t_ef5e0754" formatted="false">das Mikrofon ließ sich nicht öffnen</string>
     <string name="t_efc1065a" formatted="false">Nicht verbunden</string>
     <string name="t_efcb8ba3" formatted="false">die Verbindung ist abgebrochen</string>
     <string name="t_f01551fb" formatted="false">Aufnahme enthält keine lesbaren Audiodaten.</string>

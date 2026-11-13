@@ -1856,6 +1856,34 @@ public class HandsFreeTest {
   }
 
   @Test
+  public void theCallBarSaysConnectingUntilTheChiefIsReachedAndACancelledCallSendsNothing() throws Exception {
+    Fake f = new Fake("Book the table.");
+    assertFalse(f.session.sentAny());
+    f.session.reaching(true);
+    assertEquals("Connecting…", HandsFreeService.shortLabel(f.session));
+    assertEquals("Connecting to your chief…", HandsFreeService.liveLabel(f.session));
+    f.session.reaching(false);
+    assertEquals("Listening", HandsFreeService.shortLabel(f.session));
+    // Words said, then the call cancelled (unreachable, or ended right away): none of them go.
+    f.quiet(1000);
+    f.talk();
+    f.session.end(false);
+    Thread.sleep(300);
+    assertEquals(List.of(), f.sent);
+    assertFalse(f.session.sentAny());
+  }
+
+  @Test
+  public void anEndedCallHasSentWhatWasHandedOver() throws Exception {
+    Fake f = new Fake("Book the table.");
+    f.quiet(1000);
+    f.talk();
+    f.session.sendNow();
+    until(() -> f.sent.size() == 1);
+    assertTrue(f.session.sentAny());
+  }
+
+  @Test
   public void audioWithoutLiveTextIsWrittenDownNotDropped() throws Exception {
     // Send pressed before the first live words came (or a short turn they never came for).
     Fake f = new Fake("Book the table.");

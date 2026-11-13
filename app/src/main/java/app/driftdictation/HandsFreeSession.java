@@ -1465,6 +1465,23 @@ final class HandsFreeSession {
   /** Not done yet, but you're quiet: Jev said so at your pause; your next speech ends it. */
   private volatile boolean heldBack;
 
+  /** The call's chief hasn't been reached yet (HandsFreeService.reach): the call bar says so. */
+  private volatile boolean reaching;
+
+  void reaching(boolean on) {
+    reaching = on;
+    listener.changed();
+  }
+
+  boolean reaching() {
+    return reaching;
+  }
+
+  /** Has any message of this call been handed over to go (sent or on its way)? */
+  synchronized boolean sentAny() {
+    return handedOff > 0;
+  }
+
   /** Ends the call. What you said but didn't send yet is sent first. */
   void end() {
     end(true);

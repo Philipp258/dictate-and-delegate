@@ -140,6 +140,7 @@
     <string name="t_27a3f255" formatted="false">Wyślij: zapisuję to, co nie było mową, i wysyłam</string>
     <string name="t_27a92292" formatted="false">bb nie zezwoliło na logowanie.</string>
     <string name="t_27c5b8ea" formatted="false">Usuń klucz</string>
+    <string name="t_27dba3d7" formatted="false">brak odpowiedzi w %1$d s</string>
     <string name="t_280e7831" formatted="false">Nie udało się zapisać Twojego wyboru w notatce: %1$s</string>
     <string name="t_2893e4d7" formatted="false">Sprawdzanie poleceń</string>
     <string name="t_289c316d" formatted="false">Przetranskrybowano. Nie wyśle się samo do: %1$s (%2$s). Przeczytaj je w notatce i dotknij Wyślij.</string>
@@ -159,6 +160,7 @@
     <string name="t_2cad992e" formatted="false">Plik</string>
     <string name="t_2ce33943" formatted="false">Domyślne</string>
     <string name="t_2d53863e" formatted="false">Dodaj do tego dyktowania</string>
+    <string name="t_2d68f394" formatted="false">Rozmowa anulowana: nic nie wysłano.</string>
     <string name="t_2d8e320f" formatted="false">Wysyłanie raportu…</string>
     <string name="t_2dace0e0" formatted="false">Najpierw zezwól Dictate &amp; Delegate na dostęp do mikrofonu.</string>
     <string name="t_2dad13e3" formatted="false">Język</string>
@@ -221,6 +223,7 @@
     <string name="t_3e520da4" formatted="false">Kończę połączenie: pożegnałeś się</string>
     <string name="t_3e5678cd" formatted="false">Najszybszy</string>
     <string name="t_3ebb7bec" formatted="false">Dopracuj</string>
+    <string name="t_3ed1699b" formatted="false">Pasek rozmowy nie może się wyświetlić nad innymi aplikacjami. Zakończ rozmowę z powiadomienia lub na ekranie głównym.</string>
     <string name="t_3ed47f18" formatted="false">Zapisywanie trwało ponad %1$.0f s: ponawiam próbę</string>
     <string name="t_3eef8148_few" formatted="false">%1$d wersje</string>
     <string name="t_3eef8148_many" formatted="false">%1$d wersji</string>
@@ -332,9 +335,11 @@
     <string name="t_5a337533" formatted="false">Mowa wymagana do przejęcia kolejki, w ciągu 1,5 s (sekundy)</string>
     <string name="t_5a36973e" formatted="false">Dopracowywanie tekstu…</string>
     <string name="t_5a6e8ec5" formatted="false">Brak zdarzeń. Pojawią się tutaj po wykonaniu połączenia w trybie głośnomówiącym.</string>
+    <string name="t_5aea46a7" formatted="false">%1$s nie jest skonfigurowany: Ustawienia → bb. Nie rozpoczęto rozmowy.</string>
     <string name="t_5afff0dd" formatted="false">Przesuń w dół, edytuj Szybkie ustawienia i dodaj Dictate &amp; Delegate.</string>
     <string name="t_5b08232c" formatted="false">Mowa na tekst</string>
     <string name="t_5bc4deda" formatted="false">$%1$s za milion znaków</string>
+    <string name="t_5c4323d8" formatted="false">Nie udało się rozpocząć rozmowy: %1$s. Nic nie wysłano.</string>
     <string name="t_5c53b93a" formatted="false">Praca mikrofonu została przerwana. Zapisany dźwięk można ponowić.</string>
     <string name="t_5c9445ff" formatted="false">Nazwa w Twoim adresie bb: &lt;nazwa&gt;.getbb.app. Przeglądarka otworzy stronę konta bb; zatwierdź tam Dictate &amp; Delegate.</string>
     <string name="t_5cacb072" formatted="false">Dotychczasowy przebieg rozmowy: %1$s</string>
@@ -466,6 +471,7 @@
     <string name="t_863d2a86" formatted="false">🧑‍💼 Szef</string>
     <string name="t_86657af4" formatted="false">Zignorowano dźwięk tuż po odpowiedzi (mikrofon wstrzymany)</string>
     <string name="t_86889c2c" formatted="false">✓  Utworzono %1$s (%2$s).</string>
+    <string name="t_86c0d448" formatted="false">Łączenie z twoim chiefem…</string>
     <string name="t_874caa6a" formatted="false">Mikrofon jest niedostępny.</string>
     <string name="t_87747dc3" formatted="false">Uruchamiaj kafelkiem lub klawiszem głośności; opcja Wstaw umieszcza tekst tam, gdzie piszesz.</string>
     <string name="t_8831703d" formatted="false">Szef: %1$s</string>
@@ -484,6 +490,7 @@
     <string name="t_8bf10d56" formatted="false">Odrzuć</string>
     <string name="t_8c8185ec" formatted="false">Wyślij do: %1$s</string>
     <string name="t_8cb43c6e" formatted="false">Błąd głosu: %1$s</string>
+    <string name="t_8cbf9011" formatted="false">brak uprawnienia do mikrofonu</string>
     <string name="t_8cc9e4c3" formatted="false">📎 Dodaj</string>
     <string name="t_8d448705" formatted="false">Wcześniejsze nagranie zostało przetranskrybowane. Jest w notatkach.</string>
     <string name="t_8d8041f9" formatted="false">Twój głos musi być tyle razy głośniejszy od tła</string>
@@ -623,6 +630,7 @@
     <string name="t_b48c5f39" formatted="false">Jev · nic nie startuje samo</string>
     <string name="t_b4c82195" formatted="false">Dictate &amp; Delegate łączy się z modelami mowy i tekstu przez OpenRouter przy użyciu Twojego klucza. Płacisz OpenRouter za rzeczywiste zużycie; Dictate &amp; Delegate nie ma serwera i nie pobiera prowizji.</string>
     <string name="t_b50cba8b" formatted="false">Wstaw od szefa</string>
+    <string name="t_b5384083" formatted="false">Nie można połączyć się z %1$s: %2$s. Rozmowa zakończona; nic nie wysłano.</string>
     <string name="t_b561b378" formatted="false">1 · Kafel szybkich ustawień</string>
     <string name="t_b5ae1bae" formatted="false">bb</string>
     <string name="t_b60e80e5" formatted="false">jest zbyt duże, aby przekazać w ten sposób</string>
@@ -699,11 +707,13 @@
     <string name="t_c73cbcb8" formatted="false">Zapisz i przetestuj</string>
     <string name="t_c7ad7feb" formatted="false">Brak połączenia z OpenRouter. Sprawdź połączenie z internetem i spróbuj ponownie.</string>
     <string name="t_c7b2a2f8" formatted="false">brak klucza</string>
+    <string name="t_c7ef5d40" formatted="false">Rozmowa nieudana</string>
     <string name="t_c8210626" formatted="false">Model tekstu na mowę</string>
     <string name="t_c82c4a5b" formatted="false">Aktualizacja do %1$s</string>
     <string name="t_c82c6114" formatted="false">Nie jest przeznaczone dla szefa sztabu.</string>
     <string name="t_c90e13f1" formatted="false">Wysłano tylko do mówcy. Szef tego nie otrzymał: %1$s</string>
     <string name="t_c96b1a45" formatted="false">Uruchamianie…</string>
+    <string name="t_c99694b4" formatted="false">Łączenie…</string>
     <string name="t_c997df74" formatted="false">bb odrzuciło logowanie: %1$s</string>
     <string name="t_c998a38e" formatted="false">Dźwięk wygasł lub został usunięty. Tekst jest nadal zapisany.</string>
     <string name="t_c9e76ec6" formatted="false">Transkrypcja na żywo jest wyłączona: brak klucza %1$s (Ustawienia → Tryb głośnomówiący)</string>
@@ -795,6 +805,7 @@
     <string name="t_e1a58ddc" formatted="false">Teraz wysyłane do: %1$s.</string>
     <string name="t_e1a911fe" formatted="false">klucz zapisany</string>
     <string name="t_e1b8de72" formatted="false">Wylogowuje z jego bb i zapomina tu jego szefa i ustawienia. Notatki zostają; jeszcze niewysłane nie będą ponawiane. W bb nic się nie zmienia.</string>
+    <string name="t_e1cbbe5a" formatted="false">Nieudane rozmowy</string>
     <string name="t_e24b4cba" formatted="false">Logowanie nie powiodło się: %1$s</string>
     <string name="t_e2530adf" formatted="false">Wstaw tutaj</string>
     <string name="t_e2774654" formatted="false">Otwórz w ntfy</string>
@@ -853,6 +864,7 @@
     <string name="t_ef0f5831" formatted="false">Drugi asystent</string>
     <string name="t_ef217ee7" formatted="false">Ponów</string>
     <string name="t_ef3fb140" formatted="false">Nie wysyłaj</string>
+    <string name="t_ef5e0754" formatted="false">nie udało się otworzyć mikrofonu</string>
     <string name="t_efc1065a" formatted="false">Nie połączono</string>
     <string name="t_efcb8ba3" formatted="false">połączenie zostało zerwane</string>
     <string name="t_f01551fb" formatted="false">Nagranie nie zawiera czytelnego dźwięku.</string>

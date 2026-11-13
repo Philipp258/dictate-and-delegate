@@ -62,6 +62,21 @@ public final class HandsFreeService extends Service {
     HandsFreeService s = instance;
     return s == null ? -1 : s.assistant;
   }
+  /**
+   * A call is going on (not one that ended and is still telling its chief so): what the volume
+   * keys, Home and the panels go by. A call that ended never blocks the next one.
+   */
+  static boolean inCall() {
+    HandsFreeService s = instance;
+    return s != null && s.session != null && !s.callEnded;
+  }
+
+  /** The assistant of the call going on (inCall), -1 without one. */
+  static int activeWith() {
+    HandsFreeService s = instance;
+    return s != null && s.session != null && !s.callEnded ? s.assistant : -1;
+  }
+
   static final String CHANNEL = "hands_free";
 
   static volatile HandsFreeService instance;
@@ -166,7 +181,12 @@ public final class HandsFreeService extends Service {
       case SEND -> {
         if (session != null) session.sendNow();
       }
-      case END -> finish();
+      case END -> {
+        // End always works: during a call it ends it; once ended (still telling the chief), a
+        // second End stops that too, at once.
+        if (callEnded || session == null) stopNow();
+        else finish();
+      }
       default -> {}
     }
     return START_NOT_STICKY;
@@ -177,13 +197,43 @@ public final class HandsFreeService extends Service {
         4,
         notification(),
         ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE | ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
-    if (session != null) {
-      // One call at a time: a call with the other assistant waits until this one ends.
+    if (session != null && !callEnded) {
+      // One call at a time: a call with the other assistant waits until this one ends. Its call
+      // bar comes back, so it can be seen and ended.
       if (with != assistant)
         android.widget.Toast.makeText(this, tr("A call with %1$s is on. End it first.", Assistants.name(this, assistant)), android.widget.Toast.LENGTH_LONG).show();
+      if (panel != null)
+        try {
+          panel.show();
+        } catch (RuntimeException ex) {
+          noPanel(ex.getMessage());
+        }
+      else noPanel(null);
       return;
     }
+    if (!BbBridge.ready(this, with)) {
+      // Not set up: no call at all, said at once.
+      refused(tr("%1$s isn't set up: Settings → bb. No call was started.", Assistants.name(this, with)));
+      return;
+    }
+    try {
+      startCall(seed, atX, atY, with);
+    } catch (RuntimeException ex) {
+      event("couldn't start the call: " + ex);
+      HandsFreeSession s = session;
+      if (s != null) {
+        callDropped.set(true);
+        finish(true, tr("Couldn't start the call: %1$s. Nothing was sent.", String.valueOf(ex.getMessage())), true);
+      } else refused(tr("Couldn't start the call: %1$s. Nothing was sent.", String.valueOf(ex.getMessage())));
+    }
+  }
+
+  private void startCall(String seed, int atX, int atY, int with) {
     callEnded = false;
+    reached = false;
+    callDropped = new java.util.concurrent.atomic.AtomicBoolean();
+    final java.util.concurrent.atomic.AtomicBoolean dropped = callDropped;
+    startedAt = android.os.SystemClock.elapsedRealtime();
     assistant = with;
     withName = Assistants.several(this) ? Assistants.name(this, assistant) : "";
     SharedPreferences prefs = getSharedPreferences("settings", MODE_PRIVATE);
@@ -231,6 +281,9 @@ public final class HandsFreeService extends Service {
               return r.text();
             },
             (said, request) -> {
+              // A call that was cancelled or couldn't reach its assistant sends nothing, also
+              // what was already on its way.
+              if (dropped.get()) throw new java.io.IOException("the call was cancelled: not sent");
               try {
                 if (callTalker.isEmpty()) {
                   bb.sendHandsFree(bb.chiefId(), said, request);
@@ -347,7 +400,7 @@ public final class HandsFreeService extends Service {
             Math.max(HandsFree.Segmenter.WINDOW_MS, HandsFree.takeMs(prefs) * 3 / 2),
             HandsFree.gate(prefs)));
     if (!talker.isEmpty()) event("talker " + talker + ": every message goes to it and to the chief");
-    signal(bb, HandsFree.CALL_STARTED);
+    reach(bb, callId);
     if (seed != null) {
       try {
         java.io.File f = new java.io.File(seed);
@@ -393,6 +446,7 @@ public final class HandsFreeService extends Service {
     wake.setReferenceCounted(false);
     wake.acquire(4 * 60 * 60_000L);
     if (!noMicrophone) startMicrophone();
+    if (callEnded) return; // The microphone failed: the call ended (said why); no call bar for it.
     // The call floats over other apps (with the overlay permission the dictation panel uses too).
     if (android.provider.Settings.canDrawOverlays(this)) {
       panel =
@@ -422,8 +476,9 @@ public final class HandsFreeService extends Service {
         panel.show();
       } catch (RuntimeException ex) {
         panel = null;
+        noPanel(ex.getMessage());
       }
-    }
+    } else noPanel(null);
     main.post(ticker);
     main.post(meterTicker);
     changed();
@@ -432,7 +487,8 @@ public final class HandsFreeService extends Service {
   @SuppressLint("MissingPermission") // Checked right here.
   private void startMicrophone() {
     if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-      finish();
+      callDropped.set(true);
+      finish(true, tr("Couldn't start the call: %1$s. Nothing was sent.", tr("no permission to use the microphone")), true);
       return;
     }
     int minimum =
@@ -449,7 +505,8 @@ public final class HandsFreeService extends Service {
     if (recorder.getState() != AudioRecord.STATE_INITIALIZED) {
       recorder.release();
       recorder = null;
-      finish();
+      callDropped.set(true);
+      finish(true, tr("Couldn't start the call: %1$s. Nothing was sent.", tr("the microphone couldn't be opened")), true);
       return;
     }
     // Talking over a reply relies on it: say in the log whether this phone has it.
@@ -794,6 +851,7 @@ public final class HandsFreeService extends Service {
     HandsFreeSession.Live live = s.live();
     String failed = voiceFailure(s);
     if (failed != null) return tr("Voice failed: %1$s", failed);
+    if (s.reaching() && live != HandsFreeSession.Live.ENDED) return tr("Connecting to your chief…");
     return switch (live) {
       case HEARING -> tr("Hearing you");
       case WRITING ->
@@ -819,6 +877,7 @@ public final class HandsFreeService extends Service {
   static String shortLabel(HandsFreeSession s) {
     String failed = voiceFailure(s);
     if (failed != null) return tr("Voice failed · %1$s", brief(failed));
+    if (s.reaching() && s.live() != HandsFreeSession.Live.ENDED) return tr("Connecting…");
     if (liveOffShown(s)) return tr("Live off · no %1$s key", s.liveKeyMissing());
     if (troubleShown(s)) return s.troubleShort();
     return switch (s.live()) {
@@ -914,7 +973,7 @@ public final class HandsFreeService extends Service {
     // Collapsed: the state and the last words heard; expanded also what's wrong, all your unsent
     // words and the latest decision.
     String words = s == null ? "" : wordsLine(s), trouble = s == null ? "" : s.trouble();
-    String first = s == null ? tr("Starting…") : liveLabel(s) + (words.isEmpty() ? "" : " · " + words);
+    String first = s == null ? (callEnded ? tr("Ended") : tr("Starting…")) : liveLabel(s) + (words.isEmpty() ? "" : " · " + words);
     String text =
         s == null
             ? first
@@ -956,7 +1015,140 @@ public final class HandsFreeService extends Service {
   /** The call ended (finish), until the next one starts. */
   private volatile boolean callEnded;
 
-  private synchronized void finish() {
+  /** The chief was told the call started (reach): it's reachable. */
+  private volatile boolean reached;
+
+  /** This call sends nothing more (cancelled, or its assistant unreachable): checked before each message. */
+  private volatile java.util.concurrent.atomic.AtomicBoolean callDropped = new java.util.concurrent.atomic.AtomicBoolean();
+
+  /** When this call started (elapsedRealtime). */
+  private volatile long startedAt;
+
+  /** How long the chief may take to hear the call started before the call ends as unreachable. */
+  static final long REACH_MS = 25_000;
+
+  /** Ended this soon after its start, with nothing sent yet: a cancelled call, nothing of it goes. */
+  static final long CANCEL_MS = 15_000;
+
+  /**
+   * Tells the chief the call started; if that fails (or takes past REACH_MS), the assistant isn't
+   * reachable: the call ends at once, heard and seen, and nothing of it is sent.
+   */
+  private void reach(BbBridge bb, String call) {
+    HandsFreeSession s = session;
+    if (s != null) s.reaching(true);
+    String chief = bb.chiefId(), callTalker = talker;
+    int callAssistant = bb.assistant;
+    Runnable late = () -> unreachable(call, tr("no answer in %1$d s", (int) (REACH_MS / 1000)));
+    main.postDelayed(late, REACH_MS);
+    new Thread(
+            () -> {
+              java.util.Map<String, String> failed;
+              java.util.Map<String, String> to = bothTo(chief, callTalker, HandsFree.callStarted(callTalker), HandsFree.TALKER_CALL_STARTED);
+              try {
+                if (!callTalker.isEmpty()) ChiefSkills.safelyTellTalker(this, callAssistant);
+                failed = bb.tellEach(to);
+              } catch (RuntimeException ex) {
+                failed = java.util.Map.of(chief, String.valueOf(ex.getMessage()));
+              }
+              for (String id : to.keySet()) {
+                String who = id.equals(chief) ? "the chief" : "the talker (" + id + ")";
+                if (failed.containsKey(id)) event("couldn't tell " + who + " " + to.get(id) + ": " + failed.get(id));
+                else event("told " + who + ": " + to.get(id));
+              }
+              String why = failed.get(chief);
+              main.post(
+                  () -> {
+                    main.removeCallbacks(late);
+                    if (why != null) {
+                      unreachable(call, why);
+                      return;
+                    }
+                    if (!call.equals(callId) || callEnded) return;
+                    reached = true;
+                    HandsFreeSession now = session;
+                    if (now != null) now.reaching(false);
+                    changed();
+                  });
+            },
+            "call-reach")
+        .start();
+  }
+
+  /** The call's assistant can't be reached: the call ends now, nothing of it is sent. */
+  private void unreachable(String call, String why) {
+    if (!call.equals(callId) || callEnded || reached) return;
+    String name = Assistants.name(this, assistant);
+    event("couldn't reach " + name + " (" + why + "): the call ends, nothing of it is sent");
+    callDropped.set(true);
+    finish(true, tr("Couldn't reach %1$s: %2$s. The call ended; nothing was sent.", name, why), true);
+  }
+
+  /** No call at all (not set up, couldn't start): said at once, on screen and as a notification. */
+  private void refused(String why) {
+    event(why);
+    problem(why);
+    if (session == null) {
+      stopForeground(STOP_FOREGROUND_REMOVE);
+      stopSelf();
+    }
+  }
+
+  /** The call bar can't show: said, so the call is never on without a way to see and end it. */
+  private void noPanel(String why) {
+    event("the call bar can't show" + (why == null ? ": no permission to display over other apps" : ": " + why));
+    android.widget.Toast.makeText(this, tr("The call bar can't show over other apps. End the call from its notification or on Home."), android.widget.Toast.LENGTH_LONG).show();
+  }
+
+  /** A failure to start or keep a call: a toast now, and a notification that stays until tapped. */
+  private void problem(String text) {
+    android.widget.Toast.makeText(this, text, android.widget.Toast.LENGTH_LONG).show();
+    try {
+      NotificationManager m = getSystemService(NotificationManager.class);
+      if (m.getNotificationChannel(PROBLEMS) == null)
+        m.createNotificationChannel(new NotificationChannel(PROBLEMS, tr("Calls that failed"), NotificationManager.IMPORTANCE_DEFAULT));
+      PendingIntent open =
+          PendingIntent.getActivity(
+              this, 5, new Intent(this, MainActivity.class).putExtra("open", "handsfree").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+      m.notify(
+          5,
+          new Notification.Builder(this, PROBLEMS)
+              .setSmallIcon(R.drawable.ic_mic)
+              .setContentTitle(tr("Call failed"))
+              .setContentText(text)
+              .setStyle(new Notification.BigTextStyle().bigText(text))
+              .setContentIntent(open)
+              .setAutoCancel(true)
+              .build());
+    } catch (RuntimeException ignored) {
+      /* No permission to post: the toast and the call log say it. */
+    }
+  }
+
+  static final String PROBLEMS = "call_problems";
+
+  /** A second End once the call ended: what it still had to tell its chief is let go, now. */
+  private void stopNow() {
+    event("stopped at once: what the ended call still had to tell its chief was let go");
+    main.removeCallbacksAndMessages(null);
+    stopForeground(STOP_FOREGROUND_REMOVE);
+    stopSelf();
+  }
+
+  /** End: a call ended right after it started with nothing sent yet is cancelled, nothing of it goes. */
+  private void finish() {
+    HandsFreeSession s = session;
+    if (s != null && !callEnded && !s.sentAny() && android.os.SystemClock.elapsedRealtime() - startedAt < CANCEL_MS) {
+      callDropped.set(true);
+      finish(true, tr("Call cancelled: nothing was sent."), false);
+    } else finish(false, null, false);
+  }
+
+  /**
+   * Ends the call. discard: nothing more of it is sent (no last words, no end line unless the
+   * chief was told it started). why: said on screen (and as a notification and a sound if failed).
+   */
+  private synchronized void finish(boolean discard, String why, boolean failed) {
     // Once per call: a second End (or an end the session reported meanwhile) mustn't stop the
     // service at once and cut the end's messages short.
     if (callEnded) return;
@@ -964,7 +1156,13 @@ public final class HandsFreeService extends Service {
     running = false;
     HandsFreeSession s = session;
     session = null;
-    if (s != null) s.end();
+    if (s != null) s.end(!discard);
+    if (failed && cues != null && prefsSounds()) cues.play(HandsFreeSession.Cue.FAILED);
+    if (why != null) {
+      event(why);
+      if (failed) problem(why);
+      else android.widget.Toast.makeText(this, why, android.widget.Toast.LENGTH_LONG).show();
+    }
     if (recorder != null) {
       try {
         recorder.stop();
@@ -977,7 +1175,7 @@ public final class HandsFreeService extends Service {
     event("call ended · $" + callCost.stripTrailingZeros().toPlainString() + " on OpenRouter");
     // With the end, once: the replies that never reached you.
     // After the messages on their way: words a failed one left go first, then the notes left.
-    Thread ended = s == null ? null : signal(new BbBridge(this, assistant), HandsFree.CALL_ENDED, s);
+    Thread ended = s == null || discard && !reached ? null : signal(new BbBridge(this, assistant), HandsFree.CALL_ENDED, discard ? null : s);
     if (replies != null) replies.finish();
     if (voice != null) voice.shutdown();
     if (cues != null) cues.release();
@@ -1002,6 +1200,12 @@ public final class HandsFreeService extends Service {
       stopSelf();
       return;
     }
+    // The notification says it ended (its End stops at once now), not that a call is starting.
+    try {
+      getSystemService(NotificationManager.class).notify(4, notification());
+    } catch (RuntimeException ignored) {
+      /* It goes with the service. */
+    }
     // Stays a foreground service until the chief knows the call ended, so the process isn't
     // frozen or killed with the message unsent (at most END_BUDGET_MS, messages still on their way first).
     new Thread(
@@ -1020,6 +1224,10 @@ public final class HandsFreeService extends Service {
             },
             "call-end")
         .start();
+  }
+
+  private boolean prefsSounds() {
+    return getSharedPreferences("settings", MODE_PRIVATE).getBoolean(HandsFree.SOUNDS, true);
   }
 
   @Override

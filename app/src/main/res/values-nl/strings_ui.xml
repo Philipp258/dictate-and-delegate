@@ -140,6 +140,7 @@
     <string name="t_27a3f255" formatted="false">Verzenden: niet-getelde spraak uitschrijven, daarna verzonden</string>
     <string name="t_27a92292" formatted="false">bb heeft de aanmelding niet toegestaan.</string>
     <string name="t_27c5b8ea" formatted="false">Sleutel verwijderen</string>
+    <string name="t_27dba3d7" formatted="false">geen antwoord in %1$d s</string>
     <string name="t_280e7831" formatted="false">Kon je keuze niet opslaan bij de notitie: %1$s</string>
     <string name="t_2893e4d7" formatted="false">Verzoekcontrole</string>
     <string name="t_289c316d" formatted="false">Uitgeschreven. Hij gaat niet vanzelf naar %1$s (%2$s): lees hem in de notitie en tik dan op Verzenden.</string>
@@ -159,6 +160,7 @@
     <string name="t_2cad992e" formatted="false">Bestand</string>
     <string name="t_2ce33943" formatted="false">Standaard</string>
     <string name="t_2d53863e" formatted="false">Toevoegen aan dit dictaat</string>
+    <string name="t_2d68f394" formatted="false">Gesprek geannuleerd: er is niets verstuurd.</string>
     <string name="t_2d8e320f" formatted="false">Rapport wordt verstuurd…</string>
     <string name="t_2dace0e0" formatted="false">Geef eerst microfoontoegang in Dictate &amp; Delegate.</string>
     <string name="t_2dad13e3" formatted="false">Taal</string>
@@ -221,6 +223,7 @@
     <string name="t_3e520da4" formatted="false">Gesprek beëindigen: je hebt gedag gezegd</string>
     <string name="t_3e5678cd" formatted="false">Snelste</string>
     <string name="t_3ebb7bec" formatted="false">Verfijnen</string>
+    <string name="t_3ed1699b" formatted="false">De gespreksbalk kan niet over andere apps verschijnen. Beëindig het gesprek via de melding of op Home.</string>
     <string name="t_3ed47f18" formatted="false">Uitschrijven duurde meer dan %1$.0f s: nog een keer proberen</string>
     <string name="t_3eef8148_one" formatted="false">%1$d versie</string>
     <string name="t_3eef8148_other" formatted="false">%1$d versies</string>
@@ -328,9 +331,11 @@
     <string name="t_5a337533" formatted="false">Spraak nodig om beurt te nemen, binnen 1,5 seconde (seconden)</string>
     <string name="t_5a36973e" formatted="false">Je tekst verfijnen…</string>
     <string name="t_5a6e8ec5" formatted="false">Nog geen gebeurtenissen. Ze verschijnen hier zodra je handsfree hebt gebeld.</string>
+    <string name="t_5aea46a7" formatted="false">%1$s is niet ingesteld: Instellingen → bb. Er is geen gesprek gestart.</string>
     <string name="t_5afff0dd" formatted="false">Veeg omlaag, bewerk Snelle instellingen en voeg Dictate &amp; Delegate toe.</string>
     <string name="t_5b08232c" formatted="false">Spraak-naar-tekst</string>
     <string name="t_5bc4deda" formatted="false">$%1$s per miljoen tekens</string>
+    <string name="t_5c4323d8" formatted="false">Het gesprek kon niet starten: %1$s. Er is niets verstuurd.</string>
     <string name="t_5c53b93a" formatted="false">Microfoon werd onderbroken. Opgeslagen audio kan opnieuw worden geprobeerd.</string>
     <string name="t_5c9445ff" formatted="false">De naam in je bb-adres: &lt;handle&gt;.getbb.app. Je browser opent de accountpagina van bb; geef Dictate &amp; Delegate daar toestemming.</string>
     <string name="t_5cacb072" formatted="false">Dit gesprek tot nu toe: %1$s</string>
@@ -460,6 +465,7 @@
     <string name="t_863d2a86" formatted="false">🧑‍💼 Stafchef</string>
     <string name="t_86657af4" formatted="false">Geluid vlak na antwoord genegeerd (microfoon gepauzeerd)</string>
     <string name="t_86889c2c" formatted="false">✓  %1$s aangemaakt (%2$s).</string>
+    <string name="t_86c0d448" formatted="false">Verbinden met je chief…</string>
     <string name="t_874caa6a" formatted="false">Microfoon is niet beschikbaar.</string>
     <string name="t_87747dc3" formatted="false">Start met de tegel of een volumeknop; Invoegen plaatst de tekst waar je typt.</string>
     <string name="t_8831703d" formatted="false">Chef: %1$s</string>
@@ -478,6 +484,7 @@
     <string name="t_8bf10d56" formatted="false">Verwijderen</string>
     <string name="t_8c8185ec" formatted="false">Naar %1$s sturen</string>
     <string name="t_8cb43c6e" formatted="false">Stem mislukt: %1$s</string>
+    <string name="t_8cbf9011" formatted="false">geen toestemming voor de microfoon</string>
     <string name="t_8cc9e4c3" formatted="false">📎 Toevoegen</string>
     <string name="t_8d448705" formatted="false">Een eerdere opname is uitgeschreven. Hij staat in je notities.</string>
     <string name="t_8d8041f9" formatted="false">Je stem moet zo veel keer luider zijn dan de achtergrond</string>
@@ -615,6 +622,7 @@
     <string name="t_b48c5f39" formatted="false">Jev · niets start vanzelf</string>
     <string name="t_b4c82195" formatted="false">Dictate &amp; Delegate roept de spraak- en tekstmodellen aan via OpenRouter met je eigen sleutel. Je betaalt OpenRouter voor wat je verbruikt; Dictate &amp; Delegate heeft geen server en houdt niets in.</string>
     <string name="t_b50cba8b" formatted="false">Invoegen van stafchef</string>
+    <string name="t_b5384083" formatted="false">%1$s is niet bereikbaar: %2$s. Het gesprek is beëindigd; er is niets verstuurd.</string>
     <string name="t_b561b378" formatted="false">1 · Snelle instellingen-tegel</string>
     <string name="t_b5ae1bae" formatted="false">bb</string>
     <string name="t_b60e80e5" formatted="false">het is te groot om op deze manier door te sturen</string>
@@ -687,11 +695,13 @@
     <string name="t_c73cbcb8" formatted="false">Opslaan en testen</string>
     <string name="t_c7ad7feb" formatted="false">Geen verbinding met OpenRouter. Controleer je internetverbinding en probeer het opnieuw.</string>
     <string name="t_c7b2a2f8" formatted="false">nog geen sleutel</string>
+    <string name="t_c7ef5d40" formatted="false">Gesprek mislukt</string>
     <string name="t_c8210626" formatted="false">Tekst-naar-spraak-model</string>
     <string name="t_c82c4a5b" formatted="false">Bijwerken naar %1$s</string>
     <string name="t_c82c6114" formatted="false">Hij is niet bedoeld voor een stafchef.</string>
     <string name="t_c90e13f1" formatted="false">Alleen naar de talker verzonden. De chief heeft het niet ontvangen: %1$s</string>
     <string name="t_c96b1a45" formatted="false">Starten…</string>
+    <string name="t_c99694b4" formatted="false">Verbinden…</string>
     <string name="t_c997df74" formatted="false">bb weigerde de aanmelding: %1$s</string>
     <string name="t_c998a38e" formatted="false">Audio is verlopen of verwijderd. Tekst is nog bewaard.</string>
     <string name="t_c9e76ec6" formatted="false">Live transcriptie staat uit: geen %1$s-sleutel (Instellingen → Handsfree)</string>
@@ -783,6 +793,7 @@
     <string name="t_e1a58ddc" formatted="false">Gaat nu naar %1$s.</string>
     <string name="t_e1a911fe" formatted="false">sleutel opgeslagen</string>
     <string name="t_e1b8de72" formatted="false">Meldt zich af bij zijn bb en vergeet hier zijn chef en instellingen. Zijn notities blijven; nog niet verzonden notities worden niet opnieuw geprobeerd. In bb verandert niets.</string>
+    <string name="t_e1cbbe5a" formatted="false">Mislukte gesprekken</string>
     <string name="t_e24b4cba" formatted="false">Aanmelden mislukt: %1$s</string>
     <string name="t_e2530adf" formatted="false">Hier invoegen</string>
     <string name="t_e2774654" formatted="false">Openen in ntfy</string>
@@ -839,6 +850,7 @@
     <string name="t_ef0f5831" formatted="false">Tweede assistent</string>
     <string name="t_ef217ee7" formatted="false">Opnieuw proberen</string>
     <string name="t_ef3fb140" formatted="false">Niet verzenden</string>
+    <string name="t_ef5e0754" formatted="false">de microfoon kon niet worden geopend</string>
     <string name="t_efc1065a" formatted="false">Niet verbonden</string>
     <string name="t_efcb8ba3" formatted="false">de verbinding is verbroken</string>
     <string name="t_f01551fb" formatted="false">Opname bevat geen leesbare audio.</string>

@@ -140,6 +140,7 @@
     <string name="t_27a3f255" formatted="false">Invio: trascrivo ciò che non contava come voce, poi invio</string>
     <string name="t_27a92292" formatted="false">bb non ha autorizzato l\'accesso.</string>
     <string name="t_27c5b8ea" formatted="false">Rimuovi chiave</string>
+    <string name="t_27dba3d7" formatted="false">nessuna risposta in %1$d s</string>
     <string name="t_280e7831" formatted="false">Impossibile salvare la tua scelta sulla nota: %1$s</string>
     <string name="t_2893e4d7" formatted="false">Verifica richiesta</string>
     <string name="t_289c316d" formatted="false">Trascritta. Non parte da sola per %1$s (%2$s): leggila nella nota, poi Invia.</string>
@@ -159,6 +160,7 @@
     <string name="t_2cad992e" formatted="false">File</string>
     <string name="t_2ce33943" formatted="false">Predefinite</string>
     <string name="t_2d53863e" formatted="false">Aggiungi a questa dettatura</string>
+    <string name="t_2d68f394" formatted="false">Chiamata annullata: non è stato inviato nulla.</string>
     <string name="t_2d8e320f" formatted="false">Invio del rapporto…</string>
     <string name="t_2dace0e0" formatted="false">Prima consenti l\'accesso al microfono in Dictate &amp; Delegate.</string>
     <string name="t_2dad13e3" formatted="false">Lingua</string>
@@ -221,6 +223,7 @@
     <string name="t_3e520da4" formatted="false">Fine chiamata: hai salutato</string>
     <string name="t_3e5678cd" formatted="false">Più veloce</string>
     <string name="t_3ebb7bec" formatted="false">Perfeziona</string>
+    <string name="t_3ed1699b" formatted="false">La barra di chiamata non può apparire sopra le altre app. Termina la chiamata dalla sua notifica o dalla Home.</string>
     <string name="t_3ed47f18" formatted="false">La trascrizione ha richiesto oltre %1$.0f s: riprovo</string>
     <string name="t_3eef8148_many" formatted="false">%1$d versioni</string>
     <string name="t_3eef8148_one" formatted="false">%1$d versione</string>
@@ -330,9 +333,11 @@
     <string name="t_5a337533" formatted="false">Parlato necessario per prendere la parola, entro 1,5 secondi (secondi)</string>
     <string name="t_5a36973e" formatted="false">Perfezionamento del testo…</string>
     <string name="t_5a6e8ec5" formatted="false">Nessun evento per ora. Appariranno qui dopo aver effettuato una chiamata in vivavoce.</string>
+    <string name="t_5aea46a7" formatted="false">%1$s non è configurato: Impostazioni → bb. Nessuna chiamata avviata.</string>
     <string name="t_5afff0dd" formatted="false">Scorri verso il basso, modifica le Impostazioni rapide e aggiungi Dictate &amp; Delegate.</string>
     <string name="t_5b08232c" formatted="false">Da voce a testo</string>
     <string name="t_5bc4deda" formatted="false">%1$s $ per milione di caratteri</string>
+    <string name="t_5c4323d8" formatted="false">Impossibile avviare la chiamata: %1$s. Non è stato inviato nulla.</string>
     <string name="t_5c53b93a" formatted="false">Il microfono è stato interrotto. Puoi riprovare con l\'audio salvato.</string>
     <string name="t_5c9445ff" formatted="false">Il nome nel tuo indirizzo bb: &lt;handle&gt;.getbb.app. Il browser apre la pagina dell\'account di bb; approva Dictate &amp; Delegate lì.</string>
     <string name="t_5cacb072" formatted="false">Finora in questa chiamata: %1$s</string>
@@ -463,6 +468,7 @@
     <string name="t_863d2a86" formatted="false">🧑‍💼 Chief</string>
     <string name="t_86657af4" formatted="false">Suono ignorato subito dopo la risposta (microfono in pausa)</string>
     <string name="t_86889c2c" formatted="false">✓  Creato %1$s (%2$s).</string>
+    <string name="t_86c0d448" formatted="false">Connessione al tuo chief…</string>
     <string name="t_874caa6a" formatted="false">Microfono non disponibile.</string>
     <string name="t_87747dc3" formatted="false">Avvia dal riquadro o con un tasto volume; Inserisci mette il testo dove digiti.</string>
     <string name="t_8831703d" formatted="false">Capo: %1$s</string>
@@ -481,6 +487,7 @@
     <string name="t_8bf10d56" formatted="false">Elimina</string>
     <string name="t_8c8185ec" formatted="false">Invia a %1$s</string>
     <string name="t_8cb43c6e" formatted="false">Sintesi vocale non riuscita: %1$s</string>
+    <string name="t_8cbf9011" formatted="false">nessun permesso per il microfono</string>
     <string name="t_8cc9e4c3" formatted="false">📎 Aggiungi</string>
     <string name="t_8d448705" formatted="false">Una registrazione precedente è stata trascritta. È nelle tue note.</string>
     <string name="t_8d8041f9" formatted="false">La tua voce deve superare il rumore di fondo di questo fattore</string>
@@ -619,6 +626,7 @@
     <string name="t_b48c5f39" formatted="false">Jev · niente parte da solo</string>
     <string name="t_b4c82195" formatted="false">Dictate &amp; Delegate richiama i modelli vocali e di testo tramite OpenRouter, usando la tua chiave personale. Paghi a OpenRouter solo ciò che usi; Dictate &amp; Delegate non ha server e non trattiene alcuna percentuale.</string>
     <string name="t_b50cba8b" formatted="false">Inserisci da chief</string>
+    <string name="t_b5384083" formatted="false">Impossibile raggiungere %1$s: %2$s. La chiamata è terminata; non è stato inviato nulla.</string>
     <string name="t_b561b378" formatted="false">1 · Riquadro Impostazioni rapide</string>
     <string name="t_b5ae1bae" formatted="false">bb</string>
     <string name="t_b60e80e5" formatted="false">è troppo grande per essere inoltrato così</string>
@@ -693,11 +701,13 @@
     <string name="t_c73cbcb8" formatted="false">Salva e verifica</string>
     <string name="t_c7ad7feb" formatted="false">Nessuna connessione a OpenRouter. Controlla la connessione internet e riprova.</string>
     <string name="t_c7b2a2f8" formatted="false">nessuna chiave</string>
+    <string name="t_c7ef5d40" formatted="false">Chiamata non riuscita</string>
     <string name="t_c8210626" formatted="false">Modello testo-voce</string>
     <string name="t_c82c4a5b" formatted="false">Aggiorna a %1$s</string>
     <string name="t_c82c6114" formatted="false">Non è destinata a un chief.</string>
     <string name="t_c90e13f1" formatted="false">Inviato solo all\'interlocutore. Il capo non l\'ha ricevuto: %1$s</string>
     <string name="t_c96b1a45" formatted="false">Avvio…</string>
+    <string name="t_c99694b4" formatted="false">Connessione…</string>
     <string name="t_c997df74" formatted="false">bb ha rifiutato l\'accesso: %1$s</string>
     <string name="t_c998a38e" formatted="false">L\'audio è scaduto o è stato eliminato. Il testo è ancora salvato.</string>
     <string name="t_c9e76ec6" formatted="false">Trascrizione live non attiva: chiave %1$s assente (Impostazioni → Vivavoce)</string>
@@ -789,6 +799,7 @@
     <string name="t_e1a58ddc" formatted="false">Ora parte per %1$s.</string>
     <string name="t_e1a911fe" formatted="false">chiave salvata</string>
     <string name="t_e1b8de72" formatted="false">Esce dal suo bb e dimentica qui il suo chief e le sue impostazioni. Le sue note restano; quelle non ancora inviate non vengono più ritentate. In bb non cambia nulla.</string>
+    <string name="t_e1cbbe5a" formatted="false">Chiamate non riuscite</string>
     <string name="t_e24b4cba" formatted="false">Accesso non riuscito: %1$s</string>
     <string name="t_e2530adf" formatted="false">Inserisci qui</string>
     <string name="t_e2774654" formatted="false">Apri in ntfy</string>
@@ -846,6 +857,7 @@
     <string name="t_ef0f5831" formatted="false">Secondo assistente</string>
     <string name="t_ef217ee7" formatted="false">Riprova</string>
     <string name="t_ef3fb140" formatted="false">Non inviare</string>
+    <string name="t_ef5e0754" formatted="false">non è stato possibile aprire il microfono</string>
     <string name="t_efc1065a" formatted="false">Non connesso</string>
     <string name="t_efcb8ba3" formatted="false">la connessione si è interrotta</string>
     <string name="t_f01551fb" formatted="false">La registrazione non contiene audio leggibile.</string>

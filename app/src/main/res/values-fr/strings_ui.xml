@@ -140,6 +140,7 @@
     <string name="t_27a3f255" formatted="false">Envoi : transcription des bruits non reconnus, puis départ</string>
     <string name="t_27a92292" formatted="false">bb n\'a pas autorisé la connexion.</string>
     <string name="t_27c5b8ea" formatted="false">Supprimer la clé</string>
+    <string name="t_27dba3d7" formatted="false">pas de réponse en %1$d s</string>
     <string name="t_280e7831" formatted="false">Impossible d\'enregistrer ton choix sur la note : %1$s</string>
     <string name="t_2893e4d7" formatted="false">Vérification de requête</string>
     <string name="t_289c316d" formatted="false">Transcrit. Il ne part pas tout seul à %1$s (%2$s) : lis-le dans la note, puis Envoyer.</string>
@@ -159,6 +160,7 @@
     <string name="t_2cad992e" formatted="false">Fichier</string>
     <string name="t_2ce33943" formatted="false">Par défaut</string>
     <string name="t_2d53863e" formatted="false">Ajouter à cette dictée</string>
+    <string name="t_2d68f394" formatted="false">Appel annulé : rien n\'a été envoyé.</string>
     <string name="t_2d8e320f" formatted="false">Envoi du rapport…</string>
     <string name="t_2dace0e0" formatted="false">Autorise d\'abord l\'accès au micro dans Dictate &amp; Delegate.</string>
     <string name="t_2dad13e3" formatted="false">Langue</string>
@@ -221,6 +223,7 @@
     <string name="t_3e520da4" formatted="false">Fin de l\'appel : tu as dit au revoir</string>
     <string name="t_3e5678cd" formatted="false">Le plus rapide</string>
     <string name="t_3ebb7bec" formatted="false">Peaufiner</string>
+    <string name="t_3ed1699b" formatted="false">La barre d\'appel ne peut pas s\'afficher par-dessus les autres apps. Termine l\'appel depuis sa notification ou sur l\'accueil.</string>
     <string name="t_3ed47f18" formatted="false">La transcription a pris plus de %1$.0f s : nouvel essai</string>
     <string name="t_3eef8148_many" formatted="false">%1$d de versions</string>
     <string name="t_3eef8148_one" formatted="false">%1$d version</string>
@@ -330,9 +333,11 @@
     <string name="t_5a337533" formatted="false">Parole requise pour prendre le tour, en moins de 1,5 seconde (secondes)</string>
     <string name="t_5a36973e" formatted="false">Peaufinage du texte…</string>
     <string name="t_5a6e8ec5" formatted="false">Aucun événement pour l\'instant. Ils apparaîtront ici après un appel mains libres.</string>
+    <string name="t_5aea46a7" formatted="false">%1$s n\'est pas configuré : Réglages → bb. Aucun appel n\'a été lancé.</string>
     <string name="t_5afff0dd" formatted="false">Glisse vers le bas, modifie les Réglages rapides, puis ajoute Dictate &amp; Delegate.</string>
     <string name="t_5b08232c" formatted="false">Voix-vers-texte</string>
     <string name="t_5bc4deda" formatted="false">%1$s $ par million de caractères</string>
+    <string name="t_5c4323d8" formatted="false">Impossible de lancer l\'appel : %1$s. Rien n\'a été envoyé.</string>
     <string name="t_5c53b93a" formatted="false">Le micro a été interrompu. L\'audio sauvegardé peut être réessayé.</string>
     <string name="t_5c9445ff" formatted="false">Le nom dans ton adresse bb : &lt;identifiant&gt;.getbb.app. Ton navigateur ouvre la page du compte bb ; autorise Dictate &amp; Delegate à cet endroit.</string>
     <string name="t_5cacb072" formatted="false">Cet appel jusqu\'ici : %1$s</string>
@@ -463,6 +468,7 @@
     <string name="t_863d2a86" formatted="false">🧑‍💼 Chef</string>
     <string name="t_86657af4" formatted="false">Son ignoré juste après la réponse (micro en pause)</string>
     <string name="t_86889c2c" formatted="false">✓  %1$s (%2$s) créé.</string>
+    <string name="t_86c0d448" formatted="false">Connexion à ton chief…</string>
     <string name="t_874caa6a" formatted="false">Microphone indisponible.</string>
     <string name="t_87747dc3" formatted="false">Démarre via la tuile ou une touche de volume ; Insérer place le texte là où tu écris.</string>
     <string name="t_8831703d" formatted="false">Chef : %1$s</string>
@@ -481,6 +487,7 @@
     <string name="t_8bf10d56" formatted="false">Supprimer</string>
     <string name="t_8c8185ec" formatted="false">Envoyer à %1$s</string>
     <string name="t_8cb43c6e" formatted="false">Échec vocal : %1$s</string>
+    <string name="t_8cbf9011" formatted="false">pas d\'autorisation pour le micro</string>
     <string name="t_8cc9e4c3" formatted="false">📎 Ajouter</string>
     <string name="t_8d448705" formatted="false">Un enregistrement précédent est transcrit. Il est dans tes notes.</string>
     <string name="t_8d8041f9" formatted="false">Ta voix doit être autant de fois plus forte que le bruit de fond</string>
@@ -619,6 +626,7 @@
     <string name="t_b48c5f39" formatted="false">Jev · rien ne démarre tout seul</string>
     <string name="t_b4c82195" formatted="false">Dictate &amp; Delegate appelle les modèles vocaux et textuels via OpenRouter, avec ta propre clé. Tu paies OpenRouter pour ce que tu consommes ; Dictate &amp; Delegate n\'a pas de serveur et ne prend aucune commission.</string>
     <string name="t_b50cba8b" formatted="false">Insérer du chef</string>
+    <string name="t_b5384083" formatted="false">Impossible de joindre %1$s : %2$s. L\'appel est terminé ; rien n\'a été envoyé.</string>
     <string name="t_b561b378" formatted="false">1 · Tuile des Paramètres rapides</string>
     <string name="t_b5ae1bae" formatted="false">bb</string>
     <string name="t_b60e80e5" formatted="false">Trop volumineux pour être transmis ainsi</string>
@@ -693,11 +701,13 @@
     <string name="t_c73cbcb8" formatted="false">Enregistrer et tester</string>
     <string name="t_c7ad7feb" formatted="false">Aucune connexion à OpenRouter. Vérifie ta connexion Internet, puis réessaie.</string>
     <string name="t_c7b2a2f8" formatted="false">pas encore de clé</string>
+    <string name="t_c7ef5d40" formatted="false">Échec de l\'appel</string>
     <string name="t_c8210626" formatted="false">Modèle texte-vers-voix</string>
     <string name="t_c82c4a5b" formatted="false">Mise à jour vers %1$s</string>
     <string name="t_c82c6114" formatted="false">Il n\'est destiné à aucun chef.</string>
     <string name="t_c90e13f1" formatted="false">Envoyé uniquement au bavard. Le chef ne l\'a pas reçu : %1$s</string>
     <string name="t_c96b1a45" formatted="false">Démarrage…</string>
+    <string name="t_c99694b4" formatted="false">Connexion…</string>
     <string name="t_c997df74" formatted="false">bb a refusé la connexion : %1$s</string>
     <string name="t_c998a38e" formatted="false">L\'audio a expiré ou a été supprimé. Le texte reste enregistré.</string>
     <string name="t_c9e76ec6" formatted="false">Transcription en direct désactivée : pas de clé %1$s (Paramètres → Mains libres)</string>
@@ -789,6 +799,7 @@
     <string name="t_e1a58ddc" formatted="false">Part maintenant à %1$s.</string>
     <string name="t_e1a911fe" formatted="false">clé enregistrée</string>
     <string name="t_e1b8de72" formatted="false">Se déconnecte de son bb et oublie ici son chef et ses réglages. Ses notes restent ; celles pas encore envoyées ne sont plus réessayées. Rien ne change dans bb.</string>
+    <string name="t_e1cbbe5a" formatted="false">Appels échoués</string>
     <string name="t_e24b4cba" formatted="false">Échec de connexion : %1$s</string>
     <string name="t_e2530adf" formatted="false">Insérer ici</string>
     <string name="t_e2774654" formatted="false">Ouvrir dans ntfy</string>
@@ -846,6 +857,7 @@
     <string name="t_ef0f5831" formatted="false">Deuxième assistant</string>
     <string name="t_ef217ee7" formatted="false">Réessayer</string>
     <string name="t_ef3fb140" formatted="false">Ne pas envoyer</string>
+    <string name="t_ef5e0754" formatted="false">le micro n\'a pas pu être ouvert</string>
     <string name="t_efc1065a" formatted="false">Non connecté</string>
     <string name="t_efcb8ba3" formatted="false">la connexion a été perdue</string>
     <string name="t_f01551fb" formatted="false">L\'enregistrement ne contient aucun audio lisible.</string>

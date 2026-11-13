@@ -140,6 +140,7 @@
     <string name="t_27a3f255" formatted="false">Send: writing down what didn\'t count as speech, then it goes</string>
     <string name="t_27a92292" formatted="false">bb didn\'t allow the sign-in.</string>
     <string name="t_27c5b8ea" formatted="false">Remove key</string>
+    <string name="t_27dba3d7" formatted="false">no answer in %1$d s</string>
     <string name="t_280e7831" formatted="false">Couldn\'t save your choice on the note: %1$s</string>
     <string name="t_2893e4d7" formatted="false">Request check</string>
     <string name="t_289c316d" formatted="false">Written down. It doesn\'t go to %1$s by itself (%2$s): read it in the note, then Send.</string>
@@ -159,6 +160,7 @@
     <string name="t_2cad992e" formatted="false">File</string>
     <string name="t_2ce33943" formatted="false">Default</string>
     <string name="t_2d53863e" formatted="false">Add to this dictation</string>
+    <string name="t_2d68f394" formatted="false">Call cancelled: nothing was sent.</string>
     <string name="t_2d8e320f" formatted="false">Sending the report…</string>
     <string name="t_2dace0e0" formatted="false">Allow microphone access in Dictate &amp; Delegate first.</string>
     <string name="t_2dad13e3" formatted="false">Language</string>
@@ -221,6 +223,7 @@
     <string name="t_3e520da4" formatted="false">Ending the call: you said goodbye</string>
     <string name="t_3e5678cd" formatted="false">Fastest</string>
     <string name="t_3ebb7bec" formatted="false">Refine</string>
+    <string name="t_3ed1699b" formatted="false">The call bar can\'t show over other apps. End the call from its notification or on Home.</string>
     <string name="t_3ed47f18" formatted="false">Writing down took over %1$.0f s: trying once more</string>
     <string name="t_3eef8148_few" formatted="false">%1$d versions</string>
     <string name="t_3eef8148_many" formatted="false">%1$d versions</string>
@@ -332,9 +335,11 @@
     <string name="t_5a337533" formatted="false">Speech needed to take your turn, within 1.5 seconds (seconds)</string>
     <string name="t_5a36973e" formatted="false">Refining your text…</string>
     <string name="t_5a6e8ec5" formatted="false">No events yet. They appear here once you\'ve made a hands-free call.</string>
+    <string name="t_5aea46a7" formatted="false">%1$s isn\'t set up: Settings → bb. No call was started.</string>
     <string name="t_5afff0dd" formatted="false">Swipe down, edit Quick Settings, then add Dictate &amp; Delegate.</string>
     <string name="t_5b08232c" formatted="false">Voice-to-text</string>
     <string name="t_5bc4deda" formatted="false">$%1$s per million characters</string>
+    <string name="t_5c4323d8" formatted="false">Couldn\'t start the call: %1$s. Nothing was sent.</string>
     <string name="t_5c53b93a" formatted="false">Microphone was interrupted. Saved audio can be retried.</string>
     <string name="t_5c9445ff" formatted="false">The name in your bb address: &lt;handle&gt;.getbb.app. Your browser opens bb\'s account page; approve Dictate &amp; Delegate there.</string>
     <string name="t_5cacb072" formatted="false">This call so far: %1$s</string>
@@ -466,6 +471,7 @@
     <string name="t_863d2a86" formatted="false">🧑‍💼 Chief</string>
     <string name="t_86657af4" formatted="false">A sound right after the reply was ignored (mic paused)</string>
     <string name="t_86889c2c" formatted="false">✓  Created %1$s (%2$s).</string>
+    <string name="t_86c0d448" formatted="false">Connecting to your chief…</string>
     <string name="t_874caa6a" formatted="false">Microphone is unavailable.</string>
     <string name="t_87747dc3" formatted="false">Start with the tile or a volume key; Insert puts the text where you type.</string>
     <string name="t_8831703d" formatted="false">Chief: %1$s</string>
@@ -484,6 +490,7 @@
     <string name="t_8bf10d56" formatted="false">Discard</string>
     <string name="t_8c8185ec" formatted="false">Send to %1$s</string>
     <string name="t_8cb43c6e" formatted="false">Voice failed: %1$s</string>
+    <string name="t_8cbf9011" formatted="false">no permission to use the microphone</string>
     <string name="t_8cc9e4c3" formatted="false">📎 Add</string>
     <string name="t_8d448705" formatted="false">An earlier recording is written down. It\'s in your notes.</string>
     <string name="t_8d8041f9" formatted="false">Your voice must be this many times louder than the background</string>
@@ -623,6 +630,7 @@
     <string name="t_b48c5f39" formatted="false">Jev · nothing starts by itself</string>
     <string name="t_b4c82195" formatted="false">Dictate &amp; Delegate calls the speech and text models through OpenRouter, with your own key. You pay OpenRouter for what you use; Dictate &amp; Delegate has no server and takes no cut.</string>
     <string name="t_b50cba8b" formatted="false">Insert from chief</string>
+    <string name="t_b5384083" formatted="false">Couldn\'t reach %1$s: %2$s. The call ended; nothing was sent.</string>
     <string name="t_b561b378" formatted="false">1 · Quick Settings tile</string>
     <string name="t_b5ae1bae" formatted="false">bb</string>
     <string name="t_b60e80e5" formatted="false">it\'s too big to pass on this way</string>
@@ -699,11 +707,13 @@
     <string name="t_c73cbcb8" formatted="false">Save and test</string>
     <string name="t_c7ad7feb" formatted="false">No connection to OpenRouter. Check your internet connection, then try again.</string>
     <string name="t_c7b2a2f8" formatted="false">no key yet</string>
+    <string name="t_c7ef5d40" formatted="false">Call failed</string>
     <string name="t_c8210626" formatted="false">Text-to-speech model</string>
     <string name="t_c82c4a5b" formatted="false">Update to %1$s</string>
     <string name="t_c82c6114" formatted="false">It isn\'t meant for a chief.</string>
     <string name="t_c90e13f1" formatted="false">Sent to the talker only. The chief didn\'t get it: %1$s</string>
     <string name="t_c96b1a45" formatted="false">Starting…</string>
+    <string name="t_c99694b4" formatted="false">Connecting…</string>
     <string name="t_c997df74" formatted="false">bb refused the sign-in: %1$s</string>
     <string name="t_c998a38e" formatted="false">Audio has expired or was deleted. Text is still saved.</string>
     <string name="t_c9e76ec6" formatted="false">Live transcription is off: no %1$s key (Settings → Hands-free)</string>
@@ -795,6 +805,7 @@
     <string name="t_e1a58ddc" formatted="false">Going to %1$s now.</string>
     <string name="t_e1a911fe" formatted="false">key saved</string>
     <string name="t_e1b8de72" formatted="false">Signs out of its bb and forgets its chief and settings here. Its notes stay; ones not sent yet aren\'t tried again. Nothing changes in bb.</string>
+    <string name="t_e1cbbe5a" formatted="false">Calls that failed</string>
     <string name="t_e24b4cba" formatted="false">Sign-in failed: %1$s</string>
     <string name="t_e2530adf" formatted="false">Insert here</string>
     <string name="t_e2774654" formatted="false">Open in ntfy</string>
@@ -853,6 +864,7 @@
     <string name="t_ef0f5831" formatted="false">Second assistant</string>
     <string name="t_ef217ee7" formatted="false">Retry</string>
     <string name="t_ef3fb140" formatted="false">Don\'t send</string>
+    <string name="t_ef5e0754" formatted="false">the microphone couldn\'t be opened</string>
     <string name="t_efc1065a" formatted="false">Not connected</string>
     <string name="t_efcb8ba3" formatted="false">the connection was lost</string>
     <string name="t_f01551fb" formatted="false">Recording contains no readable audio.</string>

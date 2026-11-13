@@ -156,7 +156,8 @@ public final class TalkAccessibility extends AccessibilityService {
     if (holding ? key != heldKey : assistant < 0) return false;
     // During a hands-free call the volume keys are the volume, nothing else: a call doesn't start
     // dictations, and Android sends them to the call's media session (the replies' stream).
-    if (HandsFreeService.instance != null && !holding) return false;
+    // A call that ended (still telling its chief so) doesn't count: the key works again at once.
+    if (HandsFreeService.inCall() && !holding) return false;
     if (e.getAction() == KeyEvent.ACTION_DOWN) {
       if (e.getRepeatCount() > 0) return holding;
       if (holding || !available()) return false;

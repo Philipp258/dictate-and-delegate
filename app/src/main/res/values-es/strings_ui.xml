@@ -140,6 +140,7 @@
     <string name="t_27a3f255" formatted="false">Envío: transcribiendo lo descartado, luego se envía</string>
     <string name="t_27a92292" formatted="false">bb no permitió el inicio de sesión.</string>
     <string name="t_27c5b8ea" formatted="false">Eliminar clave</string>
+    <string name="t_27dba3d7" formatted="false">sin respuesta en %1$d s</string>
     <string name="t_280e7831" formatted="false">No se pudo guardar tu elección en la nota: %1$s</string>
     <string name="t_2893e4d7" formatted="false">Comprobación de peticiones</string>
     <string name="t_289c316d" formatted="false">Transcrita. No va sola a %1$s (%2$s): léela en la nota y luego toca Enviar.</string>
@@ -159,6 +160,7 @@
     <string name="t_2cad992e" formatted="false">Archivo</string>
     <string name="t_2ce33943" formatted="false">Predeterminadas</string>
     <string name="t_2d53863e" formatted="false">Añadir a este dictado</string>
+    <string name="t_2d68f394" formatted="false">Llamada cancelada: no se envió nada.</string>
     <string name="t_2d8e320f" formatted="false">Enviando el informe…</string>
     <string name="t_2dace0e0" formatted="false">Permite primero el acceso al micrófono en Dictate &amp; Delegate.</string>
     <string name="t_2dad13e3" formatted="false">Idioma</string>
@@ -221,6 +223,7 @@
     <string name="t_3e520da4" formatted="false">Finalizando la llamada: te has despedido</string>
     <string name="t_3e5678cd" formatted="false">El más rápido</string>
     <string name="t_3ebb7bec" formatted="false">Pulir</string>
+    <string name="t_3ed1699b" formatted="false">La barra de llamada no puede mostrarse sobre otras apps. Termina la llamada desde su notificación o en Inicio.</string>
     <string name="t_3ed47f18" formatted="false">La transcripción tardó más de %1$.0f s: reintentando una vez más</string>
     <string name="t_3eef8148_many" formatted="false">%1$d de versiones</string>
     <string name="t_3eef8148_one" formatted="false">%1$d versión</string>
@@ -330,9 +333,11 @@
     <string name="t_5a337533" formatted="false">Voz necesaria para tomar tu turno, en 1,5 segundos (segundos)</string>
     <string name="t_5a36973e" formatted="false">Puliendo tu texto…</string>
     <string name="t_5a6e8ec5" formatted="false">Aún no hay eventos. Aparecerán aquí en cuanto hagas una llamada manos libres.</string>
+    <string name="t_5aea46a7" formatted="false">%1$s no está configurado: Ajustes → bb. No se inició ninguna llamada.</string>
     <string name="t_5afff0dd" formatted="false">Desliza hacia abajo, edita los Ajustes rápidos y añade Dictate &amp; Delegate.</string>
     <string name="t_5b08232c" formatted="false">Voz a texto</string>
     <string name="t_5bc4deda" formatted="false">%1$s $ por millón de caracteres</string>
+    <string name="t_5c4323d8" formatted="false">No se pudo iniciar la llamada: %1$s. No se envió nada.</string>
     <string name="t_5c53b93a" formatted="false">El micrófono se interrumpió. Puedes reintentar con el audio guardado.</string>
     <string name="t_5c9445ff" formatted="false">El nombre en tu dirección de bb: &lt;handle&gt;.getbb.app. El navegador abrirá la página de cuenta de bb; autoriza a Dictate &amp; Delegate allí.</string>
     <string name="t_5cacb072" formatted="false">Esta llamada hasta ahora: %1$s</string>
@@ -463,6 +468,7 @@
     <string name="t_863d2a86" formatted="false">🧑‍💼 Jefe</string>
     <string name="t_86657af4" formatted="false">Sonido ignorado justo tras la respuesta (micrófono en pausa)</string>
     <string name="t_86889c2c" formatted="false">✓  Se creó %1$s (%2$s).</string>
+    <string name="t_86c0d448" formatted="false">Conectando con tu chief…</string>
     <string name="t_874caa6a" formatted="false">El micrófono no está disponible.</string>
     <string name="t_87747dc3" formatted="false">Inicia con el botón de ajustes rápidos o una tecla de volumen; Insertar coloca el texto donde escribes.</string>
     <string name="t_8831703d" formatted="false">Jefe: %1$s</string>
@@ -481,6 +487,7 @@
     <string name="t_8bf10d56" formatted="false">Descartar</string>
     <string name="t_8c8185ec" formatted="false">Enviar a %1$s</string>
     <string name="t_8cb43c6e" formatted="false">Error de voz: %1$s</string>
+    <string name="t_8cbf9011" formatted="false">sin permiso para usar el micrófono</string>
     <string name="t_8cc9e4c3" formatted="false">📎 Añadir</string>
     <string name="t_8d448705" formatted="false">Una grabación anterior ya está transcrita. Está en tus notas.</string>
     <string name="t_8d8041f9" formatted="false">Tu voz debe ser así de potente respecto al fondo</string>
@@ -619,6 +626,7 @@
     <string name="t_b48c5f39" formatted="false">Jev · nada empieza por sí solo</string>
     <string name="t_b4c82195" formatted="false">Dictate &amp; Delegate llama a los modelos de voz y texto mediante OpenRouter con tu propia clave. Pagas a OpenRouter por tu consumo; Dictate &amp; Delegate no tiene servidor ni se lleva comisión.</string>
     <string name="t_b50cba8b" formatted="false">Insertar del jefe</string>
+    <string name="t_b5384083" formatted="false">No se pudo contactar con %1$s: %2$s. La llamada terminó; no se envió nada.</string>
     <string name="t_b561b378" formatted="false">1 · Ajustes rápidos</string>
     <string name="t_b5ae1bae" formatted="false">bb</string>
     <string name="t_b60e80e5" formatted="false">es demasiado grande para enviarlo así</string>
@@ -693,11 +701,13 @@
     <string name="t_c73cbcb8" formatted="false">Guardar y probar</string>
     <string name="t_c7ad7feb" formatted="false">Sin conexión con OpenRouter. Comprueba tu conexión a internet y vuelve a intentarlo.</string>
     <string name="t_c7b2a2f8" formatted="false">aún sin clave</string>
+    <string name="t_c7ef5d40" formatted="false">Llamada fallida</string>
     <string name="t_c8210626" formatted="false">Modelo de texto a voz</string>
     <string name="t_c82c4a5b" formatted="false">Actualizar a %1$s</string>
     <string name="t_c82c6114" formatted="false">No es para ningún jefe de gabinete.</string>
     <string name="t_c90e13f1" formatted="false">Enviado solo al interlocutor. El jefe no lo recibió: %1$s</string>
     <string name="t_c96b1a45" formatted="false">Iniciando…</string>
+    <string name="t_c99694b4" formatted="false">Conectando…</string>
     <string name="t_c997df74" formatted="false">bb rechazó el inicio de sesión: %1$s</string>
     <string name="t_c998a38e" formatted="false">El audio ha caducado o se ha eliminado. El texto sigue guardado.</string>
     <string name="t_c9e76ec6" formatted="false">Transcripción en vivo desactivada: falta la clave de %1$s (Ajustes → Manos libres)</string>
@@ -789,6 +799,7 @@
     <string name="t_e1a58ddc" formatted="false">Yendo a %1$s ahora.</string>
     <string name="t_e1a911fe" formatted="false">clave guardada</string>
     <string name="t_e1b8de72" formatted="false">Cierra la sesión en su bb y olvida aquí su jefe y sus ajustes. Sus notas se quedan; las que aún no se enviaron no se vuelven a intentar. En bb no cambia nada.</string>
+    <string name="t_e1cbbe5a" formatted="false">Llamadas fallidas</string>
     <string name="t_e24b4cba" formatted="false">Error al iniciar sesión: %1$s</string>
     <string name="t_e2530adf" formatted="false">Insertar aquí</string>
     <string name="t_e2774654" formatted="false">Abrir en ntfy</string>
@@ -846,6 +857,7 @@
     <string name="t_ef0f5831" formatted="false">Segundo asistente</string>
     <string name="t_ef217ee7" formatted="false">Reintentar</string>
     <string name="t_ef3fb140" formatted="false">No enviar</string>
+    <string name="t_ef5e0754" formatted="false">no se pudo abrir el micrófono</string>
     <string name="t_efc1065a" formatted="false">No conectado</string>
     <string name="t_efcb8ba3" formatted="false">se perdió la conexión</string>
     <string name="t_f01551fb" formatted="false">La grabación no contiene audio legible.</string>

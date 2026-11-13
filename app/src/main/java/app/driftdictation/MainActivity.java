@@ -1894,7 +1894,7 @@ public final class MainActivity extends Activity {
       ui.add(
           content,
           ui.button(
-              HandsFreeService.instance != null ? tr("🎧 Hands-free is on") : Assistants.several(this) ? tr("🎧 Hands-free") : tr("🎧 Hands-free with your chief"),
+              HandsFreeService.inCall() ? tr("🎧 Hands-free is on") : Assistants.several(this) ? tr("🎧 Hands-free") : tr("🎧 Hands-free with your chief"),
               Ui.Kind.OUTLINE,
               v -> open("handsfree")),
           12);
@@ -3566,7 +3566,7 @@ public final class MainActivity extends Activity {
       return;
     }
     boolean several = assistants.size() > 1;
-    if (HandsFreeService.instance == null) {
+    if (!HandsFreeService.inCall()) {
       ui.add(
           content,
           ui.text(
@@ -3597,7 +3597,7 @@ public final class MainActivity extends Activity {
       }
       hfStatus = ui.add(content, ui.text("", 14, Ui.MUTED), 10);
     } else {
-      int with = HandsFreeService.callWith();
+      int with = HandsFreeService.activeWith();
       if (several && with >= 0) {
         TextView who = ui.add(content, ui.strong(tr("Call with %1$s", Assistants.name(this, with)), 16), 12);
         who.setTextColor(Assistants.color(with));
@@ -3659,13 +3659,13 @@ public final class MainActivity extends Activity {
   private void renderHandsFree() {
     if (hfStatus == null) return;
     // Started or ended (here, by the end phrase or from the notification): other buttons.
-    if ((HandsFreeService.instance != null) != (hfSend != null)) {
+    if (HandsFreeService.inCall() != (hfSend != null)) {
       show(page);
       return;
     }
     HandsFreeSession s = HandsFreeService.session();
     if (hfSend == null) {
-      hfStatus.setText(HandsFreeService.instance == null ? "" : tr("Starting…"));
+      hfStatus.setText("");
       return;
     }
     if (s == null) {
