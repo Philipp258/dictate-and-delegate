@@ -67,6 +67,9 @@ module.exports = async function (dd) {
     assert.ok(!(await published()).some((r) => r.topic === topic), 'nothing on the main topic');
     const note = ctx.history.load(d.snapshot().session.noteId);
     assert.equal(note.remote.by, 'Drum Along');
+    // Sent: the panel gets out of the way (it covered the drum app's notes), with no reply awaited.
+    await waitFor(() => !dd.panel().isVisible(), 8000, 'the panel goes after a remote dictation was sent');
+    console.log('E2E remote: the panel went after it was sent');
 
     // 2. Switched off: it says so and nothing records.
     ctx.prefs.set('remoteDictation', false);

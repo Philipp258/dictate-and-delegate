@@ -622,6 +622,13 @@ class Dictation extends EventEmitter {
     this.clearFeedback();
     if (this.state !== COPIED || this.hidden) return;
     const s = this.session;
+    // Started by another app (the drum kit) and sent: the panel gets out of the way after a
+    // moment, as other feedback does. Nothing to insert into that app, so no reply is waited for.
+    // Not sent: it stays, saying why (and the note's notification says it too).
+    if (s.remote && s.chief === DONE && s.refine !== RUNNING) {
+      this.feedbackTimer = this.timers.setTimeout(() => this.finishFeedback(), FEEDBACK_MS);
+      return;
+    }
     const waiting =
       s.refine === RUNNING || s.chief === RUNNING || (s.chief === DONE && !s.reply && this.listener !== null);
     this.feedbackTimer = this.timers.setTimeout(() => this.finishFeedback(), waiting ? PANEL_WAIT_MS : PANEL_IDLE_MS);
@@ -792,6 +799,7 @@ class Dictation extends EventEmitter {
       this.prefs.remove('sessionHeld');
       if (remote) {
         this.prefs.set('sessionRemote', remote);
+        this.session.remote = remote;
         this.session.chief = QUEUED;
         this.session.chiefAuto = false;
         this.prefs.set('sessionIntent', { at: this.clock() });
@@ -1161,6 +1169,8 @@ class Dictation extends EventEmitter {
         s.autoInsert = this.prefs.get('autoInsert', false) === true;
         // What the note is for comes from the note, not the panel: a retry goes on to the chief.
         const saved = (await this.loadNote(sessionId)) || entry;
+        // Started by another app (also after a Retry): its panel gets out of the way once sent.
+        if (saved.remote && typeof saved.remote === 'object') s.remote = saved.remote;
         const d = flow.delivery(saved, this.clock());
         // Don't send tapped on the note meanwhile: the panel's old choice doesn't bring it back.
         if (s.chief === QUEUED && !flow.meantForChief(saved) && 'intentDropped' in saved) s.chief = IDLE;
@@ -1523,7 +1533,7 @@ class Dictation extends EventEmitter {
       s.request = e.chiefRequest || '';
       s.message = tr('Sent to your chief of staff');
       if (current && this.hidden) this.emit('notice', tr('Sent to chief of staff'));
-      if (current && !this.hidden) this.listen(s, e.chiefSent || this.clock());
+      if (current && !this.hidden && !s.remote) this.listen(s, e.chiefSent || this.clock());
     }
     if (current) {
       this.autoInsert(s);

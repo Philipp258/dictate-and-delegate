@@ -1286,3 +1286,59 @@ test('whenEveryTryIsBusyTheNoteSaysSoAndKeepsTheAudio', async () => {
   assert.equal(problems.length, 1);
   assert.equal(problems[0].title, 'Recording not written down');
 });
+
+test('aDictationAnotherAppStartedGetsOutOfTheWayOnceSentButStaysWhenNotSent', async () => {
+  const remote = { session: 's1', by: 'Drum Along', context: 'page p1', at: 0 };
+  // Sent: no reply to insert is awaited, and the panel goes after the short feedback time.
+  const h = harness();
+  withChief(h);
+  h.fx.transcripts = ['play teen spirit'];
+  await h.d.start({ remote });
+  h.mic.speak(1200);
+  await h.d.stop();
+  await h.d.idle();
+  assert.equal(h.d.session.chief, D.DONE);
+  assert.equal(h.calls.listen.length, 0);
+  assert.equal(h.timers.pending(), D.FEEDBACK_MS);
+  h.advance(D.FEEDBACK_MS);
+  assert.equal(h.panel().mode, 'hidden');
+  assert.equal(h.note().chiefRequest !== undefined, true);
+  // Not sent: it stays, saying why.
+  const f = harness();
+  withChief(f);
+  f.fx.chiefError = new Error("bb isn't reachable right now (HTTP 503).");
+  f.fx.transcripts = ['play teen spirit'];
+  await f.d.start({ remote });
+  f.mic.speak(1200);
+  await f.d.stop();
+  await f.d.idle();
+  assert.equal(f.d.session.chief, D.FAILED);
+  assert.equal(f.timers.pending(), D.PANEL_IDLE_MS);
+  assert.notEqual(f.panel().mode, 'hidden');
+  // A dictation of your own still waits for the chief's text as before.
+  const o = harness();
+  withChief(o);
+  await o.dictate();
+  o.d.tapChief();
+  await o.d.idle();
+  assert.equal(o.timers.pending(), D.PANEL_WAIT_MS);
+});
+
+test('aRemoteDictationRetriedAfterItWasntWrittenDownStillGetsOutOfTheWayOnceSent', async () => {
+  const h = harness();
+  withChief(h);
+  h.fx.transcripts = ['play teen spirit'];
+  h.fx.transcribeError = new Error('Your OpenRouter credits are used up. Add credits, then retry.');
+  await h.d.start({ remote: { session: 's2', by: 'Drum Along', context: 'page p1', at: 0 } });
+  h.mic.speak(1200);
+  await h.d.stop();
+  await h.d.idle();
+  assert.equal(h.d.state, D.ERROR);
+  h.fx.transcribeError = null;
+  await h.d.retry();
+  await h.d.idle();
+  assert.equal(h.d.session.chief, D.DONE);
+  assert.ok(h.d.session.remote);
+  assert.equal(h.calls.listen.length, 0);
+  assert.equal(h.timers.pending(), D.FEEDBACK_MS);
+});
