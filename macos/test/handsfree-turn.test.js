@@ -174,7 +174,7 @@ test('writingDownThatHangsIsGivenUpTriedOnceMoreAndShown', async () => {
     await f.talk();
     await until(() => f.session.checkStep() === 'writing');
     assert.equal(f.session.liveState(), Live.WRITING);
-    await until(() => reasons(f).includes('Writing down took over 0 s: trying once more'));
+    await until(() => reasons(f).includes('Writing down took over ') && reasons(f).includes(': trying once more'));
     await until(() => reasons(f).includes('Couldn\'t write down'));
     f.slow.countDown();
     // Kept: Send writes it down and sends it.
@@ -253,9 +253,8 @@ test('talkingOverAReplyPausesItAndYourMessageDropsTheRestAndSaysHowFarYouHeard',
   assert.equal(f.transcriptions, 1, 'written down to check');
   const log = f.logText();
   assert.ok(log.includes('barge-in: 2 word(s) of yours heard over the reply ("Hold on, book")'), log);
-  assert.ok(log.includes('it plays on from "The train to Lisbon costs'), log);
-  assert.ok(reasons(f).includes('Reply paused: you\'re talking. It\'s dropped once your message goes'), reasons(f));
-  assert.equal(f.session.held(), 1, 'the rest waits, from the sentence it stopped in');
+  assert.ok(reasons(f).includes('Reply stopped: you talked over it. Your next message tells the chief how far you heard'), reasons(f));
+  assert.equal(f.session.held(), 0, 'the rest isn\'t played again');
   // You go on: all of it is your turn.
   for (let i = 0; i < 30; i++) f.session.frame(frame(8000));
   f.quiet(1200);
@@ -336,6 +335,8 @@ test('wordsOfTheReplyItselfAreItsEchoNotYours', () => {
   assert.equal(HandsFreeSession.ownWords('flight', longer, longer.length), 1, 'far from where it plays, a word of it is yours');
   assert.equal(HandsFreeSession.ownWords('', reply, at), 0);
   assert.equal(HandsFreeSession.ownWords('don\'t go', '', 0), 2);
+  assert.equal(HandsFreeSession.ownWords('Stop it', reply, at), 2, 'short words are yours');
+  assert.equal(HandsFreeSession.ownWords('Thanks for watching!', reply, at), 0);
 });
 
 test('whenJevSaysYoureNotDoneAndYouStayQuietTheWaitingReplyPlaysAndYourWordsWait', async () => {

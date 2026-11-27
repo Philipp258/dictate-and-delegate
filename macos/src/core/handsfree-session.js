@@ -162,6 +162,8 @@ class Queue {
 const SILENCE = Buffer.alloc(640);
 
 /** Filler sounds that aren't words of yours, for BARGE_WORDS. */
+/** What speech models write for noise: not words of yours. */
+const NOISE_TEXTS = new Set(['thanks for watching', 'thank you for watching', 'thank you', 'you', 'bye']);
 const FILLERS = new Set(['um', 'umm', 'uh', 'uhh', 'uhm', 'hm', 'hmm', 'mm', 'mmm', 'mhm', 'ah', 'ahh', 'oh', 'er', 'erm', 'eh', 'huh']);
 
 /** A chief message waiting to be read: being prepared until ready. */
@@ -403,6 +405,8 @@ class HandsFreeSession {
     this.overHeard = false;
     this.overProbing = false;
     this.overTold = false;
+    this.overFailTold = false;
+    this.overProbes = 0;
     this.overProbed = 0;
     this.overParts = [];
     this.overLogged = '';
@@ -979,6 +983,12 @@ class HandsFreeSession {
           // A sound starts: from its start, with the little before it.
           this.overFed = true;
           this.overHeard = true;
+          // Words of an earlier sound over it (too few of yours) are forgotten: each sound is
+          // judged on its own, and only the one that stops the reply becomes your turn.
+          if (l.text() !== '') {
+            l.discard();
+            this.overLogged = '';
+          }
           const st = this.segmenter.stretchAudio();
           for (let i = 0; i + 640 <= st.length; i += 640) l.audio(st.subarray(i, i + 640));
         } else l.audio(frame);
@@ -1016,10 +1026,18 @@ class HandsFreeSession {
     const bytes = (HandsFreeSession.PROBE_MS * HandsFree.BYTES_PER_SECOND) / 1000;
     if (!ended && (this.overProbing || pcm.length - this.overProbed < bytes)) return;
     if (!ended) this.overProbed = pcm.length;
+    if (this.overProbes >= HandsFreeSession.MAX_PROBES) {
+      if (this.overProbes++ === HandsFreeSession.MAX_PROBES)
+        this.log('sounds over the reply: ' + HandsFreeSession.MAX_PROBES + ' checks in this reply, no more (it plays on)');
+      return;
+    }
+    this.overProbes++;
+    // The last PROBE_TAIL_MS of it: a long sound isn't written down again and again from its start.
+    const tailBytes = Math.floor((HandsFreeSession.PROBE_TAIL_MS * HandsFree.BYTES_PER_SECOND) / 1000);
     this.overProbing = true;
     const r = this._reply;
     const at = this.heardChars();
-    const audio = Buffer.from(pcm);
+    const audio = Buffer.from(pcm.length <= tailBytes ? pcm : pcm.subarray(pcm.length - tailBytes));
     (async () => {
       try {
         const t = String(await this.transcriber(HandsFree.wav(audio))).trim();
@@ -1031,8 +1049,9 @@ class HandsFreeSession {
         if (own >= HandsFreeSession.BARGE_WORDS) this.bargeIn(token, t, own);
         else if (ended) this.overNoWords();
       } catch (ex) {
-        if (token !== this.reading || this._state !== State.READING) return;
         this.log('a sound over the reply couldn\'t be written down (' + message(ex) + '): the reply plays on');
+        if (token !== this.reading || this._state !== State.READING || this.overFailTold) return;
+        this.overFailTold = true;
         this.reason('Couldn\'t check if you talked over the reply (%1$s): it plays on', message(ex));
       } finally {
         this.overProbing = false;
@@ -1055,8 +1074,18 @@ class HandsFreeSession {
     const at = Math.max(0, Math.min(heardChars, reply.length));
     const near = reply.substring(Math.max(0, at - 250), Math.min(reply.length, at + 80));
     const echo = new Set(HandsFreeSession.wordsOf(near));
+    const w = HandsFreeSession.wordsOf(heard);
+    if (NOISE_TEXTS.has(w.join(' '))) return 0;
+    // Its echo: two words in a row as in the reply, or a longer word of it. Short words alone
+    // (it, on, no, a) are too common to tell: they're yours ("Hold on", "Stop it").
+    const r = HandsFreeSession.wordsOf(near);
+    const pairs = new Set();
+    for (let i = 0; i + 1 < r.length; i++) pairs.add(r[i] + ' ' + r[i + 1]);
     let n = 0;
-    for (const w of HandsFreeSession.wordsOf(heard)) if (!FILLERS.has(w) && !echo.has(w)) n++;
+    for (let i = 0; i < w.length; i++) {
+      const inPair = (i + 1 < w.length && pairs.has(w[i] + ' ' + w[i + 1])) || (i > 0 && pairs.has(w[i - 1] + ' ' + w[i]));
+      if (!FILLERS.has(w[i]) && !inPair && !(w[i].length > 3 && echo.has(w[i]))) n++;
+    }
     return n;
   }
 
@@ -1105,7 +1134,11 @@ class HandsFreeSession {
     // What you said over it, from the start of that stretch.
     const said = this.segmenter.stretchAudio();
     const fed = this.overLive;
-    if (!this.endReading(token, null, false, true)) return;
+    this.bargeUnchecked = true; // Before the reply ends: a sound ending as noise right after checks your turn.
+    if (!this.endReading(token, null, false, true)) {
+      this.bargeUnchecked = false;
+      return;
+    }
     this.speaker.stop();
     const parts = this.overParts;
     this.overParts = [];
@@ -1116,18 +1149,11 @@ class HandsFreeSession {
       for (const p of [...parts, said]) for (let i = 0; i + 640 <= p.length; i += 640) l.audio(p.subarray(i, i + 640));
     this.log(format('barge-in: %d word(s) of yours heard over the reply ("%s")', own, tail(heard)));
     this.takeFloor('you talked over the reply');
-    let waits = false;
-    let r = null;
-    if (rest !== '') {
-      r = new Held(was.request, rest, this.clock());
-      r.answers = was.answers;
-      r.note = note;
-      if (this._state !== State.ENDED && !this.outdated(r)) {
-        this._held.unshift(r);
-        waits = true;
-      } else this._unheard.push(new Note(note));
-    }
-    if (waits) this.prepare(r);
+    // The rest isn't played again (Philipp, 27 November 2026: "when I interrupt you, it stupidly
+    // just plays again what I interrupted"): your next message (or the call's end) tells the
+    // chief how far you heard, so it says again what still matters.
+    const waits = false;
+    if (rest !== '') this._unheard.push(new Note(note));
     for (const p of parts) this.addPart(p);
     // What ended already is checked now; a sound going on is, once it ends.
     const going = this.segmenter.candidate();
@@ -1143,8 +1169,7 @@ class HandsFreeSession {
         waits ? '; it plays on from "' + firstWords(rest, HandsFreeSession.MISSED_WORDS) + '" if your turn comes to nothing, dropped once your message goes' : '',
       ),
     );
-    if (waits) this.reason('Reply paused: you\'re talking. It\'s dropped once your message goes');
-    else this.reason('Reply stopped: you talked over it');
+    this.reason('Reply stopped: you talked over it. Your next message tells the chief how far you heard');
   }
 
   /**
@@ -1697,7 +1722,8 @@ class HandsFreeSession {
     // Sounds over it go to live transcription only while its text is empty (a turn of yours isn't
     // mixed with them); else they're written down to check.
     this.overLive = this.streaming() && this.live.text() === '';
-    this.overFed = this.overHeard = this.overProbing = this.overTold = false;
+    this.overFed = this.overHeard = this.overProbing = this.overTold = this.overFailTold = false;
+    this.overProbes = 0;
     this.overProbed = 0;
     this.overLogged = '';
     this.overParts = [];
@@ -1978,17 +2004,21 @@ class HandsFreeSession {
    */
   async writeDown(pcm, why) {
     const file = HandsFree.wav(pcm);
+    // Longer audio takes longer: 6 s plus 0.15 s per second of it (a 100 s turn gets 21 s; in
+    // Philipp's call of 27 November 2026 an 80 to 115 s turn was given up after 6 s, every time).
+    const seconds = pcm.length / HandsFree.BYTES_PER_SECOND;
+    const limit = HandsFreeSession.writeTimeoutMs + Math.floor(seconds * HandsFreeSession.WRITE_MS_PER_SECOND);
     if (!this.speechOpen) return String(await this.transcriber(file)).trim(); // The call ended: your last words, here.
     let last = null;
     for (let attempt = 1; attempt <= 2; attempt++) {
       const f = Promise.resolve().then(() => this.transcriber(file));
       f.catch(() => {}); // A try given up may still fail later.
       try {
-        return String(await withTimeout(f, HandsFreeSession.writeTimeoutMs)).trim();
+        return String(await withTimeout(f, limit)).trim();
       } catch (ex) {
         if (!(ex instanceof TimeoutError)) throw ex;
-        const secs = HandsFreeSession.writeTimeoutMs / 1000.0;
-        this.log(format('writing down (%s) took over %.0f s: %s', why, secs, attempt === 1 ? 'trying once more' : 'given up'));
+        const secs = limit / 1000.0;
+        this.log(format('writing down (%s, %.1f s of audio) took over %.0f s: %s', why, seconds, secs, attempt === 1 ? 'trying once more' : 'given up'));
         if (attempt === 1) this.reason('Writing down took over %1$.0f s: trying once more', secs);
         last = new Error(tr('the speech model took over %1$.0f s', secs));
       }
@@ -2610,6 +2640,21 @@ class HandsFreeSession {
   }
 
   /** Live transcription stopped working: said once, and from now on your words are written down. */
+  /**
+   * Live transcription lost its connection and connects again (StreamingSpeech.retry): said on
+   * screen; the turn going on may miss words it had in flight, so it's written down from its audio.
+   */
+  liveDropped(why) {
+    const turn = this.hasTurn() || this.segmenter.candidate() || this._pending !== '';
+    if (turn) this.batchTurn = true;
+    this.log('live transcription lost its connection (' + why + '): connecting again' + (turn ? '; this turn is written down from its audio' : ''));
+    const say = () => {
+      this.cue(Cue.FAILED);
+      this.reason('Live transcription lost its connection (%1$s): connecting again', why);
+    };
+    this.execute(say, say);
+  }
+
   liveFailed(why) {
     if (this.liveFailedSaid) return;
     this.liveFailedSaid = true;
@@ -3097,6 +3142,9 @@ Object.assign(HandsFreeSession, {
    */
   BARGE_WORDS: 2,
   PROBE_MS: 1500,
+  PROBE_TAIL_MS: 4000,
+  /** At most this many sounds over one reply are written down to check (it's paid per minute). */
+  MAX_PROBES: 20,
   /** Once you hold the floor, a stretch this short still counts ("Over." on its own). */
   SHORT_MS: 200,
   /** The longest a turn's final text from live transcription is waited for (it took 0.1 to 0.4 s). */
@@ -3138,6 +3186,8 @@ Object.assign(HandsFreeSession, {
   SLOW_WRITING_MS: 4000,
   /** Writing down a turn is given up after this long and tried once more (tests change it). */
   writeTimeoutMs: 6000,
+  /** The time writing down may take grows with the audio: this much per second of it. */
+  WRITE_MS_PER_SECOND: 150,
   /** Tries of sendLeftover, leftoverRetryMs apart. */
   LEFTOVER_TRIES: 3,
   leftoverRetryMs: 2000,

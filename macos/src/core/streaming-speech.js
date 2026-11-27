@@ -212,6 +212,16 @@ class StreamingSpeech {
     this.events = opts.events || (() => {});
     /** Hears once why it failed (the session says it on screen). */
     this.onFailure = opts.onFailure || (() => {});
+    /**
+     * Hears when the connection was lost and it connects again (why): what was in flight of the
+     * stretch going on may be missing, so the session writes that turn down from its audio.
+     */
+    this.onDropped = opts.onDropped || (() => {});
+    /** Lost connections in a row (RECONNECTS at most), when it may try again, when it last opened. */
+    this.drops = 0;
+    this.nextTry = 0;
+    this.lastOpenAt = 0;
+    this.retryTimer = null;
     /** The time; tests set their own. */
     this.clock = opts.clock || (() => Date.now());
   }
@@ -331,7 +341,7 @@ class StreamingSpeech {
     if (!ws || !ws.open()) {
       this.ring.push(c);
       while (this.ring.length > RING_MS / CHUNK_MS) this.ring.shift();
-      if (!this.connecting && now - this.lastSpeech < IDLE_MS) await this.connect();
+      if (!this.connecting && now - this.lastSpeech < IDLE_MS && now >= this.nextTry) await this.connect();
       return;
     }
     if (now - this.lastSpeech >= IDLE_MS && this.text() === '') {
@@ -351,7 +361,7 @@ class StreamingSpeech {
 
   speech() {
     this.lastSpeech = this.clock();
-    if (this.failed || this.connecting || this.closed) return;
+    if (this.failed || this.connecting || this.closed || this.clock() < this.nextTry) return;
     const ws = this.socket;
     if (!ws || !ws.open()) this.sender.run(() => this.connect()).catch(() => {});
   }
@@ -385,8 +395,11 @@ class StreamingSpeech {
               this.events(`streaming transcription: the provider ended the session${why ? ' (' + why + ')' : ''}; it opens again when you speak`);
               return;
             }
+            const reason = why || 'connection lost';
+            // Lost (no close from the provider): the network, most likely. Connected again.
+            if ((code === 1006 || code === 1005) && this.retry(reason)) return;
             // Closed by the provider while in use: why (a bad key, no credit, its limit).
-            this.fail((why || 'connection lost') + (code === 1006 || code === 1005 ? '' : ` (${code})`));
+            this.fail(reason + (code === 1006 || code === 1005 ? '' : ` (${code})`));
           },
         },
         10_000,
@@ -397,15 +410,47 @@ class StreamingSpeech {
         return;
       }
       this.socket = ws;
+      const was = this.lastOpenAt;
+      this.lastOpenAt = this.clock();
+      if (this.drops > 0 && was > 0) this.events('streaming transcription: connected again after ' + this.drops + ' lost connection(s)');
       this.openedMs = this.clock() - start;
       this.openSince = this.clock();
       this.events(format('streaming transcription (%s) open in %d ms', this.choice.model, this.openedMs));
       while (this.ring.length) this.sendAudio(ws, this.ring.shift());
     } catch (ex) {
-      this.fail("couldn't connect: " + ex.message);
+      // After a lost connection the network may still be away a moment: tried again.
+      if (this.drops === 0 || !this.retry("couldn't connect: " + ex.message)) this.fail("couldn't connect: " + ex.message);
     } finally {
       this.connecting = false;
     }
+  }
+
+  /**
+   * The connection was lost (or connecting again failed): connected again when you speak, after
+   * a short wait, unless it happened RECONNECTS times in a row (a connection open RECOVERED_MS
+   * resets the count). False: given up (fail). A lost connection (a network blip: "software
+   * caused connection abort" after 20 minutes in Philipp's call, 27 November 2026) used to end
+   * live transcription for the rest of the call.
+   */
+  retry(why) {
+    const now = this.clock();
+    if (this.lastOpenAt > 0 && now - this.lastOpenAt >= StreamingSpeech.RECOVERED_MS) this.drops = 0; // It had worked a while.
+    if (this.closed || this.drops >= StreamingSpeech.RECONNECTS) return false;
+    this.drops++;
+    this.socket = null;
+    const wait = StreamingSpeech.RETRY_MS * this.drops;
+    this.nextTry = now + wait;
+    this.events('streaming transcription: ' + why + '; connecting again (' + this.drops + ' of ' + StreamingSpeech.RECONNECTS + ')');
+    this.onDropped(why);
+    // Open again at once when you're talking (else at your next words).
+    if (now - this.lastSpeech < IDLE_MS) {
+      if (this.retryTimer) clearTimeout(this.retryTimer);
+      this.retryTimer = setTimeout(() => {
+        this.retryTimer = null;
+        if (!this.closed) this.sender.run(() => this.connect()).catch(() => {});
+      }, wait);
+    }
+    return true;
   }
 
   /**
@@ -511,6 +556,8 @@ class StreamingSpeech {
 
   close() {
     this.closed = true;
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+    this.retryTimer = null;
     this.events('streaming transcription: ' + this.usage());
     const ws = this.socket;
     this.socket = null;
@@ -523,6 +570,10 @@ StreamingSpeech.assemblyAiUrl = 'wss://streaming.assemblyai.com/v3/ws';
 StreamingSpeech.elevenLabsUrl = 'wss://api.elevenlabs.io/v1/speech-to-text/realtime';
 /** How long a dropped stretch's late messages are waited for (tests shorten it). */
 StreamingSpeech.DROP_MS = 2000;
+/** Lost connections connected again in a row at most; the wait before each (times the count); open this long resets the count. */
+StreamingSpeech.RECONNECTS = 5;
+StreamingSpeech.RETRY_MS = 1000;
+StreamingSpeech.RECOVERED_MS = 60_000;
 
 /** Java's URLEncoder.encode: spaces as +, and !'()~ encoded too. */
 function urlEncode(s) {

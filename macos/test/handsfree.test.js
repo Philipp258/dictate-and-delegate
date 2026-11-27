@@ -241,11 +241,11 @@ test('whenYouTalkThePlayingReplyPausesAndYourMessageDropsItAndEveryQueuedOne', a
   f.heardChars = 'One moment, I\'m checking'.length;
   assert.ok((await talkOverUntilStopped(f, 8000, 200)) > 0); // You talk over it.
   assert.equal(f.session.state(), State.LISTENING, 'the playing reply stopped');
-  assert.equal(f.session.held(), 3, 'its rest first, then the queued ones: waiting');
+  assert.equal(f.session.held(), 2, 'its rest isn\'t played again; the queued ones wait');
   for (let i = 0; i < 20; i++) f.session.frame(frame(8000));
   f.quiet(1200);
   await until(() => f.sent.length === 2);
-  assert.ok(reasons(f).includes('3 replies weren\'t played: your new message went. It tells the chief'), reasons(f));
+  assert.ok(reasons(f).includes('2 replies weren\'t played: your new message went. It tells the chief'), reasons(f));
   assert.equal(
     f.sent[1],
     'Wait, and the train?\n\n[heard up to: "One moment, I\'m checking"] [not played from there: "the booking for you now."]' +

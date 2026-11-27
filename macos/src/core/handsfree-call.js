@@ -30,7 +30,7 @@
 //     (no Jev: the send and end words decide). Its cost is counted here (don't also count it
 //     through Jev.makeJudge's onCost).
 //   createLive: (keyterms, { onText(text), onFailure(why), log(line) }) → a LiveText (e.g. a
-//     StreamingSpeech; its changed/onFailure/events properties are set too if it has them; its
+//     StreamingSpeech; its changed/onFailure/onDropped/events properties are set too if it has them; its
 //     choice {model, provider} names it in the log), or { missingKey: 'AssemblyAI' } when the
 //     provider's key is missing, or null. Only asked when live transcription is on (hfLive).
 //   createSpeaker: ({ event(line), onVoiceFailed(why, systemVoice), onCost({ request, choice,
@@ -459,6 +459,10 @@ class HandsFreeCall {
       const h = call.session;
       if (h != null) h.liveFailed(why);
     };
+    const onDropped = (why) => {
+      const h = call.session;
+      if (h != null) h.liveDropped(why);
+    };
     const log = (e) => call.event(e);
     let s;
     try {
@@ -474,6 +478,7 @@ class HandsFreeCall {
     }
     if ('changed' in s) s.changed = onText;
     if ('onFailure' in s) s.onFailure = onFailure;
+    if ('onDropped' in s) s.onDropped = onDropped; // A lost connection, connecting again.
     if ('events' in s) s.events = log;
     session.live = s;
     s.speech(); // Open now.
@@ -631,6 +636,22 @@ class HandsFreeCall {
         failed = {};
         for (const id of to.keys()) failed[id] = (ex && ex.message) || String(ex);
       }
+      // A network blip ("unknown address" right after Philipp's call of 27 November 2026 ended):
+      // those not reached are tried again, twice, SIGNAL_RETRY_MS and twice that later.
+      for (let attempt = 1; attempt <= 2 && Object.keys(failed).length > 0; attempt++) {
+        const wait = HandsFreeCall.SIGNAL_RETRY_MS * attempt;
+        call.event('couldn\'t tell ' + Object.keys(failed).length + ' of them (' + Object.values(failed)[0] + '): trying again in ' + wait / 1000 + ' s');
+        await new Promise((r) => setTimeout(r, wait));
+        const again = new Map();
+        for (const id of Object.keys(failed)) again.set(id, to.get(id));
+        try {
+          failed = (await call.bb.tellEach(again)) || {};
+        } catch (ex) {
+          const why = (ex && ex.message) || String(ex);
+          failed = {};
+          for (const id of again.keys()) failed[id] = why;
+        }
+      }
       for (const [id, text] of to) {
         const who = id === chief ? 'the chief' : 'the talker (' + id + ')';
         if (Object.prototype.hasOwnProperty.call(failed, id)) call.event('couldn\'t tell ' + who + ' ' + text + ': ' + failed[id]);
@@ -779,6 +800,9 @@ class HandsFreeCall {
     return this.ended;
   }
 }
+
+/** How long a failed signal waits before it's tried again (then twice that). */
+HandsFreeCall.SIGNAL_RETRY_MS = 3000;
 
 module.exports = {
   HandsFreeCall,

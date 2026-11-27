@@ -181,6 +181,11 @@ class Provider {
     this.latest.send(text);
   }
 
+  /** The latest connection is cut (the network: no close frame). */
+  abort() {
+    this.latest.terminate();
+  }
+
   /** The provider ends the session (its time limit): close 1000. */
   endSession() {
     this.latest.close(1000);
@@ -281,6 +286,50 @@ test('assemblyAiCountsTurnsAfreshOnANewConnection', async () => {
       s.close();
     });
   } finally {
+    await p.close();
+  }
+});
+
+test('aLostConnectionConnectsAgainAndItsTurnsCountAgain', async () => {
+  // Philipp's call, 27 November 2026, 16:08:46: "software caused connection abort" after 20
+  // minutes, and live transcription was gone for the rest of the call ("over" did nothing).
+  const p = await Provider.start();
+  const retry = StreamingSpeech.RETRY_MS;
+  StreamingSpeech.RETRY_MS = 50;
+  try {
+    await pointed(p.url(), async () => {
+      const events = [];
+      const drops = [];
+      const failed = [];
+      const s = S.create(S.AAI_PRO, 'k', []);
+      s.events = (e) => events.push(e);
+      s.onDropped = (why) => drops.push(why);
+      s.onFailure = (why) => failed.push(why);
+      s.speech();
+      await until(() => p.connections === 1);
+      await until(() => s.openedMs >= 0);
+      p.send(turn(3, true, 'Book the table.'));
+      await until(() => s.text() === 'Book the table.');
+      p.abort();
+      await until(() => drops.length === 1);
+      await until(() => p.connections === 2); // Connected again by itself (you're talking).
+      assert.ok(s.working());
+      assert.ok(events.join('\n').includes('connecting again (1 of ' + StreamingSpeech.RECONNECTS + ')'), events.join('\n'));
+      await sleep(100);
+      p.send(turn(0, true, 'Over.'));
+      await until(() => s.text() === 'Book the table. Over.');
+      // Lost again and again: given up after RECONNECTS in a row, said once.
+      for (let i = 2; i <= StreamingSpeech.RECONNECTS + 1; i++) {
+        await sleep(50);
+        p.abort();
+        if (i <= StreamingSpeech.RECONNECTS) await until(() => p.connections === i + 1);
+      }
+      await until(() => failed.length === 1);
+      assert.ok(!s.working());
+      s.close();
+    });
+  } finally {
+    StreamingSpeech.RETRY_MS = retry;
     await p.close();
   }
 });
