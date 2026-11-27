@@ -918,4 +918,6 @@
     <string name="t_ff769841" formatted="false">Stoppen met proberen</string>
     <string name="t_ff770e18" formatted="false">Kosten en activiteit</string>
     <string name="t_ffd9a681" formatted="false">Opnieuw doen met een slimmer model… Je kunt dit scherm verlaten.</string>
+    <string name="t_5a92ba6f" formatted="false">Kon niet controleren of je door het antwoord heen sprak (%1$s): het speelt door</string>
+    <string name="t_c9e34f57" formatted="false">Een geluid tijdens het antwoord bevatte geen woorden van jou: het speelt door</string>
 </resources>

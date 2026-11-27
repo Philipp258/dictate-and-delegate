@@ -918,4 +918,6 @@
     <string name="t_ff769841" formatted="false">Nicht weiter versuchen</string>
     <string name="t_ff770e18" formatted="false">Kosten und Aktivität</string>
     <string name="t_ffd9a681" formatted="false">Wird mit klügerem Modell wiederholt… Du kannst diesen Bereich verlassen.</string>
+    <string name="t_5a92ba6f" formatted="false">Konnte nicht prüfen, ob du über die Antwort gesprochen hast (%1$s): sie läuft weiter</string>
+    <string name="t_c9e34f57" formatted="false">Ein Geräusch während der Antwort hatte keine Wörter von dir: sie läuft weiter</string>
 </resources>

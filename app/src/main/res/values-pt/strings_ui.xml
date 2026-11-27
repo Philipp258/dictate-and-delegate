@@ -925,4 +925,6 @@
     <string name="t_ff769841" formatted="false">Parar de tentar</string>
     <string name="t_ff770e18" formatted="false">Custos e atividade</string>
     <string name="t_ffd9a681" formatted="false">A refazer com um modelo melhor… Podes sair deste ecrã.</string>
+    <string name="t_5a92ba6f" formatted="false">Não foi possível verificar se falaste por cima da resposta (%1$s): continua</string>
+    <string name="t_c9e34f57" formatted="false">Um som durante a resposta não tinha palavras tuas: continua</string>
 </resources>

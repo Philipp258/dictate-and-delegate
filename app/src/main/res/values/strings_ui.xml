@@ -335,6 +335,7 @@
     <string name="t_5a337533" formatted="false">Speech needed to take your turn, within 1.5 seconds (seconds)</string>
     <string name="t_5a36973e" formatted="false">Refining your text…</string>
     <string name="t_5a6e8ec5" formatted="false">No events yet. They appear here once you\'ve made a hands-free call.</string>
+    <string name="t_5a92ba6f" formatted="false">Couldn\'t check if you talked over the reply (%1$s): it plays on</string>
     <string name="t_5aea46a7" formatted="false">%1$s isn\'t set up: Settings → bb. No call was started.</string>
     <string name="t_5afff0dd" formatted="false">Swipe down, edit Quick Settings, then add Dictate &amp; Delegate.</string>
     <string name="t_5b08232c" formatted="false">Voice-to-text</string>
@@ -716,6 +717,7 @@
     <string name="t_c99694b4" formatted="false">Connecting…</string>
     <string name="t_c997df74" formatted="false">bb refused the sign-in: %1$s</string>
     <string name="t_c998a38e" formatted="false">Audio has expired or was deleted. Text is still saved.</string>
+    <string name="t_c9e34f57" formatted="false">A sound over the reply had no words of yours: it plays on</string>
     <string name="t_c9e76ec6" formatted="false">Live transcription is off: no %1$s key (Settings → Hands-free)</string>
     <string name="t_ca00a779" formatted="false">Save key</string>
     <string name="t_ca4b7d63" formatted="false">Reply waits: checking whether you\'re done</string>

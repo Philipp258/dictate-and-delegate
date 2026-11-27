@@ -854,18 +854,55 @@ public class HandsFreeTest {
   }
 
   @Test
-  public void aReplyPausedByNoiseOverItPlaysOnFromTheSentenceItStoppedIn() throws Exception {
-    Fake f = playingReply(""); // What was heard over it has no words.
+  public void aLoudSoundWithoutWordsOverAReplyNeverStopsIt() throws Exception {
+    // Philipp, 27 November 2026: a pan in the kitchen interrupted the reply. Loud as a voice, two
+    // seconds long, but written down it has no words: the reply plays on.
+    Fake f = playingReply("", "", "", "");
     f.heardChars = LONG_REPLY.indexOf("Lisbon");
-    framesToStop(f, 8000, 40);
-    assertEquals(HandsFreeSession.State.LISTENING, f.session.state());
+    assertEquals(-1, talkOverUntilStopped(f, 8000, 100));
     f.quiet(1200);
-    until(() -> f.spoken.size() == 2);
-    assertEquals("The train to Lisbon costs about forty euros if you book today.", f.spoken.get(1));
+    until(() -> f.transcriptions.get() >= 2); // While it went on, and once it ended.
+    Thread.sleep(100);
+    assertEquals(HandsFreeSession.State.READING, f.session.state());
+    assertFalse(f.stopped);
+    assertTrue(reasons(f), reasons(f).contains("A sound over the reply had no words of yours: it plays on"));
     f.done.run();
+    assertEquals(HandsFreeSession.State.LISTENING, f.session.state());
     f.session.end();
     assertEquals("heard to its end: nothing to note", "", f.session.endNote());
     assertTrue(f.sent.isEmpty());
+    assertEquals(HandsFreeSession.Floor.OPEN, f.session.floor());
+  }
+
+  @Test
+  public void oneWordOverAReplyDoesntStopItTwoDo() throws Exception {
+    Fake f = playingReply("Hmm, yes", "", "Wait, stop");
+    f.heardChars = LONG_REPLY.indexOf("Lisbon");
+    // "Hmm, yes": a filler and one word.
+    for (int i = 0; i < 60; i++) f.session.frame(frame(8000));
+    f.quiet(1200);
+    until(() -> f.transcriptions.get() >= 1);
+    Thread.sleep(100);
+    assertFalse(f.stopped);
+    // "Wait, stop": two words of yours.
+    assertTrue(talkOverUntilStopped(f, 8000, 200) > 0);
+    assertEquals(HandsFreeSession.State.LISTENING, f.session.state());
+    assertTrue(String.join("\n", f.log).contains("barge-in: 2 word(s) of yours heard over the reply (\"Wait, stop\")"));
+  }
+
+  @Test
+  public void wordsOfTheReplyItselfAreItsEchoNotYours() {
+    String reply = LONG_REPLY;
+    int at = reply.indexOf("Lisbon");
+    assertEquals(0, HandsFreeSession.ownWords("The train to Lisbon", reply, at));
+    assertEquals(0, HandsFreeSession.ownWords("um, uh, hmm.", reply, at));
+    assertEquals(1, HandsFreeSession.ownWords("Okay.", reply, at));
+    assertEquals(2, HandsFreeSession.ownWords("Wait, stop.", reply, at));
+    assertEquals(2, HandsFreeSession.ownWords("Hold on, the train", reply, at));
+    String longer = "The flight is booked. " + "Nothing else is planned for that day. ".repeat(10);
+    assertEquals("far from where it plays, a word of it is yours", 1, HandsFreeSession.ownWords("flight", longer, longer.length()));
+    assertEquals(0, HandsFreeSession.ownWords("", reply, at));
+    assertEquals(2, HandsFreeSession.ownWords("don't go", "", 0));
   }
 
   @Test
@@ -1349,10 +1386,14 @@ public class HandsFreeTest {
     return f;
   }
 
-  /** Feeds your speech over the reply until it stops (at most limit frames): how many it took. */
-  static int framesToStop(Fake f, int amplitude, int limit) {
+  /**
+   * Feeds your speech over the reply (a frame each 5 ms: what's heard is written down meanwhile)
+   * until it stops, at most limit frames: how many it took, -1 if it didn't.
+   */
+  static int talkOverUntilStopped(Fake f, int amplitude, int limit) throws Exception {
     for (int i = 1; i <= limit; i++) {
       f.session.frame(frame(amplitude));
+      Thread.sleep(5);
       if (f.stopped) return i;
     }
     return -1;
@@ -1360,14 +1401,15 @@ public class HandsFreeTest {
 
   @Test
   public void talkingOverAReplyPausesItAndYourMessageDropsTheRestAndSaysHowFarYouHeard() throws Exception {
-    Fake f = playingReply("Hold on, book the train instead.", "Over.");
+    // Without live transcription: what you say over it is written down to check for words.
+    Fake f = playingReply("Hold on, book", "Hold on, book the train instead.", "Over.");
     f.heardChars = LONG_REPLY.indexOf("Lisbon");
-    int frames = framesToStop(f, 8000, 40); // You, over the reply.
-    assertEquals("stopped after 300 ms of your speech", HandsFreeSession.BARGE_MS / 20, frames);
+    int frames = talkOverUntilStopped(f, 8000, 200); // You, over the reply.
+    assertTrue("stopped once your words were heard: " + frames, frames > 0);
     assertEquals(HandsFreeSession.State.LISTENING, f.session.state());
-    assertEquals("nothing had to be written down to stop it", 0, f.transcriptions.get());
+    assertEquals("written down to check", 1, f.transcriptions.get());
     String log = String.join("\n", f.log);
-    assertTrue(log, log.contains("barge-in: speech 300 ms → paused"));
+    assertTrue(log, log.contains("barge-in: 2 word(s) of yours heard over the reply (\"Hold on, book\")"));
     assertTrue(log, log.contains("it plays on from \"The train to Lisbon costs"));
     assertTrue(reasons(f), reasons(f).contains("Reply paused: you're talking. It's dropped once your message goes"));
     assertEquals("the rest waits, from the sentence it stopped in", 1, f.session.held());
@@ -1389,11 +1431,11 @@ public class HandsFreeTest {
 
   @Test
   public void aReplyTalkedOverWithNoMessageAfterItIsNotedWithTheCallsEnd() throws Exception {
-    Fake f = playingReply("");
+    Fake f = playingReply("Hold on", "");
     f.heardChars = LONG_REPLY.indexOf("twelve");
-    framesToStop(f, 8000, 40);
-    f.quiet(1200); // What you said had no words: nothing to send.
-    until(() -> f.transcriptions.get() == 1);
+    assertTrue(talkOverUntilStopped(f, 8000, 200) > 0);
+    f.quiet(1200); // Your turn's words: none in the end, nothing to send.
+    until(() -> f.transcriptions.get() == 2);
     Thread.sleep(100);
     f.session.end();
     assertEquals("\n\n[heard up to: \"…leaves at nine in the morning from gate\"] [not played from there: \"twelve. The train to Lisbon costs about forty euros if you book…\"]", f.session.endNote());
@@ -2096,25 +2138,53 @@ public class HandsFreeTest {
   }
 
   @Test
-  public void aReplyIsSilenceToLiveTranscriptionUntilYouTalkOverIt() throws Exception {
+  public void overAReplyLiveTranscriptionHearsOnlySoundsAndTwoWordsOfYoursStopIt() throws Exception {
     Fake f = new Fake();
     FakeLive live = new FakeLive(f);
     f.quiet(1000);
     f.session.reply("r1", LONG_REPLY);
     until(() -> f.spoken.size() == 1);
+    f.heardChars = LONG_REPLY.indexOf("Lisbon");
     int before = live.loud.get();
     for (int i = 0; i < 100; i++) f.session.frame(frame(i % 7 == 0 ? 700 : 300)); // Its leftover echo.
     assertEquals("its echo isn't sent", before, live.loud.get());
-    // You, over it, with little gaps: it takes a while to count as you; all of it goes to live
-    // transcription once it does, from the start (not only the last half second).
+    // A sound over it: all of it goes to live transcription, from its start.
     int loud = 0;
-    for (int i = 0; i < 80 && f.session.state() == HandsFreeSession.State.READING; i++) {
+    for (int i = 0; i < 80; i++) {
       boolean voiced = i % 4 < 2;
       if (voiced) loud++;
       f.session.frame(frame(voiced ? 8000 : 50));
     }
-    assertEquals(HandsFreeSession.State.LISTENING, f.session.state());
     assertTrue(loud + " loud frames, " + (live.loud.get() - before) + " sent", live.loud.get() - before >= loud);
+    assertEquals("a sound alone doesn't stop it", HandsFreeSession.State.READING, f.session.state());
+    live.say("Okay"); // One word.
+    assertEquals(HandsFreeSession.State.READING, f.session.state());
+    live.say("Lisbon costs"); // Its own echo.
+    assertEquals(HandsFreeSession.State.READING, f.session.state());
+    live.say("Okay, wait");
+    assertEquals(HandsFreeSession.State.LISTENING, f.session.state());
+    assertTrue(f.stopped);
+    assertEquals("Okay, wait", f.session.pending());
+    assertEquals(HandsFreeSession.Floor.YOU, f.session.floor());
+  }
+
+  @Test
+  public void wordlessSoundsOverAReplyAreForgottenByLiveTranscriptionWhenItEnds() throws Exception {
+    Fake f = new Fake();
+    FakeLive live = new FakeLive(f);
+    f.quiet(1000);
+    f.session.reply("r1", LONG_REPLY);
+    until(() -> f.spoken.size() == 1);
+    for (int i = 0; i < 60; i++) f.session.frame(frame(8000)); // A clatter.
+    f.quiet(1200);
+    live.say("uh");
+    assertEquals(HandsFreeSession.State.READING, f.session.state());
+    f.done.run();
+    assertEquals(HandsFreeSession.State.LISTENING, f.session.state());
+    assertEquals(1, live.discards.get());
+    assertEquals("", live.text());
+    assertEquals(HandsFreeSession.Floor.OPEN, f.session.floor());
+    assertTrue(reasons(f), reasons(f).contains("A sound over the reply had no words of yours: it plays on"));
   }
 
   // ------------------------------------------------------------------ the send word, checked by Jev

@@ -925,4 +925,6 @@
     <string name="t_ff769841" formatted="false">Arrêter d\'essayer</string>
     <string name="t_ff770e18" formatted="false">Coûts et activité</string>
     <string name="t_ffd9a681" formatted="false">Traitement avec un modèle plus performant… Tu peux quitter cet écran.</string>
+    <string name="t_5a92ba6f" formatted="false">Impossible de vérifier si tu as parlé pendant la réponse (%1$s) : elle continue</string>
+    <string name="t_c9e34f57" formatted="false">Un bruit pendant la réponse ne contenait aucun mot de toi : elle continue</string>
 </resources>

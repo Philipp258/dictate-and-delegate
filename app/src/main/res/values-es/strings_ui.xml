@@ -925,4 +925,6 @@
     <string name="t_ff769841" formatted="false">Dejar de intentarlo</string>
     <string name="t_ff770e18" formatted="false">Costes y actividad</string>
     <string name="t_ffd9a681" formatted="false">Rehaciendo con un modelo mejor… Puedes salir de esta pantalla.</string>
+    <string name="t_5a92ba6f" formatted="false">No se pudo comprobar si hablaste durante la respuesta (%1$s): sigue sonando</string>
+    <string name="t_c9e34f57" formatted="false">Un sonido durante la respuesta no tenía palabras tuyas: sigue sonando</string>
 </resources>

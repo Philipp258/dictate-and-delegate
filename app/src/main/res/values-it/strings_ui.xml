@@ -925,4 +925,6 @@
     <string name="t_ff769841" formatted="false">Smetti di riprovare</string>
     <string name="t_ff770e18" formatted="false">Costi e attività</string>
     <string name="t_ffd9a681" formatted="false">Rifacimento con un modello più intelligente… Puoi lasciare questa schermata.</string>
+    <string name="t_5a92ba6f" formatted="false">Impossibile verificare se hai parlato sopra la risposta (%1$s): continua</string>
+    <string name="t_c9e34f57" formatted="false">Un suono durante la risposta non conteneva tue parole: continua</string>
 </resources>
