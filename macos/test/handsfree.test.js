@@ -18,6 +18,7 @@ const {
   count,
   sendTurn,
   hear,
+  talkOverUntilStopped,
 } = require('./support/handsfree-fakes');
 
 const { State, Floor, Phase, Live } = HandsFreeSession;
@@ -228,7 +229,8 @@ test('aReplyToAnOlderMessageIsntPlayedAndTheNextMessageSaysSo', async () => {
 test('whenYouTalkThePlayingReplyPausesAndYourMessageDropsItAndEveryQueuedOne', async () => {
   // Philipp's design, 2 November 2026: "no queuing, just always canceled"; at 22:46: dropped once
   // your message goes, not by talking alone.
-  const f = new Fake('Is the table booked? Over.', 'Wait, and the train? Over.');
+  // What you say over the reply is written down to check for words ("Wait, and"), then your turn.
+  const f = new Fake('Is the table booked? Over.', 'Wait, and', 'Wait, and the train? Over.');
   f.quiet(1000);
   await sendTurn(f, 1);
   f.session.reply('r1', 'One moment, I\'m checking the booking for you now.');
@@ -237,7 +239,7 @@ test('whenYouTalkThePlayingReplyPausesAndYourMessageDropsItAndEveryQueuedOne', a
   f.session.reply(f.session.lastRequest(), 'The window table is free.', 0, true);
   assert.equal(f.session.held(), 2, 'queued behind the one playing');
   f.heardChars = 'One moment, I\'m checking'.length;
-  for (let i = 0; i < 40 && f.session.state() === State.READING; i++) f.session.frame(frame(8000)); // You talk over it.
+  assert.ok((await talkOverUntilStopped(f, 8000, 200)) > 0); // You talk over it.
   assert.equal(f.session.state(), State.LISTENING, 'the playing reply stopped');
   assert.equal(f.session.held(), 3, 'its rest first, then the queued ones: waiting');
   for (let i = 0; i < 20; i++) f.session.frame(frame(8000));

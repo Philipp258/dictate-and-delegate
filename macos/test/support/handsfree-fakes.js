@@ -353,6 +353,19 @@ function framesToStop(f, amplitude, limit) {
   return -1;
 }
 
+/**
+ * Feeds your speech over the reply (a frame each 5 ms: what's heard is written down meanwhile)
+ * until it stops, at most limit frames: how many it took, -1 if it didn't.
+ */
+async function talkOverUntilStopped(f, amplitude, limit) {
+  for (let i = 1; i <= limit; i++) {
+    f.session.frame(frame(amplitude));
+    await sleep(5);
+    if (f.stopped) return i;
+  }
+  return -1;
+}
+
 /** A module another port provides (path as from test/), or null while it isn't there yet. */
 function optional(p) {
   const full = require('path').resolve(__dirname, '..', p);
@@ -383,5 +396,6 @@ module.exports = {
   LONG_REPLY,
   playingReply,
   framesToStop,
+  talkOverUntilStopped,
   optional,
 };

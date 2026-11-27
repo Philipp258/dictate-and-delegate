@@ -357,25 +357,52 @@ test('withLiveTranscriptionYourTurnIsYourUnsentWordsNotLoudness', async () => {
   assert.ok(f.logText().includes('turn: yours (unsent words)'));
 });
 
-test('aReplyIsSilenceToLiveTranscriptionUntilYouTalkOverIt', async () => {
+test('overAReplyLiveTranscriptionHearsOnlySoundsAndTwoWordsOfYoursStopIt', async () => {
   const f = new Fake();
   const live = new FakeLive(f);
   f.quiet(1000);
   f.session.reply('r1', LONG_REPLY);
   await until(() => f.spoken.length === 1);
+  f.heardChars = LONG_REPLY.indexOf('Lisbon');
   const before = live.loud;
   for (let i = 0; i < 100; i++) f.session.frame(frame(i % 7 === 0 ? 700 : 300)); // Its leftover echo.
   assert.equal(live.loud, before, 'its echo isn\'t sent');
-  // You, over it, with little gaps: it takes a while to count as you; all of it goes to live
-  // transcription once it does, from the start (not only the last half second).
+  // A sound over it: all of it goes to live transcription, from its start.
   let loud = 0;
-  for (let i = 0; i < 80 && f.session.state() === State.READING; i++) {
+  for (let i = 0; i < 80; i++) {
     const voiced = i % 4 < 2;
     if (voiced) loud++;
     f.session.frame(frame(voiced ? 8000 : 50));
   }
-  assert.equal(f.session.state(), State.LISTENING);
   assert.ok(live.loud - before >= loud, loud + ' loud frames, ' + (live.loud - before) + ' sent');
+  assert.equal(f.session.state(), State.READING, 'a sound alone doesn\'t stop it');
+  live.say('Okay'); // One word.
+  assert.equal(f.session.state(), State.READING);
+  live.say('Lisbon costs'); // Its own echo.
+  assert.equal(f.session.state(), State.READING);
+  live.say('Okay, wait');
+  assert.equal(f.session.state(), State.LISTENING);
+  assert.ok(f.stopped);
+  assert.equal(f.session.pending(), 'Okay, wait');
+  assert.equal(f.session.floor(), Floor.YOU);
+});
+
+test('wordlessSoundsOverAReplyAreForgottenByLiveTranscriptionWhenItEnds', async () => {
+  const f = new Fake();
+  const live = new FakeLive(f);
+  f.quiet(1000);
+  f.session.reply('r1', LONG_REPLY);
+  await until(() => f.spoken.length === 1);
+  for (let i = 0; i < 60; i++) f.session.frame(frame(8000)); // A clatter.
+  f.quiet(1200);
+  live.say('uh');
+  assert.equal(f.session.state(), State.READING);
+  f.done();
+  assert.equal(f.session.state(), State.LISTENING);
+  assert.equal(live.discards, 1);
+  assert.equal(live.text(), '');
+  assert.equal(f.session.floor(), Floor.OPEN);
+  assert.ok(reasons(f).includes('A sound over the reply had no words of yours: it plays on'), reasons(f));
 });
 
 // ------------------------------------------------------------------ the send word, checked by Jev

@@ -18,7 +18,7 @@ const {
   hear,
   LONG_REPLY,
   playingReply,
-  framesToStop,
+  talkOverUntilStopped,
   optional,
 } = require('./support/handsfree-fakes');
 
@@ -244,14 +244,15 @@ test('aReplyLongerThanItsEstimateIsNeverCutWhileItsAudioPlays', async () => {
 // ------------------------------------------------------------------ talking over a reply
 
 test('talkingOverAReplyPausesItAndYourMessageDropsTheRestAndSaysHowFarYouHeard', async () => {
-  const f = await playingReply('Hold on, book the train instead.', 'Over.');
+  // Without live transcription: what you say over it is written down to check for words.
+  const f = await playingReply('Hold on, book', 'Hold on, book the train instead.', 'Over.');
   f.heardChars = LONG_REPLY.indexOf('Lisbon');
-  const frames = framesToStop(f, 8000, 40); // You, over the reply.
-  assert.equal(frames, HandsFreeSession.BARGE_MS / 20, 'stopped after 300 ms of your speech');
+  const frames = await talkOverUntilStopped(f, 8000, 200); // You, over the reply.
+  assert.ok(frames > 0, 'stopped once your words were heard: ' + frames);
   assert.equal(f.session.state(), State.LISTENING);
-  assert.equal(f.transcriptions, 0, 'nothing had to be written down to stop it');
+  assert.equal(f.transcriptions, 1, 'written down to check');
   const log = f.logText();
-  assert.ok(log.includes('barge-in: speech 300 ms → paused'), log);
+  assert.ok(log.includes('barge-in: 2 word(s) of yours heard over the reply ("Hold on, book")'), log);
   assert.ok(log.includes('it plays on from "The train to Lisbon costs'), log);
   assert.ok(reasons(f).includes('Reply paused: you\'re talking. It\'s dropped once your message goes'), reasons(f));
   assert.equal(f.session.held(), 1, 'the rest waits, from the sentence it stopped in');
@@ -275,11 +276,11 @@ test('talkingOverAReplyPausesItAndYourMessageDropsTheRestAndSaysHowFarYouHeard',
 });
 
 test('aReplyTalkedOverWithNoMessageAfterItIsNotedWithTheCallsEnd', async () => {
-  const f = await playingReply('');
+  const f = await playingReply('Hold on', '');
   f.heardChars = LONG_REPLY.indexOf('twelve');
-  framesToStop(f, 8000, 40);
-  f.quiet(1200); // What you said had no words: nothing to send.
-  await until(() => f.transcriptions === 1);
+  assert.ok((await talkOverUntilStopped(f, 8000, 200)) > 0);
+  f.quiet(1200); // Your turn's words: none in the end, nothing to send.
+  await until(() => f.transcriptions === 2);
   await sleep(100);
   f.session.end();
   assert.equal(
@@ -289,18 +290,52 @@ test('aReplyTalkedOverWithNoMessageAfterItIsNotedWithTheCallsEnd', async () => {
   assert.equal(f.sent.length, 0);
 });
 
-test('aReplyPausedByNoiseOverItPlaysOnFromTheSentenceItStoppedIn', async () => {
-  const f = await playingReply(''); // What was heard over it has no words.
+test('aLoudSoundWithoutWordsOverAReplyNeverStopsIt', async () => {
+  // Philipp, 27 November 2026: a pan in the kitchen interrupted the reply. Loud as a voice, two
+  // seconds long, but written down it has no words: the reply plays on.
+  const f = await playingReply('', '', '', '');
   f.heardChars = LONG_REPLY.indexOf('Lisbon');
-  framesToStop(f, 8000, 40);
-  assert.equal(f.session.state(), State.LISTENING);
+  assert.equal(await talkOverUntilStopped(f, 8000, 100), -1);
   f.quiet(1200);
-  await until(() => f.spoken.length === 2);
-  assert.equal(f.spoken[1], 'The train to Lisbon costs about forty euros if you book today.');
+  await until(() => f.transcriptions >= 2); // While it went on, and once it ended.
+  await sleep(100);
+  assert.equal(f.session.state(), State.READING);
+  assert.ok(!f.stopped);
+  assert.ok(reasons(f).includes('A sound over the reply had no words of yours: it plays on'), reasons(f));
   f.done();
+  assert.equal(f.session.state(), State.LISTENING);
   f.session.end();
   assert.equal(f.session.endNote(), '', 'heard to its end: nothing to note');
   assert.equal(f.sent.length, 0);
+});
+
+test('oneWordOverAReplyDoesntStopItTwoDo', async () => {
+  const f = await playingReply('Hmm, yes', '', 'Wait, stop');
+  f.heardChars = LONG_REPLY.indexOf('Lisbon');
+  // "Hmm, yes": a filler and one word.
+  for (let i = 0; i < 60; i++) f.session.frame(frame(8000));
+  f.quiet(1200);
+  await until(() => f.transcriptions >= 1);
+  await sleep(100);
+  assert.ok(!f.stopped);
+  // "Wait, stop": two words of yours.
+  assert.ok((await talkOverUntilStopped(f, 8000, 200)) > 0);
+  assert.equal(f.session.state(), State.LISTENING);
+  assert.ok(f.logText().includes('barge-in: 2 word(s) of yours heard over the reply ("Wait, stop")'), f.logText());
+});
+
+test('wordsOfTheReplyItselfAreItsEchoNotYours', () => {
+  const reply = LONG_REPLY;
+  const at = reply.indexOf('Lisbon');
+  assert.equal(HandsFreeSession.ownWords('The train to Lisbon', reply, at), 0);
+  assert.equal(HandsFreeSession.ownWords('um, uh, hmm.', reply, at), 0);
+  assert.equal(HandsFreeSession.ownWords('Okay.', reply, at), 1);
+  assert.equal(HandsFreeSession.ownWords('Wait, stop.', reply, at), 2);
+  assert.equal(HandsFreeSession.ownWords('Hold on, the train', reply, at), 2);
+  const longer = 'The flight is booked. ' + 'Nothing else is planned for that day. '.repeat(10);
+  assert.equal(HandsFreeSession.ownWords('flight', longer, longer.length), 1, 'far from where it plays, a word of it is yours');
+  assert.equal(HandsFreeSession.ownWords('', reply, at), 0);
+  assert.equal(HandsFreeSession.ownWords('don\'t go', '', 0), 2);
 });
 
 test('whenJevSaysYoureNotDoneAndYouStayQuietTheWaitingReplyPlaysAndYourWordsWait', async () => {

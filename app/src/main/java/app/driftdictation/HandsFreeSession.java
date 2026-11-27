@@ -2084,8 +2084,10 @@ final class HandsFreeSession {
       }
       LiveText l = live;
       if (tail) {
-        // Sounds over it that never had words of yours: live transcription forgets them.
-        if (wasLive && l != null) l.discard();
+        // Sounds over it that had words, too few of yours: live transcription forgets them. Not
+        // when none came: a discard then guesses the next stretch is theirs, and would swallow
+        // what you say right after the reply.
+        if (wasLive && l != null && !l.text().isEmpty()) l.discard();
         if (wasLive || sounds > 0) log("sounds over the reply had too few words of yours: dropped");
         if (!overLogged.isEmpty()) overNoWords();
       } else if (segmenter.speaking()) takeFloor("you were talking as the reply ended");

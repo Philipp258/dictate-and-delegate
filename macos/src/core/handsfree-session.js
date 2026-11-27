@@ -161,6 +161,9 @@ class Queue {
 
 const SILENCE = Buffer.alloc(640);
 
+/** Filler sounds that aren't words of yours, for BARGE_WORDS. */
+const FILLERS = new Set(['um', 'umm', 'uh', 'uhh', 'uhm', 'hm', 'hmm', 'mm', 'mmm', 'mhm', 'ah', 'ahh', 'oh', 'er', 'erm', 'eh', 'huh']);
+
 /** A chief message waiting to be read: being prepared until ready. */
 class Held {
   constructor(request, text, arrived) {
@@ -388,6 +391,23 @@ class HandsFreeSession {
     /** Plays a sound, true if it did; handsfree-call's are quiet and short, and may be off. */
     this.cues = () => false;
     this.reading = 0;
+    /**
+     * Sounds over the reply being read (BARGE_WORDS): overLive, they go to live transcription (its
+     * text was empty as the reply began), else they're written down to check; overFed, the sound
+     * going on is going to it; overHeard, some did in this reading. overParts: sounds over it that
+     * ended before their words decided (yours, if they do). overProbing, overProbed: a check being
+     * written down, and how much of the sound going on was.
+     */
+    this.overLive = false;
+    this.overFed = false;
+    this.overHeard = false;
+    this.overProbing = false;
+    this.overTold = false;
+    this.overProbed = 0;
+    this.overParts = [];
+    this.overLogged = '';
+    /** You talked over a reply and no stretch of yours has been checked since: the next one ending is. */
+    this.bargeUnchecked = false;
     this._sent = 0;
     this.current = null;
     this.playing = false;
@@ -436,6 +456,12 @@ class HandsFreeSession {
       detector,
       {
         segment(pcm) {
+          if (session._state === State.READING) {
+            // A sound over the reply: its words decide.
+            session.overStretch(pcm);
+            return;
+          }
+          session.bargeUnchecked = false;
           if (session.dropStretch) {
             // Its words were taken from live transcription (sent, or in the turn's words).
             session.dropStretch = false;
@@ -452,6 +478,18 @@ class HandsFreeSession {
           session.check(session.sendAfterFlush ? 'button' : 'pause');
         },
         started(level, background) {
+          if (session._state === State.READING) {
+            // Loud as speech; only words stop a reply.
+            session.log(
+              format(
+                'a sound over the reply (level %.0f, background %.0f): it plays on unless %d words of yours are heard in it',
+                level,
+                background,
+                HandsFreeSession.BARGE_WORDS,
+              ),
+            );
+            return;
+          }
           const taking = !session.takenByYou;
           session.takenByYou = true;
           session.heldBack = false; // You talk again: your words hold the turn again.
@@ -470,6 +508,13 @@ class HandsFreeSession {
         },
         noise(speechMs, level, background) {
           session.dropStretch = false; // That stretch didn't count: the next one is yours again.
+          session.overProbed = 0;
+          // You talked over a reply, and the stretch it was in didn't count by its level: your
+          // words still are your turn, checked now.
+          if (session.bargeUnchecked && session._state === State.LISTENING) {
+            session.bargeUnchecked = false;
+            session.check('pause');
+          }
           session.log(format('noise ignored (%d ms, level %.0f, background %.0f)', speechMs, level, background));
           // Clicks are left out of the reasons; anything you might have meant is in. Not over a
           // reply: what's left of its echo would fill the list.
@@ -841,11 +886,10 @@ class HandsFreeSession {
     const cue = this.inCue();
     this.meterLevel = Math.max(Segmenter.level(frame, frame.length), this.meterLevel * HandsFreeSession.METER_FALL);
     const l = this.live;
-    if (l != null && l.working() && this._state !== State.ENDED) {
-      // Live transcription hears everything you say (not only what the segmenter keeps); a reply
-      // and its tail are silence to it (its echo isn't you): if you talk over it, what you said
-      // over it goes first.
-      const quiet = this._state === State.READING || this.clock() < this.mutedUntil;
+    if (l != null && l.working() && this._state !== State.ENDED && this._state !== State.READING) {
+      // Live transcription hears everything you say (not only what the segmenter keeps); a
+      // reply's tail is silence to it (its echo isn't you). Over a reply: bargeFrame.
+      const quiet = this.clock() < this.mutedUntil;
       l.audio(quiet ? SILENCE : frame);
       if (this.segmenter.speaking()) l.speech();
     }
@@ -912,22 +956,144 @@ class HandsFreeSession {
 
   /**
    * Barge-in: the microphone's frames while a reply plays go to the segmenter (the reply's echo
-   * cancelled by the system); once it hears BARGE_MS of your speech the reply stops.
+   * cancelled by the system). A sound it hears goes to live transcription (from its start, with
+   * the little before it; silence otherwise), or is written down to check (probe); once
+   * BARGE_WORDS words of yours are heard in it the reply stops (bargeIn). A clatter or a pan
+   * stops nothing.
    */
   bargeFrame(frame, cue) {
     if (this._state !== State.READING) return; // Also before its audio starts: you may talk first.
     const token = this.reading;
-    if (cue && !this.segmenter.candidate()) return; // A sound of ours, not you.
+    const l = this.live;
+    const feed = this.overLive && l != null && l.working();
+    if (cue && !this.segmenter.candidate()) {
+      // A sound of ours, not you.
+      if (feed) l.audio(SILENCE);
+      return;
+    }
     this.segmenter.frame(frame);
-    if (this.segmenter.speaking()) this.bargeIn(token);
+    if (this._state !== State.READING || token !== this.reading) return;
+    if (feed) {
+      if (this.segmenter.candidate()) {
+        if (!this.overFed) {
+          // A sound starts: from its start, with the little before it.
+          this.overFed = true;
+          this.overHeard = true;
+          const st = this.segmenter.stretchAudio();
+          for (let i = 0; i + 640 <= st.length; i += 640) l.audio(st.subarray(i, i + 640));
+        } else l.audio(frame);
+        l.speech();
+      } else {
+        this.overFed = false;
+        l.audio(SILENCE);
+      }
+    } else if (this.segmenter.speaking()) this.probe(token, this.segmenter.stretchAudio(), false);
+  }
+
+  /** A sound over the reply ended before its words decided: kept, it's yours if they do. */
+  overStretch(pcm) {
+    const token = this.reading;
+    this.overParts.push(pcm);
+    this.overProbed = 0;
+    this.log(
+      format(
+        'a sound over the reply ended (%.1f s): it\'s yours if %d words of yours are heard in it',
+        pcm.length / HandsFree.BYTES_PER_SECOND,
+        HandsFreeSession.BARGE_WORDS,
+      ),
+    );
+    const l = this.live;
+    if (!(this.overLive && l != null && l.working())) this.probe(token, pcm, true);
   }
 
   /**
-   * You talk over the reply: it stops at once, and its rest waits, first in line (from the
-   * sentence it stopped in): played if your turn comes to nothing, dropped once your message goes
-   * (which then says how far you heard). Your speech goes on as your turn.
+   * Without live transcription: a sound over the reply is written down (every PROBE_MS while it
+   * goes on, once it ends) to see if it has BARGE_WORDS words of yours. A failure is said on
+   * screen (the reply then plays on).
    */
-  bargeIn(token) {
+  probe(token, pcm, ended) {
+    if (pcm.length === 0 || !this.speechOpen) return;
+    const bytes = (HandsFreeSession.PROBE_MS * HandsFree.BYTES_PER_SECOND) / 1000;
+    if (!ended && (this.overProbing || pcm.length - this.overProbed < bytes)) return;
+    if (!ended) this.overProbed = pcm.length;
+    this.overProbing = true;
+    const r = this._reply;
+    const at = this.heardChars();
+    const audio = Buffer.from(pcm);
+    (async () => {
+      try {
+        const t = String(await this.transcriber(HandsFree.wav(audio))).trim();
+        const own = HandsFreeSession.ownWords(t, r, at);
+        if (token !== this.reading || this._state !== State.READING) return;
+        this.log(
+          format('a sound over the reply written down: "%s" (%d word(s) of yours, %d needed)', tail(t), own, HandsFreeSession.BARGE_WORDS),
+        );
+        if (own >= HandsFreeSession.BARGE_WORDS) this.bargeIn(token, t, own);
+        else if (ended) this.overNoWords();
+      } catch (ex) {
+        if (token !== this.reading || this._state !== State.READING) return;
+        this.log('a sound over the reply couldn\'t be written down (' + message(ex) + '): the reply plays on');
+        this.reason('Couldn\'t check if you talked over the reply (%1$s): it plays on', message(ex));
+      } finally {
+        this.overProbing = false;
+      }
+    })();
+  }
+
+  /** Once a reading: a sound over it had too few words, so it plays on (said, so it's not a mystery). */
+  overNoWords() {
+    if (this.overTold) return;
+    this.overTold = true;
+    this.reason('A sound over the reply had no words of yours: it plays on');
+  }
+
+  /**
+   * How many words of yours are in what was heard over a reply: not fillers (um, hmm), and not
+   * words of the reply around where it's playing (heardChars), as they may be its echo.
+   */
+  static ownWords(heard, reply, heardChars) {
+    const at = Math.max(0, Math.min(heardChars, reply.length));
+    const near = reply.substring(Math.max(0, at - 250), Math.min(reply.length, at + 80));
+    const echo = new Set(HandsFreeSession.wordsOf(near));
+    let n = 0;
+    for (const w of HandsFreeSession.wordsOf(heard)) if (!FILLERS.has(w) && !echo.has(w)) n++;
+    return n;
+  }
+
+  /** The words of a text, lowercase, without punctuation. */
+  static wordsOf(text) {
+    const t = String(text)
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}']+/gu, ' ')
+      .replace(/(^| )'+|'+( |$)/g, ' ')
+      .trim();
+    return t === '' ? [] : t.split(/ +/);
+  }
+
+  /** You took the floor (talking over a reply, or still talking as it ended). */
+  takeFloor(why) {
+    const taking = !this.takenByYou;
+    this.takenByYou = true;
+    this.heldBack = false;
+    this.stretchAt = this.clock();
+    this.activeAt = this.stretchAt;
+    this.startTurn(why);
+    if (taking) {
+      this.log('floor: you (' + why + ')');
+      this.cue(Cue.HEARD);
+      this.turnSpeechAt = this.clock();
+      this.firstWordsLogged = false;
+    }
+    this.changed();
+  }
+
+  /**
+   * You talk over the reply (BARGE_WORDS words of yours heard): it stops at once, and its rest
+   * waits, first in line (from the sentence it stopped in): played if your turn comes to nothing,
+   * dropped once your message goes (which then says how far you heard). What you said over it is
+   * your turn.
+   */
+  bargeIn(token, heard, own) {
     const at = this.heardChars();
     if (token !== this.reading || this._state !== State.READING || this.current == null) return;
     const was = this.current;
@@ -936,12 +1102,20 @@ class HandsFreeSession {
     const since = this.clock();
     const note = HandsFreeSession.heardUpTo(text, at);
     const rest = HandsFreeSession.resumeFrom(text, at);
-    // What you said over it, from the start of that stretch (it took a moment to count as you).
+    // What you said over it, from the start of that stretch.
     const said = this.segmenter.stretchAudio();
-    if (!this.endReading(token, null, false)) return;
+    const fed = this.overLive;
+    if (!this.endReading(token, null, false, true)) return;
     this.speaker.stop();
+    const parts = this.overParts;
+    this.overParts = [];
     const l = this.live;
-    if (l != null && l.working()) for (let i = 0; i + 640 <= said.length; i += 640) l.audio(said.subarray(i, i + 640));
+    // Live transcription didn't get the sounds over the reply: it gets them now, so your turn's
+    // words have them.
+    if (!fed && l != null && l.working())
+      for (const p of [...parts, said]) for (let i = 0; i + 640 <= p.length; i += 640) l.audio(p.subarray(i, i + 640));
+    this.log(format('barge-in: %d word(s) of yours heard over the reply ("%s")', own, tail(heard)));
+    this.takeFloor('you talked over the reply');
     let waits = false;
     let r = null;
     if (rest !== '') {
@@ -954,9 +1128,14 @@ class HandsFreeSession {
       } else this._unheard.push(new Note(note));
     }
     if (waits) this.prepare(r);
+    for (const p of parts) this.addPart(p);
+    // What ended already is checked now; a sound going on is, once it ends.
+    const going = this.segmenter.candidate();
+    if (parts.length > 0 || !going) this.check('pause');
+    this.bargeUnchecked = going;
     this.log(
       format(
-        'barge-in: speech %d ms → paused (in %d ms, at character %d of %d)%s',
+        'barge-in: paused (sound %d ms by level, stopped in %d ms, at character %d of %d)%s',
         speech,
         this.clock() - since,
         at,
@@ -1121,6 +1300,16 @@ class HandsFreeSession {
    */
   liveText(text) {
     if (text !== '' && text !== this.wordsSeen) this.words(text);
+    if (this._state === State.READING && this.overLive && text !== '') {
+      // Heard over the reply: BARGE_WORDS words of yours stop it; else it plays on.
+      const token = this.reading;
+      const own = HandsFreeSession.ownWords(text, this._reply, this.heardChars());
+      if (own >= HandsFreeSession.BARGE_WORDS) this.bargeIn(token, text, own);
+      else if (text !== this.overLogged) {
+        this.overLogged = text;
+        this.log(format('heard over the reply: "%s" (%d word(s) of yours, %d needed): it plays on', tail(text), own, HandsFreeSession.BARGE_WORDS));
+      }
+    }
     const ending =
       text === '' ? null : HandsFree.endsWith(text, this.endWords) != null ? 'end' : HandsFree.endsWith(text, this.sendWords) != null ? 'send' : null;
     if (this._state !== State.LISTENING || !this.streaming() || text === '' || !this.floorIsYours()) {
@@ -1505,6 +1694,13 @@ class HandsFreeSession {
     this.segmenter.reset();
     this.dropStretch = false; // Whatever stretch was going on is gone.
     this.segmenter.bursts = false;
+    // Sounds over it go to live transcription only while its text is empty (a turn of yours isn't
+    // mixed with them); else they're written down to check.
+    this.overLive = this.streaming() && this.live.text() === '';
+    this.overFed = this.overHeard = this.overProbing = this.overTold = false;
+    this.overProbed = 0;
+    this.overLogged = '';
+    this.overParts = [];
     const token = ++this.reading;
     this.readingSince = this.clock();
     this.readingDeadline = this.readingSince + HandsFreeSession.START_MS;
@@ -1645,7 +1841,7 @@ class HandsFreeSession {
       this.cue(Cue.FAILED);
       this.reason('Reply couldn\'t be played: %1$s. Your next message tells the chief', why);
     }
-    if (!this.endReading(token, note, true)) return;
+    if (!this.endReading(token, note, true, false)) return;
     if (again != null) {
       this._held.unshift(again);
       this.prepare(again);
@@ -1658,11 +1854,13 @@ class HandsFreeSession {
    * microphone a moment and forgets what it heard during the reply. Not when you talked over it:
    * then your speech goes on, as your turn. False if it had ended.
    */
-  endReading(token, note, tailMute) {
+  endReading(token, note, tailMute, barge) {
     if (token !== this.reading || this._state !== State.READING) return false;
     if (note != null) this._unheard.push(new Note(note));
     // You started talking over its last words: they're kept, the microphone stays on.
     if (tailMute && this.segmenter.candidate()) tailMute = false;
+    const wasLive = this.overLive && this.overHeard;
+    this.overLive = this.overFed = false;
     this.current = null;
     this.activeAt = this.clock();
     this.mutedUntil = tailMute ? this.clock() + HandsFreeSession.TAIL_MS : 0;
@@ -1675,6 +1873,19 @@ class HandsFreeSession {
     this._reply = '';
     this._state = State.LISTENING;
     this._status = 'listening';
+    if (!barge) {
+      const sounds = this.overParts.length;
+      this.overParts = [];
+      const l = this.live;
+      if (tailMute) {
+        // Sounds over it that never had words of yours: live transcription forgets them. Only
+        // when words came: a discard with nothing come guesses the next stretch is the dropped
+        // one and would swallow what you say right after the reply.
+        if (wasLive && l != null && l.text() !== '') l.discard();
+        if (wasLive || sounds > 0) this.log('sounds over the reply had too few words of yours: dropped');
+        if (this.overLogged !== '') this.overNoWords();
+      } else if (this.segmenter.speaking()) this.takeFloor('you were talking as the reply ended');
+    }
     this.log('floor: ' + (tailMute ? 'open' : 'you'));
     this.noteTurn();
     if (tailMute) this.reason('Mic paused %1$.1f s after the reply (echo)', HandsFreeSession.TAIL_MS / 1000.0);
@@ -2875,6 +3086,17 @@ Object.assign(HandsFreeSession, {
   READING_CAP_MS: 10 * 60_000,
   /** This much of your speech over a reply (without the short-burst rule) stops it. */
   BARGE_MS: 300,
+  /**
+   * A sound over a reply only stops it once this many words of yours are heard in it (Philipp,
+   * 27 November 2026, in the kitchen: "you should see like 2 words or something and know it's
+   * real words to know it's an interruption. Not when I do some noise while working in the
+   * house"). Fillers (um, hmm) and words of the reply around where it's playing (its echo) don't
+   * count. With live transcription the words come from it (the microphone goes to it while a
+   * sound is going on); without it, the sound is written down every PROBE_MS while it goes on,
+   * and once it ends.
+   */
+  BARGE_WORDS: 2,
+  PROBE_MS: 1500,
   /** Once you hold the floor, a stretch this short still counts ("Over." on its own). */
   SHORT_MS: 200,
   /** The longest a turn's final text from live transcription is waited for (it took 0.1 to 0.4 s). */
