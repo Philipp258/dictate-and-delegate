@@ -254,8 +254,15 @@ abstract class StreamingSpeech implements HandsFreeSession.LiveText {
     if (ws == null || !ws.open()) {
       ring.addLast(c);
       while (ring.size() > RING_MS / CHUNK_MS) ring.removeFirst();
-      if (!connecting && now - lastSpeech < IDLE_MS && now >= nextTry) connect();
+      // Only once it's known closed (socket null): a connection just lost is ended() first,
+      // which decides (connect again, or give up), so a drop is never silent.
+      if (ws == null && !connecting && now - lastSpeech < IDLE_MS && now >= nextTry) connect();
       return;
+    }
+    // Open a while again after lost connections: the count starts afresh.
+    if (drops > 0 && now - lastOpenAt >= RECOVERED_MS) {
+      drops = 0;
+      events.accept("streaming transcription: connected for " + RECOVERED_MS / 1000 + " s again, lost connections counted afresh");
     }
     if (now - lastSpeech >= IDLE_MS && text().isEmpty()) {
       events.accept("streaming transcription closed: no speech for " + IDLE_MS / 1000 + " s (it's billed while open)");
@@ -276,8 +283,7 @@ abstract class StreamingSpeech implements HandsFreeSession.LiveText {
   public void speech() {
     lastSpeech = clock.getAsLong();
     if (failed || connecting || clock.getAsLong() < nextTry) return;
-    WebSocket ws = socket;
-    if (ws == null || !ws.open())
+    if (socket == null)
       try {
         sender.execute(this::connect);
       } catch (java.util.concurrent.RejectedExecutionException closed) {
@@ -354,19 +360,24 @@ abstract class StreamingSpeech implements HandsFreeSession.LiveText {
 
   private volatile long lastOpenAt;
 
+  /** Lost its connection and not connected again yet: what you say now may not reach it. */
+  @Override
+  public boolean reconnecting() {
+    return drops > 0 && socket == null && !failed;
+  }
+
   /**
    * The connection was lost (or connecting again failed): connected again when you speak, after
    * a short wait, unless it happened RECONNECTS times in a row. False: given up (fail).
    */
   private boolean retry(String why) {
     long now = clock.getAsLong();
-    if (lastOpenAt > 0 && now - lastOpenAt >= RECOVERED_MS) drops = 0; // It had worked a while.
     if (closedForGood() || drops >= RECONNECTS) return false;
     drops++;
     socket = null;
     nextTry = now + RETRY_MS * drops;
     events.accept("streaming transcription: " + why + "; connecting again (" + drops + " of " + RECONNECTS + ")");
-    onDropped.accept(why);
+    if (drops == 1) onDropped.accept(why); // Said once a series; the tries after are in the log.
     // Open again at once when you're talking (else at your next words).
     if (now - lastSpeech < IDLE_MS)
       new Thread(

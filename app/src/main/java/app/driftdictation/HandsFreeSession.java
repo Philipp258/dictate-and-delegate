@@ -228,6 +228,11 @@ final class HandsFreeSession {
 
     boolean working();
 
+    /** Lost its connection and connecting again: words said now may be missing. */
+    default boolean reconnecting() {
+      return false;
+    }
+
     /** Why it stopped working, in a few words. */
     String failure();
 
@@ -636,6 +641,8 @@ final class HandsFreeSession {
                   log(String.format(java.util.Locale.ROOT, "a sound over the reply (level %.0f, background %.0f): it plays on unless %d words of yours are heard in it", level, background, BARGE_WORDS));
                   return;
                 }
+                LiveText lt = live;
+                if (lt != null && lt.reconnecting()) batchTurn("is connecting again");
                 boolean taking = !takenByYou;
                 takenByYou = true;
                 heldBack = false; // You talk again: your words hold the turn again.
@@ -1670,7 +1677,16 @@ final class HandsFreeSession {
    * goes (handOff), and play if your turn comes to nothing (noise, no words). Once per turn; a
    * reply playing pauses by itself (barge-in).
    */
+  /** This turn is written down from its audio (live transcription may miss words of it). */
+  private void batchTurn(String why) {
+    if (batchTurn) return;
+    batchTurn = true;
+    log("this turn is written down from its audio: live transcription " + why);
+  }
+
   private void startTurn(String why) {
+    LiveText lt = live;
+    if (lt != null && lt.reconnecting()) batchTurn("is connecting again");
     int waiting;
     synchronized (this) {
       if (newTurn || state == State.ENDED) return;
@@ -2867,11 +2883,11 @@ final class HandsFreeSession {
    * screen; the turn going on may miss words it had in flight, so it's written down from its audio.
    */
   void liveDropped(String why) {
-    boolean turn = hasTurn() || segmenter.candidate() || !pending.isEmpty();
-    if (turn) batchTurn = true;
-    log("live transcription lost its connection (" + why + "): connecting again" + (turn ? "; this turn is written down from its audio" : ""));
+    log("live transcription lost its connection (" + why + "): connecting again");
+    // On the work queue, between checks: the turn going on is written down from its audio.
     Runnable say =
         () -> {
+          if (hasTurn() || segmenter.candidate() || !pending.isEmpty()) batchTurn("its connection was lost");
           cue(Cue.FAILED);
           reason("Live transcription lost its connection (%1$s): connecting again", why);
         };

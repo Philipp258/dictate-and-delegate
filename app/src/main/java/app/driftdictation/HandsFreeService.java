@@ -739,6 +739,7 @@ public final class HandsFreeService extends Service {
     Thread t =
         new Thread(
             () -> {
+              long began = android.os.SystemClock.elapsedRealtime();
               String said = line, chiefSaid = null;
               if (after != null) {
                 // Within END_BUDGET_MS: the messages on their way, the words a failed one left
@@ -759,7 +760,19 @@ public final class HandsFreeService extends Service {
               java.util.Map<String, String> failed = bb.tellEach(to);
               // A network blip ("unknown address" right after Philipp's call of 27 November 2026
               // ended): those not reached are tried again, twice, 3 and 6 s later.
+              // Within the call end's time (END_BUDGET_MS, with the longest a tell takes), and not
+              // once the next call has started (its start went already).
+              long deadline = began + END_BUDGET_MS;
+              String forCall = callId;
               for (int attempt = 1; attempt <= 2 && !failed.isEmpty(); attempt++) {
+                if (android.os.SystemClock.elapsedRealtime() + 3000L * attempt + TELL_MAX_MS > deadline) {
+                  event("couldn't tell " + failed.size() + " of them: no time left to try again");
+                  break;
+                }
+                if (after != null && session != null && session != after || !java.util.Objects.equals(forCall, callId)) {
+                  event("not tried again: the next call has started");
+                  break;
+                }
                 event("couldn't tell " + failed.size() + " of them (" + failed.values().iterator().next() + "): trying again in " + 3 * attempt + " s");
                 try {
                   Thread.sleep(3000L * attempt);
@@ -1044,6 +1057,9 @@ public final class HandsFreeService extends Service {
 
   /** How long the chief may take to hear the call started before the call ends as unreachable. */
   static final long REACH_MS = 25_000;
+
+  /** About the longest one tell to bb takes when it fails slowly (its connect and read timeouts). */
+  static final long TELL_MAX_MS = 15_000;
 
   /** Ended this soon after its start, with nothing sent yet: a cancelled call, nothing of it goes. */
   static final long CANCEL_MS = 15_000;
