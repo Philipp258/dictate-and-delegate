@@ -887,6 +887,7 @@ public class HandsFreeTest {
     // "Wait, stop": two words of yours.
     assertTrue(talkOverUntilStopped(f, 8000, 200) > 0);
     assertEquals(HandsFreeSession.State.LISTENING, f.session.state());
+    until(() -> reasons(f).contains("Reply stopped"));
     assertTrue(String.join("\n", f.log).contains("barge-in: 2 word(s) of yours heard over the reply (\"Wait, stop\")"));
   }
 
@@ -1410,6 +1411,7 @@ public class HandsFreeTest {
     assertTrue("stopped once your words were heard: " + frames, frames > 0);
     assertEquals(HandsFreeSession.State.LISTENING, f.session.state());
     assertEquals("written down to check", 1, f.transcriptions.get());
+    until(() -> reasons(f).contains("Reply stopped")); // Logged on the checking thread, after the stop.
     String log = String.join("\n", f.log);
     assertTrue(log, log.contains("barge-in: 2 word(s) of yours heard over the reply (\"Hold on, book\")"));
     assertTrue(reasons(f), reasons(f).contains("Reply stopped: you talked over it. Your next message tells the chief how far you heard"));
