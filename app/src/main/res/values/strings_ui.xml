@@ -365,7 +365,6 @@
     <string name="t_6358935d" formatted="false">Key saved</string>
     <string name="t_6361c341" formatted="false">the connection broke off; is it an MCP server (Streamable HTTP)?</string>
     <string name="t_63f3d623" formatted="false">Not sent yet: %1$s It\'s tried again by itself for a few minutes; the note says how it stands.</string>
-    <string name="t_6408cdf0" formatted="false">Reply paused: you\'re talking. It\'s dropped once your message goes</string>
     <string name="t_6418f0e2" formatted="false">Enter your bb Connect handle</string>
     <string name="t_64608f3a" formatted="false">Transcribing… %1$s, trying again in %2$d s (try %3$d).</string>
     <string name="t_65175c76" formatted="false">Call %1$s</string>
@@ -589,7 +588,6 @@
     <string name="t_ab247fbe" formatted="false">Your voice and text go only to the providers you choose. There\'s no Dictate &amp; Delegate server.</string>
     <string name="t_ab7143b8" formatted="false">Permissions</string>
     <string name="t_ab754703" formatted="false">Hearing you</string>
-    <string name="t_ab7559e2" formatted="false">Reply stopped: you talked over it</string>
     <string name="t_ab93f81c" formatted="false">the release has no checksum</string>
     <string name="t_abfd3b0d" formatted="false">Use the talker</string>
     <string name="t_ac224344" formatted="false">Saved, encrypted · speech, decisions and Refine</string>
@@ -631,6 +629,7 @@
     <string name="t_b48c5f39" formatted="false">Jev · nothing starts by itself</string>
     <string name="t_b4c82195" formatted="false">Dictate &amp; Delegate calls the speech and text models through OpenRouter, with your own key. You pay OpenRouter for what you use; Dictate &amp; Delegate has no server and takes no cut.</string>
     <string name="t_b50cba8b" formatted="false">Insert from chief</string>
+    <string name="t_b51c34bc" formatted="false">Reply stopped: you talked over it. Your next message tells the chief how far you heard</string>
     <string name="t_b5384083" formatted="false">Couldn\'t reach %1$s: %2$s. The call ended; nothing was sent.</string>
     <string name="t_b561b378" formatted="false">1 · Quick Settings tile</string>
     <string name="t_b5ae1bae" formatted="false">bb</string>

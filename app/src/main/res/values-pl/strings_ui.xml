@@ -364,7 +364,6 @@
     <string name="t_6358935d" formatted="false">Klucz zapisany</string>
     <string name="t_6361c341" formatted="false">połączenie zostało przerwane; czy to serwer MCP (Streamable HTTP)?</string>
     <string name="t_63f3d623" formatted="false">Jeszcze nie wysłano: %1$s Przez kilka minut będzie ponawiane samo; notatka pokazuje, jak to wygląda.</string>
-    <string name="t_6408cdf0" formatted="false">Odpowiedź wstrzymana: mówisz. Zostanie pominięta, gdy Twoja wiadomość pójdzie</string>
     <string name="t_6418f0e2" formatted="false">Wpisz swój identyfikator bb Connect</string>
     <string name="t_64608f3a" formatted="false">Transkrybowanie… %1$s, ponowna próba za %2$d s (próba %3$d).</string>
     <string name="t_65175c76" formatted="false">Zadzwoń: %1$s</string>
@@ -588,7 +587,6 @@
     <string name="t_ab247fbe" formatted="false">Twój głos i tekst trafiają wyłącznie do wybranych przez Ciebie dostawców. Dictate &amp; Delegate nie ma własnego serwera.</string>
     <string name="t_ab7143b8" formatted="false">Uprawnienia</string>
     <string name="t_ab754703" formatted="false">Słucham Cię</string>
-    <string name="t_ab7559e2" formatted="false">Odpowiedź zatrzymana: mówiłeś w trakcie</string>
     <string name="t_ab93f81c" formatted="false">wydanie nie ma sumy kontrolnej</string>
     <string name="t_abfd3b0d" formatted="false">Używaj mówcy</string>
     <string name="t_ac224344" formatted="false">Zapisano, zaszyfrowano · mowa, decyzje i Dopracuj</string>
@@ -934,4 +932,5 @@
     <string name="t_ffd9a681" formatted="false">Poprawianie inteligentniejszym modelem… Możesz opuścić ten ekran.</string>
     <string name="t_5a92ba6f" formatted="false">Nie udało się sprawdzić, czy mówiłeś w trakcie odpowiedzi (%1$s): odtwarzanie trwa dalej</string>
     <string name="t_c9e34f57" formatted="false">Dźwięk w trakcie odpowiedzi nie zawierał twoich słów: odtwarzanie trwa dalej</string>
+    <string name="t_b51c34bc" formatted="false">Odpowiedź zatrzymana: mówiłeś w trakcie. Twoja następna wiadomość powie szefowi, ile usłyszałeś</string>
 </resources>

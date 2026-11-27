@@ -360,7 +360,6 @@
     <string name="t_6358935d" formatted="false">Schlüssel gespeichert</string>
     <string name="t_6361c341" formatted="false">die Verbindung brach ab; ist es ein MCP-Server (Streamable HTTP)?</string>
     <string name="t_63f3d623" formatted="false">Noch nicht gesendet: %1$s Es wird ein paar Minuten lang von selbst erneut versucht; die Notiz zeigt, wie es steht.</string>
-    <string name="t_6408cdf0" formatted="false">Antwort pausiert: du sprichst. Sie entfällt, sobald deine Nachricht rausgeht</string>
     <string name="t_6418f0e2" formatted="false">Gib dein bb Connect-Handle ein</string>
     <string name="t_64608f3a" formatted="false">Wird transkribiert… %1$s, neuer Versuch in %2$d s (Versuch %3$d).</string>
     <string name="t_65175c76" formatted="false">%1$s anrufen</string>
@@ -580,7 +579,6 @@
     <string name="t_ab247fbe" formatted="false">Deine Stimme und dein Text gehen nur an die Anbieter, die du wählst. Es gibt keinen Server von Dictate &amp; Delegate.</string>
     <string name="t_ab7143b8" formatted="false">Berechtigungen</string>
     <string name="t_ab754703" formatted="false">Höre dich</string>
-    <string name="t_ab7559e2" formatted="false">Antwort gestoppt: du hast dazwischengesprochen</string>
     <string name="t_ab93f81c" formatted="false">das Release hat keine Prüfsumme</string>
     <string name="t_abfd3b0d" formatted="false">Talker verwenden</string>
     <string name="t_ac224344" formatted="false">Gespeichert, verschlüsselt · Sprache, Entscheidungen und Verfeinern</string>
@@ -920,4 +918,5 @@
     <string name="t_ffd9a681" formatted="false">Wird mit klügerem Modell wiederholt… Du kannst diesen Bereich verlassen.</string>
     <string name="t_5a92ba6f" formatted="false">Konnte nicht prüfen, ob du über die Antwort gesprochen hast (%1$s): sie läuft weiter</string>
     <string name="t_c9e34f57" formatted="false">Ein Geräusch während der Antwort hatte keine Wörter von dir: sie läuft weiter</string>
+    <string name="t_b51c34bc" formatted="false">Antwort gestoppt: du hast hineingesprochen. Deine nächste Nachricht sagt dem Chief, wie weit du gehört hast</string>
 </resources>

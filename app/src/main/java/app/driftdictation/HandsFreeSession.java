@@ -174,7 +174,13 @@ final class HandsFreeSession {
    */
   static final int BARGE_WORDS = 2;
 
-  static final long PROBE_MS = 1500;
+  static final long PROBE_MS = 1500, PROBE_TAIL_MS = 4000;
+
+  /** At most this many sounds over one reply are written down to check (it's paid per minute). */
+  static final int MAX_PROBES = 20;
+
+  /** What speech models write for noise: not words of yours. */
+  static final java.util.Set<String> NOISE_TEXTS = java.util.Set.of("thanks for watching", "thank you for watching", "thank you", "you", "bye");
 
   /** Filler sounds that aren't words of yours, for BARGE_WORDS. */
   static final java.util.Set<String> FILLERS =
@@ -424,7 +430,8 @@ final class HandsFreeSession {
    * ended before their words decided (yours, if they do). overProbing, overProbed: a check being
    * written down, and how much of the sound going on was.
    */
-  private volatile boolean overLive, overFed, overHeard, overProbing, overTold;
+  private volatile boolean overLive, overFed, overHeard, overProbing, overTold, overFailTold;
+  private volatile int overProbes;
   private volatile int overProbed;
   private final List<byte[]> overParts = new ArrayList<>();
   private volatile String overLogged = "";
@@ -1128,6 +1135,12 @@ final class HandsFreeSession {
         if (!overFed) { // A sound starts: from its start, with the little before it.
           overFed = true;
           overHeard = true;
+          // Words of an earlier sound over it (too few of yours) are forgotten: each sound is
+          // judged on its own, and only the one that stops the reply becomes your turn.
+          if (!l.text().isEmpty()) {
+            l.discard();
+            overLogged = "";
+          }
           byte[] s = segmenter.stretchAudio();
           for (int i = 0; i + 640 <= s.length; i += 640) l.audio(java.util.Arrays.copyOfRange(s, i, i + 640));
         } else l.audio(frame);
@@ -1161,6 +1174,14 @@ final class HandsFreeSession {
     long bytes = PROBE_MS * AudioFiles.BYTES_PER_SECOND / 1000;
     if (!ended && (overProbing || pcm.length - overProbed < bytes)) return;
     if (!ended) overProbed = pcm.length;
+    if (overProbes >= MAX_PROBES) {
+      if (overProbes++ == MAX_PROBES) log("sounds over the reply: " + MAX_PROBES + " checks in this reply, no more (it plays on)");
+      return;
+    }
+    overProbes++;
+    // The last PROBE_TAIL_MS of it: a long sound isn't written down again and again from its start.
+    int tailBytes = (int) (PROBE_TAIL_MS * AudioFiles.BYTES_PER_SECOND / 1000);
+    byte[] last = pcm.length <= tailBytes ? pcm : java.util.Arrays.copyOfRange(pcm, pcm.length - tailBytes, pcm.length);
     overProbing = true;
     String r = reply;
     int at = speaker.heardChars();
@@ -1168,15 +1189,16 @@ final class HandsFreeSession {
       speech.execute(
           () -> {
             try {
-              String t = transcriber.transcribe(AudioFiles.wav(pcm)).trim();
+              String t = transcriber.transcribe(AudioFiles.wav(last)).trim();
               int own = ownWords(t, r, at);
               if (token != reading || state != State.READING) return;
               log(String.format(java.util.Locale.ROOT, "a sound over the reply written down: \"%s\" (%d word(s) of yours, %d needed)", tail(t), own, BARGE_WORDS));
               if (own >= BARGE_WORDS) bargeIn(token, t, own);
               else if (ended) overNoWords();
             } catch (Exception ex) {
-              if (token != reading || state != State.READING) return;
               log("a sound over the reply couldn't be written down (" + ex.getMessage() + "): the reply plays on");
+              if (token != reading || state != State.READING || overFailTold) return;
+              overFailTold = true;
               reason("Couldn't check if you talked over the reply (%1$s): it plays on", String.valueOf(ex.getMessage()));
             } finally {
               overProbing = false;
@@ -1202,8 +1224,18 @@ final class HandsFreeSession {
     int at = Math.max(0, Math.min(heardChars, reply.length()));
     String near = reply.substring(Math.max(0, at - 250), Math.min(reply.length(), at + 80));
     java.util.Set<String> echo = new java.util.HashSet<>(java.util.Arrays.asList(wordsOf(near)));
+    String[] w = wordsOf(heard);
+    if (NOISE_TEXTS.contains(String.join(" ", w))) return 0;
+    // Its echo: two words in a row as in the reply, or a longer word of it. Short words alone
+    // (it, on, no, a) are too common to tell: they're yours ("Hold on", "Stop it").
+    String[] r = wordsOf(near);
+    java.util.Set<String> pairs = new java.util.HashSet<>();
+    for (int i = 0; i + 1 < r.length; i++) pairs.add(r[i] + " " + r[i + 1]);
     int n = 0;
-    for (String w : wordsOf(heard)) if (!FILLERS.contains(w) && !echo.contains(w)) n++;
+    for (int i = 0; i < w.length; i++) {
+      boolean inPair = i + 1 < w.length && pairs.contains(w[i] + " " + w[i + 1]) || i > 0 && pairs.contains(w[i - 1] + " " + w[i]);
+      if (!FILLERS.contains(w[i]) && !inPair && !(w[i].length() > 3 && echo.contains(w[i]))) n++;
+    }
     return n;
   }
 
@@ -1249,7 +1281,11 @@ final class HandsFreeSession {
     // What you said over it, from the start of that stretch.
     byte[] said = segmenter.stretchAudio();
     boolean fed = overLive;
-    if (!endReading(token, null, false, true)) return;
+    bargeUnchecked = true; // Before the reply ends: a sound ending as noise right after checks your turn.
+    if (!endReading(token, null, false, true)) {
+      bargeUnchecked = false;
+      return;
+    }
     speaker.stop();
     List<byte[]> parts;
     synchronized (overParts) {
@@ -1268,18 +1304,15 @@ final class HandsFreeSession {
     takeFloor("you talked over the reply");
     // The rest waits, first in line: played if your turn comes to nothing, dropped once your
     // message goes (which then says how far you heard).
-    Held r = rest.isEmpty() ? null : new Held(was.request, rest, clock.getAsLong());
+    // The rest isn't played again (Philipp, 27 November 2026: "when I interrupt you, it stupidly
+    // just plays again what I interrupted"): your next message (or the call's end) tells the
+    // chief how far you heard, so it says again what still matters.
+    Held r = null;
     boolean waits = false;
-    if (r != null)
+    if (!rest.isEmpty())
       synchronized (this) {
-        r.answers = was.answers;
-        r.note = note;
-        if (state != State.ENDED && !outdated(r)) {
-          held.addFirst(r);
-          waits = true;
-        } else unheard.add(new Note(note));
+        unheard.add(new Note(note));
       }
-    if (waits) prepare(r);
     for (byte[] p : parts) addPart(p);
     // What ended already is checked now; a sound going on is, once it ends.
     boolean going = segmenter.candidate();
@@ -1287,8 +1320,7 @@ final class HandsFreeSession {
     bargeUnchecked = going;
     log(String.format(java.util.Locale.ROOT, "barge-in: paused (sound %d ms by level, stopped in %d ms, at character %d of %d)%s", speech, clock.getAsLong() - since, at, text.length(),
         waits ? "; it plays on from \"" + firstWords(rest, MISSED_WORDS) + "\" if your turn comes to nothing, dropped once your message goes" : ""));
-    if (waits) reason("Reply paused: you're talking. It's dropped once your message goes");
-    else reason("Reply stopped: you talked over it");
+    reason("Reply stopped: you talked over it. Your next message tells the chief how far you heard");
   }
 
   /**
@@ -1891,7 +1923,8 @@ final class HandsFreeSession {
       // Sounds over it go to live transcription only while its text is empty (a turn of yours
       // isn't mixed with them); else they're written down to check.
       overLive = streaming() && l.text().isEmpty();
-      overFed = overHeard = overProbing = overTold = false;
+      overFed = overHeard = overProbing = overTold = overFailTold = false;
+      overProbes = 0;
       overProbed = 0;
       overLogged = "";
       synchronized (overParts) {

@@ -362,7 +362,6 @@
     <string name="t_6358935d" formatted="false">Clé enregistrée</string>
     <string name="t_6361c341" formatted="false">connexion interrompue ; s\'agit-il d\'un serveur MCP (Streamable HTTP) ?</string>
     <string name="t_63f3d623" formatted="false">Pas encore envoyé : %1$s Il est réessayé tout seul pendant quelques minutes ; la note indique où ça en est.</string>
-    <string name="t_6408cdf0" formatted="false">Réponse en pause : tu parles. Elle est abandonnée dès que ton message part</string>
     <string name="t_6418f0e2" formatted="false">Saisis ton identifiant bb Connect</string>
     <string name="t_64608f3a" formatted="false">Transcription en cours… %1$s, nouvel essai dans %2$d s (essai %3$d).</string>
     <string name="t_65175c76" formatted="false">Appeler %1$s</string>
@@ -584,7 +583,6 @@
     <string name="t_ab247fbe" formatted="false">Ta voix et tes textes vont uniquement aux fournisseurs que tu choisis. Il n\'y a aucun serveur Dictate &amp; Delegate.</string>
     <string name="t_ab7143b8" formatted="false">Autorisations</string>
     <string name="t_ab754703" formatted="false">À l\'écoute</string>
-    <string name="t_ab7559e2" formatted="false">Réponse arrêtée : tu as parlé par-dessus</string>
     <string name="t_ab93f81c" formatted="false">la version n\'a pas de somme de contrôle</string>
     <string name="t_abfd3b0d" formatted="false">Utiliser le bavard</string>
     <string name="t_ac224344" formatted="false">Enregistrée, chiffrée · voix, décisions et Peaufiner</string>
@@ -927,4 +925,5 @@
     <string name="t_ffd9a681" formatted="false">Traitement avec un modèle plus performant… Tu peux quitter cet écran.</string>
     <string name="t_5a92ba6f" formatted="false">Impossible de vérifier si tu as parlé pendant la réponse (%1$s) : elle continue</string>
     <string name="t_c9e34f57" formatted="false">Un bruit pendant la réponse ne contenait aucun mot de toi : elle continue</string>
+    <string name="t_b51c34bc" formatted="false">Réponse arrêtée : tu as parlé par-dessus. Ton prochain message indique au chef jusqu\'où tu as écouté</string>
 </resources>

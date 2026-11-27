@@ -362,7 +362,6 @@
     <string name="t_6358935d" formatted="false">Chiave salvata</string>
     <string name="t_6361c341" formatted="false">la connessione si è interrotta; è un server MCP (Streamable HTTP)?</string>
     <string name="t_63f3d623" formatted="false">Non ancora inviata: %1$s Riprova da sola per qualche minuto; la nota dice a che punto è.</string>
-    <string name="t_6408cdf0" formatted="false">Risposta in pausa: stai parlando. Viene scartata quando parte il tuo messaggio</string>
     <string name="t_6418f0e2" formatted="false">Inserisci il tuo handle bb Connect</string>
     <string name="t_64608f3a" formatted="false">Trascrizione in corso… %1$s, nuovo tentativo tra %2$d s (tentativo %3$d).</string>
     <string name="t_65175c76" formatted="false">Chiama %1$s</string>
@@ -584,7 +583,6 @@
     <string name="t_ab247fbe" formatted="false">La tua voce e il tuo testo vanno solo ai fornitori scelti da te. Non c\'è alcun server di Dictate &amp; Delegate.</string>
     <string name="t_ab7143b8" formatted="false">Autorizzazioni</string>
     <string name="t_ab754703" formatted="false">In ascolto</string>
-    <string name="t_ab7559e2" formatted="false">Risposta interrotta: ci hai parlato sopra</string>
     <string name="t_ab93f81c" formatted="false">la versione non ha un checksum</string>
     <string name="t_abfd3b0d" formatted="false">Usa l\'interlocutore</string>
     <string name="t_ac224344" formatted="false">Salvata, crittografata · voce, decisioni e Perfeziona</string>
@@ -927,4 +925,5 @@
     <string name="t_ffd9a681" formatted="false">Rifacimento con un modello più intelligente… Puoi lasciare questa schermata.</string>
     <string name="t_5a92ba6f" formatted="false">Impossibile verificare se hai parlato sopra la risposta (%1$s): continua</string>
     <string name="t_c9e34f57" formatted="false">Un suono durante la risposta non conteneva tue parole: continua</string>
+    <string name="t_b51c34bc" formatted="false">Risposta fermata: ci hai parlato sopra. Il tuo prossimo messaggio dice al capo fin dove hai ascoltato</string>
 </resources>

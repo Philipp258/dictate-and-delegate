@@ -902,6 +902,8 @@ public class HandsFreeTest {
     String longer = "The flight is booked. " + "Nothing else is planned for that day. ".repeat(10);
     assertEquals("far from where it plays, a word of it is yours", 1, HandsFreeSession.ownWords("flight", longer, longer.length()));
     assertEquals(0, HandsFreeSession.ownWords("", reply, at));
+    assertEquals("short words are yours", 2, HandsFreeSession.ownWords("Stop it", reply, at));
+    assertEquals(0, HandsFreeSession.ownWords("Thanks for watching!", reply, at));
     assertEquals(2, HandsFreeSession.ownWords("don't go", "", 0));
   }
 
@@ -1410,9 +1412,8 @@ public class HandsFreeTest {
     assertEquals("written down to check", 1, f.transcriptions.get());
     String log = String.join("\n", f.log);
     assertTrue(log, log.contains("barge-in: 2 word(s) of yours heard over the reply (\"Hold on, book\")"));
-    assertTrue(log, log.contains("it plays on from \"The train to Lisbon costs"));
-    assertTrue(reasons(f), reasons(f).contains("Reply paused: you're talking. It's dropped once your message goes"));
-    assertEquals("the rest waits, from the sentence it stopped in", 1, f.session.held());
+    assertTrue(reasons(f), reasons(f).contains("Reply stopped: you talked over it. Your next message tells the chief how far you heard"));
+    assertEquals("the rest isn't played again", 0, f.session.held());
     // You go on: all of it is your turn.
     for (int i = 0; i < 30; i++) f.session.frame(frame(8000));
     f.quiet(1200);

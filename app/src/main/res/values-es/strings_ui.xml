@@ -362,7 +362,6 @@
     <string name="t_6358935d" formatted="false">Clave guardada</string>
     <string name="t_6361c341" formatted="false">se interrumpió la conexión; ¿es un servidor MCP (HTTP transmisible)?</string>
     <string name="t_63f3d623" formatted="false">Aún no enviada: %1$s Se reintenta sola durante unos minutos; la nota indica cómo va.</string>
-    <string name="t_6408cdf0" formatted="false">Respuesta en pausa: estás hablando. Se descarta cuando se envíe tu mensaje</string>
     <string name="t_6418f0e2" formatted="false">Introduce tu usuario de bb Connect</string>
     <string name="t_64608f3a" formatted="false">Transcribiendo… %1$s, reintentando en %2$d s (intento %3$d).</string>
     <string name="t_65175c76" formatted="false">Llamar a %1$s</string>
@@ -584,7 +583,6 @@
     <string name="t_ab247fbe" formatted="false">Tu voz y texto solo van a los proveedores que elijas. Dictate &amp; Delegate no tiene servidor.</string>
     <string name="t_ab7143b8" formatted="false">Permisos</string>
     <string name="t_ab754703" formatted="false">Te escucho</string>
-    <string name="t_ab7559e2" formatted="false">Respuesta detenida: hablaste por encima</string>
     <string name="t_ab93f81c" formatted="false">la versión no tiene suma de comprobación</string>
     <string name="t_abfd3b0d" formatted="false">Usar el interlocutor</string>
     <string name="t_ac224344" formatted="false">Guardada, cifrada · voz, decisiones y Pulir</string>
@@ -927,4 +925,5 @@
     <string name="t_ffd9a681" formatted="false">Rehaciendo con un modelo mejor… Puedes salir de esta pantalla.</string>
     <string name="t_5a92ba6f" formatted="false">No se pudo comprobar si hablaste durante la respuesta (%1$s): sigue sonando</string>
     <string name="t_c9e34f57" formatted="false">Un sonido durante la respuesta no tenía palabras tuyas: sigue sonando</string>
+    <string name="t_b51c34bc" formatted="false">Respuesta detenida: hablaste encima. Tu próximo mensaje le dice al jefe hasta dónde escuchaste</string>
 </resources>

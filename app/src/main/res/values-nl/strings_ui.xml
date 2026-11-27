@@ -360,7 +360,6 @@
     <string name="t_6358935d" formatted="false">Sleutel opgeslagen</string>
     <string name="t_6361c341" formatted="false">de verbinding is verbroken; is het een MCP-server (Streamable HTTP)?</string>
     <string name="t_63f3d623" formatted="false">Nog niet verzonden: %1$s Er wordt een paar minuten lang vanzelf opnieuw geprobeerd; de notitie toont hoe het ervoor staat.</string>
-    <string name="t_6408cdf0" formatted="false">Antwoord gepauzeerd: je praat. Het vervalt zodra je bericht verstuurd is</string>
     <string name="t_6418f0e2" formatted="false">Voer je bb Connect-gebruikersnaam in</string>
     <string name="t_64608f3a" formatted="false">Transcriberen… %1$s, opnieuw proberen over %2$d s (poging %3$d).</string>
     <string name="t_65175c76" formatted="false">%1$s bellen</string>
@@ -580,7 +579,6 @@
     <string name="t_ab247fbe" formatted="false">Je stem en tekst gaan alleen naar de providers die je zelf kiest. Er is geen Dictate &amp; Delegate-server.</string>
     <string name="t_ab7143b8" formatted="false">Machtigingen</string>
     <string name="t_ab754703" formatted="false">Luisteren…</string>
-    <string name="t_ab7559e2" formatted="false">Antwoord gestopt: je praatte erdoorheen</string>
     <string name="t_ab93f81c" formatted="false">de release heeft geen controlesom</string>
     <string name="t_abfd3b0d" formatted="false">Talker gebruiken</string>
     <string name="t_ac224344" formatted="false">Opgeslagen, versleuteld · spraak, beslissingen en Verfijnen</string>
@@ -920,4 +918,5 @@
     <string name="t_ffd9a681" formatted="false">Opnieuw doen met een slimmer model… Je kunt dit scherm verlaten.</string>
     <string name="t_5a92ba6f" formatted="false">Kon niet controleren of je door het antwoord heen sprak (%1$s): het speelt door</string>
     <string name="t_c9e34f57" formatted="false">Een geluid tijdens het antwoord bevatte geen woorden van jou: het speelt door</string>
+    <string name="t_b51c34bc" formatted="false">Antwoord gestopt: je sprak erdoorheen. Je volgende bericht vertelt de chief hoe ver je hebt geluisterd</string>
 </resources>

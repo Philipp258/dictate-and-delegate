@@ -362,7 +362,6 @@
     <string name="t_6358935d" formatted="false">Chave guardada</string>
     <string name="t_6361c341" formatted="false">a ligação caiu; é um servidor MCP (Streamable HTTP)?</string>
     <string name="t_63f3d623" formatted="false">Ainda não enviada: %1$s Volta a tentar sozinha durante alguns minutos; a nota mostra como está.</string>
-    <string name="t_6408cdf0" formatted="false">Resposta em pausa: estás a falar. É descartada quando a tua mensagem for enviada</string>
     <string name="t_6418f0e2" formatted="false">Introduz o teu handle do bb Connect</string>
     <string name="t_64608f3a" formatted="false">A transcrever… %1$s, nova tentativa daqui a %2$d s (tentativa %3$d).</string>
     <string name="t_65175c76" formatted="false">Ligar a %1$s</string>
@@ -584,7 +583,6 @@
     <string name="t_ab247fbe" formatted="false">A tua voz e texto vão apenas para os fornecedores que escolheres. Não há nenhum servidor do Dictate &amp; Delegate.</string>
     <string name="t_ab7143b8" formatted="false">Permissões</string>
     <string name="t_ab754703" formatted="false">A ouvir-te</string>
-    <string name="t_ab7559e2" formatted="false">Resposta parada: falaste por cima</string>
     <string name="t_ab93f81c" formatted="false">a versão não tem soma de verificação</string>
     <string name="t_abfd3b0d" formatted="false">Usar o interlocutor</string>
     <string name="t_ac224344" formatted="false">Guardada, encriptada · voz, decisões e Refinar</string>
@@ -927,4 +925,5 @@
     <string name="t_ffd9a681" formatted="false">A refazer com um modelo melhor… Podes sair deste ecrã.</string>
     <string name="t_5a92ba6f" formatted="false">Não foi possível verificar se falaste por cima da resposta (%1$s): continua</string>
     <string name="t_c9e34f57" formatted="false">Um som durante a resposta não tinha palavras tuas: continua</string>
+    <string name="t_b51c34bc" formatted="false">Resposta parada: falaste por cima. A tua próxima mensagem diz ao chefe até onde ouviste</string>
 </resources>
