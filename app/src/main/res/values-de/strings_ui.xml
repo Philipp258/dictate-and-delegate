@@ -919,4 +919,5 @@
     <string name="t_5a92ba6f" formatted="false">Konnte nicht prüfen, ob du über die Antwort gesprochen hast (%1$s): sie läuft weiter</string>
     <string name="t_c9e34f57" formatted="false">Ein Geräusch während der Antwort hatte keine Wörter von dir: sie läuft weiter</string>
     <string name="t_b51c34bc" formatted="false">Antwort gestoppt: du hast hineingesprochen. Deine nächste Nachricht sagt dem Chief, wie weit du gehört hast</string>
+    <string name="t_74029cc4" formatted="false">Live-Transkription hat die Verbindung verloren (%1$s): verbindet neu</string>
 </resources>

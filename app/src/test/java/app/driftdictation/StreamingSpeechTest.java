@@ -180,6 +180,14 @@ public class StreamingSpeechTest {
     final java.util.concurrent.atomic.AtomicInteger connections = new java.util.concurrent.atomic.AtomicInteger(),
         forces = new java.util.concurrent.atomic.AtomicInteger();
     private volatile OutputStream out;
+    private volatile Socket last;
+
+    /** The latest connection is cut (the network: no close frame). */
+    void abort() throws Exception {
+      Socket c = last;
+      c.setSoLinger(true, 0);
+      c.close();
+    }
 
     Provider() throws Exception {
       Thread t =
@@ -196,6 +204,7 @@ public class StreamingSpeechTest {
                     o.write(("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + WebSocket.expectedAccept(key) + "\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
                     o.flush();
                     out = o;
+                    last = c;
                     connections.incrementAndGet();
                     Thread reader = new Thread(() -> read(c, in));
                     reader.setDaemon(true);
@@ -335,6 +344,48 @@ public class StreamingSpeechTest {
       s.close();
     } finally {
       StreamingSpeech.assemblyAiUrl = was;
+    }
+  }
+
+  @Test
+  public void aLostConnectionConnectsAgainAndItsTurnsCountAgain() throws Exception {
+    // Philipp's call, 27 November 2026, 16:08:46: "software caused connection abort" after 20
+    // minutes, and live transcription was gone for the rest of the call ("over" did nothing).
+    String was = StreamingSpeech.assemblyAiUrl;
+    long retry = StreamingSpeech.RETRY_MS;
+    try (Provider p = new Provider()) {
+      StreamingSpeech.assemblyAiUrl = p.url();
+      StreamingSpeech.RETRY_MS = 50;
+      List<String> events = new CopyOnWriteArrayList<>(), drops = new CopyOnWriteArrayList<>();
+      StreamingSpeech s = StreamingSpeech.create(StreamingSpeech.AAI_PRO, "k", List.of());
+      s.events = events::add;
+      s.onDropped = drops::add;
+      s.speech();
+      until(() -> p.connections.get() == 1);
+      p.send(turn(3, true, "Book the table."));
+      until(() -> s.text().equals("Book the table."));
+      p.abort();
+      until(() -> drops.size() == 1);
+      until(() -> p.connections.get() == 2); // Connected again by itself (you're talking).
+      assertTrue(s.working());
+      until(() -> String.join("\n", events).contains("connecting again (1 of " + StreamingSpeech.RECONNECTS + ")"));
+      Thread.sleep(100);
+      p.send(turn(0, true, "Over."));
+      until(() -> s.text().equals("Book the table. Over."));
+      // Lost again and again: given up after RECONNECTS in a row, said once.
+      List<String> failed = new CopyOnWriteArrayList<>();
+      s.onFailure = failed::add;
+      for (int i = 2; i <= StreamingSpeech.RECONNECTS + 1; i++) {
+        int n = i;
+        p.abort();
+        if (i <= StreamingSpeech.RECONNECTS) until(() -> p.connections.get() == n + 1);
+      }
+      until(() -> failed.size() == 1);
+      assertFalse(s.working());
+      s.close();
+    } finally {
+      StreamingSpeech.assemblyAiUrl = was;
+      StreamingSpeech.RETRY_MS = retry;
     }
   }
 

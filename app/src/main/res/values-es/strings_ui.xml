@@ -926,4 +926,5 @@
     <string name="t_5a92ba6f" formatted="false">No se pudo comprobar si hablaste durante la respuesta (%1$s): sigue sonando</string>
     <string name="t_c9e34f57" formatted="false">Un sonido durante la respuesta no tenía palabras tuyas: sigue sonando</string>
     <string name="t_b51c34bc" formatted="false">Respuesta detenida: hablaste encima. Tu próximo mensaje le dice al jefe hasta dónde escuchaste</string>
+    <string name="t_74029cc4" formatted="false">La transcripción en vivo perdió la conexión (%1$s): reconectando</string>
 </resources>

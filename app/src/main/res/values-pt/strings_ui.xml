@@ -926,4 +926,5 @@
     <string name="t_5a92ba6f" formatted="false">Não foi possível verificar se falaste por cima da resposta (%1$s): continua</string>
     <string name="t_c9e34f57" formatted="false">Um som durante a resposta não tinha palavras tuas: continua</string>
     <string name="t_b51c34bc" formatted="false">Resposta parada: falaste por cima. A tua próxima mensagem diz ao chefe até onde ouviste</string>
+    <string name="t_74029cc4" formatted="false">A transcrição ao vivo perdeu a ligação (%1$s): a ligar de novo</string>
 </resources>

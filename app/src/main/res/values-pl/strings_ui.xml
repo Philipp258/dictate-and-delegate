@@ -933,4 +933,5 @@
     <string name="t_5a92ba6f" formatted="false">Nie udało się sprawdzić, czy mówiłeś w trakcie odpowiedzi (%1$s): odtwarzanie trwa dalej</string>
     <string name="t_c9e34f57" formatted="false">Dźwięk w trakcie odpowiedzi nie zawierał twoich słów: odtwarzanie trwa dalej</string>
     <string name="t_b51c34bc" formatted="false">Odpowiedź zatrzymana: mówiłeś w trakcie. Twoja następna wiadomość powie szefowi, ile usłyszałeś</string>
+    <string name="t_74029cc4" formatted="false">Transkrypcja na żywo straciła połączenie (%1$s): łączenie ponownie</string>
 </resources>

@@ -493,6 +493,8 @@ final class HandsFreeSession {
 
   /** Writing down a turn is given up after this long and tried once more. */
   static volatile long writeTimeoutMs = 6000;
+  /** The time writing down may take grows with the audio: this much per second of it. */
+  static final long WRITE_MS_PER_SECOND = 150;
 
   /** What a running check is doing: "writing" (the speech model) or "asking" (Jev); "" none. */
   private volatile String checkStep = "";
@@ -2227,6 +2229,9 @@ final class HandsFreeSession {
    */
   private String writeDown(byte[] pcm, String why) throws Exception {
     byte[] wav = AudioFiles.wav(pcm);
+    // Longer audio takes longer: 6 s plus 0.15 s per second of it (a 100 s turn gets 21 s; in
+    // Philipp's call of 27 November 2026 an 80 to 115 s turn was given up after 6 s, every time).
+    long limit = writeTimeoutMs + pcm.length * WRITE_MS_PER_SECOND / AudioFiles.BYTES_PER_SECOND;
     Exception last = null;
     for (int attempt = 1; attempt <= 2; attempt++) {
       java.util.concurrent.Future<String> f;
@@ -2236,12 +2241,12 @@ final class HandsFreeSession {
         return transcriber.transcribe(wav).trim(); // The call ended: your last words, here.
       }
       try {
-        return f.get(writeTimeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS).trim();
+        return f.get(limit, java.util.concurrent.TimeUnit.MILLISECONDS).trim();
       } catch (java.util.concurrent.TimeoutException slow) {
         f.cancel(true);
-        log(String.format(java.util.Locale.ROOT, "writing down (%s) took over %.0f s: %s", why, writeTimeoutMs / 1000.0, attempt == 1 ? "trying once more" : "given up"));
-        if (attempt == 1) reason("Writing down took over %1$.0f s: trying once more", writeTimeoutMs / 1000.0);
-        last = new java.io.IOException(tr("the speech model took over %1$.0f s", writeTimeoutMs / 1000.0));
+        log(String.format(java.util.Locale.ROOT, "writing down (%s, %.1f s of audio) took over %.0f s: %s", why, pcm.length / (double) AudioFiles.BYTES_PER_SECOND, limit / 1000.0, attempt == 1 ? "trying once more" : "given up"));
+        if (attempt == 1) reason("Writing down took over %1$.0f s: trying once more", limit / 1000.0);
+        last = new java.io.IOException(tr("the speech model took over %1$.0f s", limit / 1000.0));
       } catch (java.util.concurrent.ExecutionException ex) {
         throw ex.getCause() instanceof Exception e ? e : ex;
       }
@@ -2857,6 +2862,22 @@ final class HandsFreeSession {
   private volatile boolean liveFailedSaid;
 
   /** Live transcription stopped working: said once, and from now on your words are written down. */
+  /**
+   * Live transcription lost its connection and connects again (StreamingSpeech.retry): said on
+   * screen; the turn going on may miss words it had in flight, so it's written down from its audio.
+   */
+  void liveDropped(String why) {
+    boolean turn = hasTurn() || segmenter.candidate() || !pending.isEmpty();
+    if (turn) batchTurn = true;
+    log("live transcription lost its connection (" + why + "): connecting again" + (turn ? "; this turn is written down from its audio" : ""));
+    Runnable say =
+        () -> {
+          cue(Cue.FAILED);
+          reason("Live transcription lost its connection (%1$s): connecting again", why);
+        };
+    execute(say, say);
+  }
+
   void liveFailed(String why) {
     if (liveFailedSaid) return;
     liveFailedSaid = true;

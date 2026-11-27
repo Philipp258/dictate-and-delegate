@@ -919,4 +919,5 @@
     <string name="t_5a92ba6f" formatted="false">Kon niet controleren of je door het antwoord heen sprak (%1$s): het speelt door</string>
     <string name="t_c9e34f57" formatted="false">Een geluid tijdens het antwoord bevatte geen woorden van jou: het speelt door</string>
     <string name="t_b51c34bc" formatted="false">Antwoord gestopt: je sprak erdoorheen. Je volgende bericht vertelt de chief hoe ver je hebt geluisterd</string>
+    <string name="t_74029cc4" formatted="false">Live-transcriptie verloor de verbinding (%1$s): opnieuw verbinden</string>
 </resources>

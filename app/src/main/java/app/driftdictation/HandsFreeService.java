@@ -645,6 +645,11 @@ public final class HandsFreeService extends Service {
           HandsFreeSession h = session;
           if (h != null) h.liveFailed(why);
         };
+    s.onDropped =
+        why -> {
+          HandsFreeSession h = session;
+          if (h != null) h.liveDropped(why);
+        };
     session.live = s;
     s.speech(); // Open now.
     return c.model() + " (" + c.provider() + ")";
@@ -752,6 +757,19 @@ public final class HandsFreeService extends Service {
               if (starting && !talker.isEmpty()) ChiefSkills.safelyTellTalker(this, callAssistant);
               java.util.Map<String, String> to = bothTo(chief, talker, chiefLine, talkerLine);
               java.util.Map<String, String> failed = bb.tellEach(to);
+              // A network blip ("unknown address" right after Philipp's call of 27 November 2026
+              // ended): those not reached are tried again, twice, 3 and 6 s later.
+              for (int attempt = 1; attempt <= 2 && !failed.isEmpty(); attempt++) {
+                event("couldn't tell " + failed.size() + " of them (" + failed.values().iterator().next() + "): trying again in " + 3 * attempt + " s");
+                try {
+                  Thread.sleep(3000L * attempt);
+                } catch (InterruptedException ex) {
+                  break;
+                }
+                java.util.Map<String, String> again = new java.util.LinkedHashMap<>();
+                for (String id : failed.keySet()) again.put(id, to.get(id));
+                failed = bb.tellEach(again);
+              }
               for (String id : to.keySet()) {
                 String who = id.equals(chief) ? "the chief" : "the talker (" + id + ")";
                 if (failed.containsKey(id)) event("couldn't tell " + who + " " + to.get(id) + ": " + failed.get(id));

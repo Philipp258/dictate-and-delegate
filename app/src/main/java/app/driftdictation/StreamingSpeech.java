@@ -97,6 +97,22 @@ abstract class StreamingSpeech implements HandsFreeSession.LiveText {
   volatile java.util.function.Consumer<String> events = e -> {};
   /** Hears once why it failed (the session says it on screen). */
   volatile java.util.function.Consumer<String> onFailure = why -> {};
+  /**
+   * Hears when the connection was lost and it connects again (why): what was in flight of the
+   * stretch going on may be missing, so the session writes that turn down from its audio.
+   */
+  volatile java.util.function.Consumer<String> onDropped = why -> {};
+
+  /**
+   * A lost connection (a network blip: "software caused connection abort" after 20 minutes in
+   * Philipp's call, 27 November 2026, and live transcription was gone for the rest of the call) is
+   * connected again, at most this many times in a row; a connection that stayed open RECOVERED_MS
+   * resets the count. Waits RETRY_MS times the count before each try.
+   */
+  static final int RECONNECTS = 5;
+  static volatile long RETRY_MS = 1000, RECOVERED_MS = 60_000;
+  private volatile int drops;
+  private volatile long nextTry;
   /** The time; tests set their own. */
   java.util.function.LongSupplier clock = System::currentTimeMillis;
 
@@ -238,7 +254,7 @@ abstract class StreamingSpeech implements HandsFreeSession.LiveText {
     if (ws == null || !ws.open()) {
       ring.addLast(c);
       while (ring.size() > RING_MS / CHUNK_MS) ring.removeFirst();
-      if (!connecting && now - lastSpeech < IDLE_MS) connect();
+      if (!connecting && now - lastSpeech < IDLE_MS && now >= nextTry) connect();
       return;
     }
     if (now - lastSpeech >= IDLE_MS && text().isEmpty()) {
@@ -259,7 +275,7 @@ abstract class StreamingSpeech implements HandsFreeSession.LiveText {
   @Override
   public void speech() {
     lastSpeech = clock.getAsLong();
-    if (failed || connecting) return;
+    if (failed || connecting || clock.getAsLong() < nextTry) return;
     WebSocket ws = socket;
     if (ws == null || !ws.open())
       try {
@@ -304,8 +320,11 @@ abstract class StreamingSpeech implements HandsFreeSession.LiveText {
                     events.accept("streaming transcription: the provider ended the session" + (why.isEmpty() ? "" : " (" + why + ")") + "; it opens again when you speak");
                     return;
                   }
+                  String reason = why.isEmpty() ? "connection lost" : why;
+                  // Lost (no close from the provider): the network, most likely. Connected again.
+                  if ((code == 1006 || code == 1005) && retry(reason)) return;
                   // Closed by the provider while in use: why (a bad key, no credit, its limit).
-                  fail((why.isEmpty() ? "connection lost" : why) + (code == 1006 || code == 1005 ? "" : " (" + code + ")"));
+                  fail(reason + (code == 1006 || code == 1005 ? "" : " (" + code + ")"));
                 }
               },
               10_000);
@@ -318,15 +337,54 @@ abstract class StreamingSpeech implements HandsFreeSession.LiveText {
         ws.close();
         return;
       }
+      long was = lastOpenAt;
+      lastOpenAt = clock.getAsLong();
+      if (drops > 0 && was > 0) events.accept("streaming transcription: connected again after " + drops + " lost connection(s)");
       openedMs = clock.getAsLong() - start;
       openSince = clock.getAsLong();
       events.accept(String.format(Locale.ROOT, "streaming transcription (%s) open in %d ms", choice.model(), openedMs));
       while (!ring.isEmpty()) sendAudio(ws, ring.removeFirst());
     } catch (Exception ex) {
-      fail("couldn't connect: " + ex.getMessage());
+      // After a lost connection the network may still be away a moment: tried again.
+      if (drops == 0 || !retry("couldn't connect: " + ex.getMessage())) fail("couldn't connect: " + ex.getMessage());
     } finally {
       connecting = false;
     }
+  }
+
+  private volatile long lastOpenAt;
+
+  /**
+   * The connection was lost (or connecting again failed): connected again when you speak, after
+   * a short wait, unless it happened RECONNECTS times in a row. False: given up (fail).
+   */
+  private boolean retry(String why) {
+    long now = clock.getAsLong();
+    if (lastOpenAt > 0 && now - lastOpenAt >= RECOVERED_MS) drops = 0; // It had worked a while.
+    if (closedForGood() || drops >= RECONNECTS) return false;
+    drops++;
+    socket = null;
+    nextTry = now + RETRY_MS * drops;
+    events.accept("streaming transcription: " + why + "; connecting again (" + drops + " of " + RECONNECTS + ")");
+    onDropped.accept(why);
+    // Open again at once when you're talking (else at your next words).
+    if (now - lastSpeech < IDLE_MS)
+      new Thread(
+              () -> {
+                try {
+                  Thread.sleep(RETRY_MS * drops);
+                } catch (InterruptedException ex) {
+                  return;
+                }
+                try {
+                  sender.execute(this::connect);
+                } catch (java.util.concurrent.RejectedExecutionException closed) {
+                  /* Closed. */
+                }
+              },
+              "live-reconnect")
+          .start();
+    return true;
   }
 
   /** Connections opened so far: each is a session of its own at the provider. */

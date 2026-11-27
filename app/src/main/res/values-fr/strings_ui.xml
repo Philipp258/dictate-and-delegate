@@ -926,4 +926,5 @@
     <string name="t_5a92ba6f" formatted="false">Impossible de vérifier si tu as parlé pendant la réponse (%1$s) : elle continue</string>
     <string name="t_c9e34f57" formatted="false">Un bruit pendant la réponse ne contenait aucun mot de toi : elle continue</string>
     <string name="t_b51c34bc" formatted="false">Réponse arrêtée : tu as parlé par-dessus. Ton prochain message indique au chef jusqu\'où tu as écouté</string>
+    <string name="t_74029cc4" formatted="false">La transcription en direct a perdu la connexion (%1$s) : reconnexion</string>
 </resources>

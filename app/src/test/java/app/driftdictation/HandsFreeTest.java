@@ -1301,7 +1301,7 @@ public class HandsFreeTest {
       f.talk();
       until(() -> f.session.checkStep().equals("writing"));
       assertEquals(HandsFreeSession.Live.WRITING, f.session.live());
-      until(() -> reasons(f).contains("Writing down took over 0 s: trying once more"));
+      until(() -> reasons(f).contains("Writing down took over ") && reasons(f).contains(": trying once more"));
       until(() -> reasons(f).contains("Couldn't write down"));
       f.slow.countDown();
       // Kept: Send writes it down and sends it.

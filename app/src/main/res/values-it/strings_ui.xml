@@ -926,4 +926,5 @@
     <string name="t_5a92ba6f" formatted="false">Impossibile verificare se hai parlato sopra la risposta (%1$s): continua</string>
     <string name="t_c9e34f57" formatted="false">Un suono durante la risposta non conteneva tue parole: continua</string>
     <string name="t_b51c34bc" formatted="false">Risposta fermata: ci hai parlato sopra. Il tuo prossimo messaggio dice al capo fin dove hai ascoltato</string>
+    <string name="t_74029cc4" formatted="false">La trascrizione dal vivo ha perso la connessione (%1$s): riconnessione</string>
 </resources>

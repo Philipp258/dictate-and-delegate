@@ -406,6 +406,7 @@
     <string name="t_72f939f7" formatted="false">Reply waits: your message is being sent</string>
     <string name="t_7382e59f" formatted="false">Signing out…</string>
     <string name="t_73c2d986" formatted="false">Saved, encrypted · Refine uses your Anthropic credits</string>
+    <string name="t_74029cc4" formatted="false">Live transcription lost its connection (%1$s): connecting again</string>
     <string name="t_74350de7" formatted="false">About</string>
     <string name="t_749dd663" formatted="false">%1$s · Anthropic, your key</string>
     <string name="t_7578d138" formatted="false">Copy all kept calls</string>
