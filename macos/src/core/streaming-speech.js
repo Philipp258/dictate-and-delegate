@@ -341,8 +341,15 @@ class StreamingSpeech {
     if (!ws || !ws.open()) {
       this.ring.push(c);
       while (this.ring.length > RING_MS / CHUNK_MS) this.ring.shift();
-      if (!this.connecting && now - this.lastSpeech < IDLE_MS && now >= this.nextTry) await this.connect();
+      // Only once it's known closed (socket null): a connection just lost is ended() first,
+      // which decides (connect again, or give up), so a drop is never silent.
+      if (!ws && !this.connecting && now - this.lastSpeech < IDLE_MS && now >= this.nextTry) await this.connect();
       return;
+    }
+    // Open a while again after lost connections: the count starts afresh.
+    if (this.drops > 0 && now - this.lastOpenAt >= StreamingSpeech.RECOVERED_MS) {
+      this.drops = 0;
+      this.events('streaming transcription: connected for ' + StreamingSpeech.RECOVERED_MS / 1000 + ' s again, lost connections counted afresh');
     }
     if (now - this.lastSpeech >= IDLE_MS && this.text() === '') {
       this.events(`streaming transcription closed: no speech for ${IDLE_MS / 1000} s (it's billed while open)`);
@@ -362,8 +369,7 @@ class StreamingSpeech {
   speech() {
     this.lastSpeech = this.clock();
     if (this.failed || this.connecting || this.closed || this.clock() < this.nextTry) return;
-    const ws = this.socket;
-    if (!ws || !ws.open()) this.sender.run(() => this.connect()).catch(() => {});
+    if (!this.socket) this.sender.run(() => this.connect()).catch(() => {});
   }
 
   /** In order: opens the connection, then sends what the ring kept. */
@@ -428,20 +434,24 @@ class StreamingSpeech {
   /**
    * The connection was lost (or connecting again failed): connected again when you speak, after
    * a short wait, unless it happened RECONNECTS times in a row (a connection open RECOVERED_MS
-   * resets the count). False: given up (fail). A lost connection (a network blip: "software
+   * resets the count, checked as audio goes out). False: given up (fail). A lost connection (a network blip: "software
    * caused connection abort" after 20 minutes in Philipp's call, 27 November 2026) used to end
    * live transcription for the rest of the call.
    */
+  /** Lost its connection and not connected again yet: what you say now may not reach it. */
+  reconnecting() {
+    return this.drops > 0 && this.socket == null && !this.failed;
+  }
+
   retry(why) {
     const now = this.clock();
-    if (this.lastOpenAt > 0 && now - this.lastOpenAt >= StreamingSpeech.RECOVERED_MS) this.drops = 0; // It had worked a while.
     if (this.closed || this.drops >= StreamingSpeech.RECONNECTS) return false;
     this.drops++;
     this.socket = null;
     const wait = StreamingSpeech.RETRY_MS * this.drops;
     this.nextTry = now + wait;
     this.events('streaming transcription: ' + why + '; connecting again (' + this.drops + ' of ' + StreamingSpeech.RECONNECTS + ')');
-    this.onDropped(why);
+    if (this.drops === 1) this.onDropped(why); // Said once a series; the tries after are in the log.
     // Open again at once when you're talking (else at your next words).
     if (now - this.lastSpeech < IDLE_MS) {
       if (this.retryTimer) clearTimeout(this.retryTimer);

@@ -314,6 +314,7 @@ test('aLostConnectionConnectsAgainAndItsTurnsCountAgain', async () => {
       await until(() => drops.length === 1);
       await until(() => p.connections === 2); // Connected again by itself (you're talking).
       assert.ok(s.working());
+      await until(() => !s.reconnecting());
       assert.ok(events.join('\n').includes('connecting again (1 of ' + StreamingSpeech.RECONNECTS + ')'), events.join('\n'));
       await sleep(100);
       p.send(turn(0, true, 'Over.'));
@@ -326,6 +327,8 @@ test('aLostConnectionConnectsAgainAndItsTurnsCountAgain', async () => {
       }
       await until(() => failed.length === 1);
       assert.ok(!s.working());
+      assert.equal(drops.length, 1, 'said once a series; the tries after are in the log');
+      assert.ok(!s.reconnecting());
       s.close();
     });
   } finally {

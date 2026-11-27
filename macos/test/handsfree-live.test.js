@@ -68,6 +68,28 @@ test('aSendWordAtTheEndOfTheLiveTextSendsAtOnceWithoutAPauseOnceJevAgrees', asyn
   assert.equal(f.session.floor(), Floor.OPEN);
 });
 
+test('aTurnStartedWhileLiveTranscriptionConnectsAgainIsWrittenDownFromItsAudio', async () => {
+  const f = new Fake('Book the table. Over.');
+  const live = new FakeLive(f);
+  live.reconnecting = () => true; // Its connection was lost a moment ago.
+  f.quiet(1000);
+  await f.talk();
+  await until(() => f.sent.length === 1);
+  assert.equal(f.sent[0], 'Book the table.');
+  assert.equal(f.transcriptions, 1, 'written down from its audio');
+  assert.ok(f.logText().includes('this turn is written down from its audio: live transcription is connecting again'), f.logText());
+});
+
+test('aLostConnectionIsSaidOnScreenAndTheTurnGoingOnIsWrittenDownFromItsAudio', async () => {
+  const f = new Fake();
+  new FakeLive(f);
+  f.quiet(1000);
+  f.speak();
+  f.session.liveDropped('software caused connection abort');
+  await until(() => reasons(f).includes('Live transcription lost its connection (software caused connection abort): connecting again'));
+  assert.ok(f.logText().includes('this turn is written down from its audio: live transcription its connection was lost'), f.logText());
+});
+
 test('withoutJevTheSendWordSendsAndEndTheCallEndsIt', async () => {
   const f = new Fake();
   const live = new FakeLive(f);

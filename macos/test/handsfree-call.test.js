@@ -154,6 +154,50 @@ test('aCallTellsTheChiefItStartedSendsATurnKeepsItsNoteReadsTheReplyAndTellsTheE
   }
 });
 
+test('theCallsEndToldDuringANetworkBlipIsTriedAgainWithinItsTime', async () => {
+  // Philipp's call, 27 November 2026: "couldn't tell the chief [hands-free call ended]: … unknown address".
+  const retry = HandsFreeCall.SIGNAL_RETRY_MS;
+  HandsFreeCall.SIGNAL_RETRY_MS = 20;
+  try {
+    const w = fakes();
+    const events = [];
+    w.opts.log = (line) => events.push(line);
+    let fails = 0;
+    const tell = w.bb.tellEach;
+    w.bb.tellEach = async (map) => {
+      if ([...map.values()].includes(HandsFree.CALL_ENDED) && fails++ < 1) return { thr_chief: 'unknown address' };
+      return tell(map);
+    };
+    const call = new HandsFreeCall(w.opts);
+    call.start();
+    await until(() => w.told.length === 1);
+    await call.finish();
+    assert.deepEqual(w.told[1], [['thr_chief', HandsFree.CALL_ENDED]]);
+    const log = events.join('\n');
+    assert.ok(log.includes("couldn't tell 1 of them (unknown address): trying again in 0.02 s"), log);
+    assert.ok(log.includes('told the chief: [hands-free call ended]'), log);
+    // No time left in the call end's budget: not tried again, and said.
+    const w2 = fakes();
+    const events2 = [];
+    w2.opts.log = (line) => events2.push(line);
+    w2.bb.tellEach = async () => ({ thr_chief: 'unknown address' });
+    const tellMax = HandsFreeCall.TELL_MAX_MS;
+    HandsFreeCall.TELL_MAX_MS = 1e9;
+    try {
+      const call2 = new HandsFreeCall(w2.opts);
+      call2.start();
+      await call2.finish();
+    } finally {
+      HandsFreeCall.TELL_MAX_MS = tellMax;
+    }
+    const log2 = events2.join('\n');
+    assert.ok(log2.includes("couldn't tell 1 of them: no time left to try again"), log2);
+    assert.ok(log2.includes("couldn't tell the chief [hands-free call ended]: unknown address"), log2);
+  } finally {
+    HandsFreeCall.SIGNAL_RETRY_MS = retry;
+  }
+});
+
 test('withATalkerBothHearTheStartTheMessagesAndTheEnd', async () => {
   const w = fakes({ talker: 'thr_talker', texts: ['Order the parts. Over.'] });
   let skillTold = 0;

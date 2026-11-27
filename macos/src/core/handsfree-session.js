@@ -494,6 +494,8 @@ class HandsFreeSession {
             );
             return;
           }
+          if (session.live != null && typeof session.live.reconnecting === 'function' && session.live.reconnecting())
+            session.writeTurnDown('is connecting again');
           const taking = !session.takenByYou;
           session.takenByYou = true;
           session.heldBack = false; // You talk again: your words hold the turn again.
@@ -1500,6 +1502,7 @@ class HandsFreeSession {
    * reply playing pauses by itself (barge-in).
    */
   startTurn(why) {
+    if (this.live != null && typeof this.live.reconnecting === 'function' && this.live.reconnecting()) this.writeTurnDown('is connecting again');
     if (this.newTurn || this._state === State.ENDED) return;
     this.newTurn = true;
     const waiting = this._held.length;
@@ -2639,16 +2642,23 @@ class HandsFreeSession {
     if (l != null && l.working()) l.discard();
   }
 
+  /** This turn is written down from its audio (live transcription may miss words of it). */
+  writeTurnDown(why) {
+    if (this.batchTurn) return;
+    this.batchTurn = true;
+    this.log('this turn is written down from its audio: live transcription ' + why);
+  }
+
   /** Live transcription stopped working: said once, and from now on your words are written down. */
   /**
    * Live transcription lost its connection and connects again (StreamingSpeech.retry): said on
    * screen; the turn going on may miss words it had in flight, so it's written down from its audio.
    */
   liveDropped(why) {
-    const turn = this.hasTurn() || this.segmenter.candidate() || this._pending !== '';
-    if (turn) this.batchTurn = true;
-    this.log('live transcription lost its connection (' + why + '): connecting again' + (turn ? '; this turn is written down from its audio' : ''));
+    this.log('live transcription lost its connection (' + why + '): connecting again');
+    // On the work queue, between checks: the turn going on is written down from its audio.
     const say = () => {
+      if (this.hasTurn() || this.segmenter.candidate() || this._pending !== '') this.writeTurnDown('its connection was lost');
       this.cue(Cue.FAILED);
       this.reason('Live transcription lost its connection (%1$s): connecting again', why);
     };

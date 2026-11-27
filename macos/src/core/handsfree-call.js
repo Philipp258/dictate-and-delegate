@@ -604,7 +604,9 @@ class HandsFreeCall {
     const talker = this.talker;
     if (!chief) return null;
     const call = this;
+    const forCall = this.callId;
     return (async () => {
+      const began = Date.now();
       let said = line;
       let chiefSaid = null;
       if (after != null) {
@@ -638,8 +640,19 @@ class HandsFreeCall {
       }
       // A network blip ("unknown address" right after Philipp's call of 27 November 2026 ended):
       // those not reached are tried again, twice, SIGNAL_RETRY_MS and twice that later.
+      // Within the call end's time (END_BUDGET_MS, with the longest a tell takes), and not once
+      // the next call has started (its start went already).
+      const deadline = began + END_BUDGET_MS;
       for (let attempt = 1; attempt <= 2 && Object.keys(failed).length > 0; attempt++) {
         const wait = HandsFreeCall.SIGNAL_RETRY_MS * attempt;
+        if (Date.now() + wait + HandsFreeCall.TELL_MAX_MS > deadline) {
+          call.event('couldn\'t tell ' + Object.keys(failed).length + ' of them: no time left to try again');
+          break;
+        }
+        if ((after != null && call.session != null && call.session !== after) || forCall !== call.callId) {
+          call.event('not tried again: the next call has started');
+          break;
+        }
         call.event('couldn\'t tell ' + Object.keys(failed).length + ' of them (' + Object.values(failed)[0] + '): trying again in ' + wait / 1000 + ' s');
         await new Promise((r) => setTimeout(r, wait));
         const again = new Map();
@@ -803,6 +816,8 @@ class HandsFreeCall {
 
 /** How long a failed signal waits before it's tried again (then twice that). */
 HandsFreeCall.SIGNAL_RETRY_MS = 3000;
+/** About the longest one tell to bb takes when it fails slowly (its connect and read timeouts). */
+HandsFreeCall.TELL_MAX_MS = 15_000;
 
 module.exports = {
   HandsFreeCall,
